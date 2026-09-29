@@ -1,5 +1,7 @@
 using Mecano.Components;
 using Mecano.Data;
+using Mecano.Logica.Interfaces;
+using Mecano.Logica.Servicios;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +13,6 @@ builder.Services.AddRazorComponents()
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 Console.WriteLine($"CS => [{connectionString}]");
 Console.WriteLine($"Archivos cargados: {string.Join(", ", builder.Configuration.Sources.Select(s => s.ToString()))}");
-//var connectionString = "server=localhost;user=root;password=;database=mecano";
 
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 41));
 
@@ -23,13 +24,30 @@ builder.Services.AddDbContextFactory<MySQLDBContext>(
     .EnableDetailedErrors()
     );
 
+// Register application services
+builder.Services.AddScoped<IClienteService, ClienteService>();
+builder.Services.AddScoped<IVehiculoService, VehiculoService>();
+builder.Services.AddScoped<IServicioService, ServicioService>();
+builder.Services.AddScoped<IMecanicoService, MecanicoService>();
+builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ICategoriaService, CategoriaService>();
+
 var app = builder.Build();
+
+// Seed data
+using (var scope = app.Services.CreateScope())
+{
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MySQLDBContext>>();
+    var seeder = new DbSeeder(factory);
+    await seeder.SeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);

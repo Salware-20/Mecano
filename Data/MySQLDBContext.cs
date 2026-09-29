@@ -1,19 +1,20 @@
-﻿using Mecano.Entidad.Clases;
+using Mecano.Entidad.Clases;
 using Microsoft.EntityFrameworkCore;
 
 namespace Mecano.Data
 {
     public class MySQLDBContext : DbContext
     {
-        public MySQLDBContext(DbContextOptions<MySQLDBContext>options): base(options) { }
-        public DbSet<Administrador> administradors { get; set; }
-        public DbSet<Categoria> categorias { get; set; }
-        public DbSet<Cita> cita { get; set; }
-        public DbSet<Cliente> cliente { get; set; }
-        public DbSet<Mecanico> mecanico { get; set; }
-        public DbSet<NotificacionLog> notificacionLog { get; set; }
-        public DbSet<Servicio> servicio { get; set; }
-        public DbSet<Vehiculo> vehiculo { get; set; }
+        public MySQLDBContext(DbContextOptions<MySQLDBContext> options) : base(options) { }
+
+        public DbSet<Administrador> Administradors { get; set; }
+        public DbSet<Categoria> Categorias { get; set; }
+        public DbSet<Cita> Cita { get; set; }
+        public DbSet<Cliente> Cliente { get; set; }
+        public DbSet<Mecanico> Mecanico { get; set; }
+        public DbSet<NotificacionLog> NotificacionLog { get; set; }
+        public DbSet<Servicio> Servicio { get; set; }
+        public DbSet<Vehiculo> Vehiculo { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -33,33 +34,57 @@ namespace Mecano.Data
                 .HasForeignKey(v => v.ClienteId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Mecanico - Cita: One mechanic has many appointments
+            // Vehiculo - Citas
+            modelBuilder.Entity<Vehiculo>()
+                .HasMany(v => v.Citas)
+                .WithOne(c => c.Vehiculo)
+                .HasForeignKey(c => c.VehiculoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mecanico - Cita
             modelBuilder.Entity<Mecanico>()
                 .HasMany(m => m.Citas)
                 .WithOne(ci => ci.Mecanico)
                 .HasForeignKey(ci => ci.MecanicoId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // Servicio - Cita: One service has many appointments
+            // Mecanico - Especialidad (Categoria)
+            modelBuilder.Entity<Mecanico>()
+                .HasOne(m => m.Especialidad)
+                .WithMany(c => c.Mecanicos)
+                .HasForeignKey(m => m.EspecialidadId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Servicio - Cita
             modelBuilder.Entity<Servicio>()
                 .HasMany(s => s.Citas)
                 .WithOne(ci => ci.Servicio)
                 .HasForeignKey(ci => ci.ServicioId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // Categoria - Servicio: One category has many services
+            // Categoria - Servicio
             modelBuilder.Entity<Categoria>()
                 .HasMany(c => c.servicios)
                 .WithOne(s => s.Categoria)
                 .HasForeignKey(s => s.CategoriaId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // Cita - NotificacionLog: One appointment has many notification logs
+            // Cita - NotificacionLog
             modelBuilder.Entity<Cita>()
                 .HasMany(c => c.Notificaciones)
                 .WithOne(nl => nl.Cita)
                 .HasForeignKey(nl => nl.CitaId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique index on Cliente.CedulaIdentidad
+            modelBuilder.Entity<Cliente>()
+                .HasIndex(c => c.CedulaIdentidad)
+                .IsUnique();
+
+            // Unique index on Vehiculo.Placa
+            modelBuilder.Entity<Vehiculo>()
+                .HasIndex(v => v.Placa)
+                .IsUnique();
         }
     }
 }

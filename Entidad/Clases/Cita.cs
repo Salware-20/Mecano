@@ -1,40 +1,48 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Mecano.Entidad.Clases
 {
-    public enum Estado { Pendiente, EnProceso, Finalizada, Cancelada }
+    public enum EstadoCita
+    {
+        Pendiente,
+        Confirmada,
+        EnProceso,
+        Finalizada,
+        Cancelada
+    }
 
-    /// <summary>
-    /// Represents an appointment. Only Administrators can create, reschedule, or cancel appointments.
-    /// </summary>
     public class Cita
     {
         public int CitaId { get; set; }
-
-        public DateTime FechaCita { get; set; }
-
-        /// <summary>Stored as TimeSpan in MariaDB 10.4 via TimeOnlyConverter in MyDbContext.</summary>
-        public TimeOnly HoraCita { get; set; }
-
+        
+        public int ClienteId { get; set; }
+        public Cliente Cliente { get; set; } = null!;
+        
+        public int VehiculoId { get; set; }
+        public Vehiculo Vehiculo { get; set; } = null!;
+        
+        public int ServicioId { get; set; }
+        public Servicio Servicio { get; set; } = null!;
+        
+        public int MecanicoId { get; set; }
+        public Mecanico Mecanico { get; set; } = null!;
+        
+        public DateTime Fecha { get; set; }
+        public TimeOnly HoraInicio { get; set; }
+        public TimeOnly HoraFin { get; set; }
+        
+        public EstadoCita Estado { get; set; } = EstadoCita.Pendiente;
+        public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+        
         [MaxLength(1000)]
         public string? NotasAdmin { get; set; }
-
-        public Estado Estado { get; set; } = Estado.Pendiente;
-
-        // Foreign keys and navigation properties
-        public int? ClienteId { get; set; }
-        public Cliente? Cliente { get; set; }
-
-        public int? VehiculoId { get; set; }
-        public Vehiculo? Vehiculo { get; set; }
-
-        public int? MecanicoId { get; set; }
-        public Mecanico? Mecanico { get; set; }
-
-        public int? ServicioId { get; set; }
-        public Servicio? Servicio { get; set; }
-
-        // Notification logs for this appointment
+        
         public ICollection<NotificacionLog> Notificaciones { get; } = new List<NotificacionLog>();
+        
+        public bool OverlapsWith(TimeOnly otherStart, TimeOnly otherEnd) => HoraInicio < otherEnd && otherStart < HoraFin;
+        
+        public bool EstaActiva() => Estado != EstadoCita.Cancelada && Estado != EstadoCita.Finalizada;
     }
 }

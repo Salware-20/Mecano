@@ -1,0 +1,462 @@
+@page "/agendar"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IClienteService ClienteService
+@inject IVehiculoService VehiculoService
+@inject IServicioService ServicioService
+@inject IMecanicoService MecanicoService
+@inject ICitaService CitaService
+@inject ICalendarQueryService CalendarQueryService
+@inject INotificationService NotificationService
+@inject IJSRuntime JS
+
+<PageTitle>Agendar Cita</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2><i class="bi bi-calendar-plus"></i> Agendar Cita</h2>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <!-- Search Section -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            @if (selectedCliente == null)
+            {
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Buscar Cliente</h5>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Cédula, nombre o correo..." 
+                                   @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
+                        </div>
+
+                        @if (isSearching)
+                        {
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Buscando...</span>
+                                </div>
+                            </div>
+                        }
+                        else if (clientesEncontrados != null && clientesEncontrados.Any())
+                        {
+                            <ul class="list-group">
+                                @foreach (var c in clientesEncontrados)
+                                {
+                                    <li class="list-group-item list-group-item-action cursor-pointer" @onclick="() => SelectCliente(c)">
+                                        <strong>@c.NombreCompleto</strong> - @c.CedulaIdentidad<br />
+                                        <small class="text-muted">@c.Telefono | @c.Correo</small>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card border-success shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="card-title text-success"><i class="bi bi-person-check"></i> Cliente Seleccionado</h5>
+                                <strong>@selectedCliente.NombreCompleto</strong> (@selectedCliente.CedulaIdentidad)<br/>
+                                <small>@selectedCliente.Telefono | @selectedCliente.Correo</small>
+                            </div>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="DeselectCliente">Cambiar</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Calendar Section -->
+    <div class="row">
+        <div class="col-12 position-relative">
+            @if (selectedCliente == null)
+            {
+                <div class="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" 
+                     style="background: rgba(255,255,255,0.8); z-index: 10;">
+                    <h4 class="text-muted">Seleccione un cliente primero</h4>
+                </div>
+            }
+            <div id="mecano-calendar" style="min-height: 600px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Agendar Cita -->
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Agendar Nueva Cita</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <strong>Fecha:</strong> @selectedFecha.ToString("dd/MM/yyyy") <br/>
+                        <strong>Hora:</strong> @selectedHoraInicio.ToString("HH:mm")
+                    </div>
+                    
+                    <div class="card mb-3 bg-light">
+                        <div class="card-body py-2">
+                            <strong>Cliente:</strong> @selectedCliente?.NombreCompleto
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Vehículo</label>
+                        <div class="input-group">
+                            <select class="form-select" @bind="citaDto.VehiculoId" disabled="@showNewVehicleForm">
+                                <option value="">Seleccione un vehículo...</option>
+                                @if(vehiculosCliente != null)
+                                {
+                                    @foreach(var v in vehiculosCliente)
+                                    {
+                                        <option value="@v.VehiculoId">@v.Placa - @v.Marca @v.Modelo</option>
+                                    }
+                                }
+                            </select>
+                            <button class="btn @(showNewVehicleForm ? "btn-secondary" : "btn-outline-primary")" 
+                                    @onclick="ToggleNewVehicle">
+                                @(showNewVehicleForm ? "Cancelar Nuevo" : "Agregar Vehículo")
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (showNewVehicleForm)
+                    {
+                        <div class="card mb-3 border-primary">
+                            <div class="card-body">
+                                <h6>Nuevo Vehículo</h6>
+                                <div class="row">
+                                    <div class="col-md-3 mb-2">
+                                        <input type="text" class="form-control" placeholder="Placa" @bind="nuevoVehiculo.Placa" />
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <input type="text" class="form-control" placeholder="Marca" @bind="nuevoVehiculo.Marca" />
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <input type="text" class="form-control" placeholder="Modelo" @bind="nuevoVehiculo.Modelo" />
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <input type="number" class="form-control" placeholder="Año" @bind="nuevoVehiculo.Anio" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Servicio</label>
+                        <select class="form-select" @onchange="OnServiceChanged">
+                            <option value="">Seleccione un servicio...</option>
+                            @if(serviciosActivos != null)
+                            {
+                                @foreach(var s in serviciosActivos)
+                                {
+                                    <option value="@s.ServicioId">@s.Nombre ($@s.Precio)</option>
+                                }
+                            }
+                        </select>
+                        @if (selectedServicio != null)
+                        {
+                            <div class="form-text mt-2">
+                                Duración: @selectedServicio.DuracionMinutos min | Fin estimado: @selectedHoraFin.ToString("HH:mm")
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mecánico</label>
+                        <select class="form-select" @bind="citaDto.MecanicoId" disabled="@(selectedServicio == null)">
+                            <option value="">Seleccione un mecánico...</option>
+                            @if(mecanicosDisponibles != null)
+                            {
+                                @foreach(var m in mecanicosDisponibles)
+                                {
+                                    <option value="@m.MecanicoId">@m.Nombre</option>
+                                }
+                            }
+                        </select>
+                        @if (selectedServicio != null && (mecanicosDisponibles == null || !mecanicosDisponibles.Any()))
+                        {
+                            <div class="form-text text-danger">No hay mecánicos disponibles para este horario y especialidad.</div>
+                        }
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="SubmitAppointment" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            <span> Guardando...</span>
+                        }
+                        else
+                        {
+                            <span>Confirmar Cita</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DotNetObjectReference<AgendarCita>? dotNetRef;
+    private System.Timers.Timer? debounceTimer;
+    private bool calendarInitialized = false;
+
+    // Search state
+    private string searchTerm = "";
+    private bool isSearching = false;
+    private List<Cliente>? clientesEncontrados;
+    private Cliente? selectedCliente;
+
+    // Form state
+    private List<Vehiculo>? vehiculosCliente;
+    private List<Servicio>? serviciosActivos;
+    private List<Mecanico>? mecanicosDisponibles;
+    
+    private bool showModal = false;
+    private bool showNewVehicleForm = false;
+    private bool isSubmitting = false;
+    private string? successMessage;
+    private string? errorMessage;
+
+    private DateTime selectedFecha;
+    private TimeOnly selectedHoraInicio;
+    private TimeOnly selectedHoraFin;
+    private Servicio? selectedServicio;
+
+    private AgendarCitaDTO citaDto = new() { NuevoVehiculo = new NuevoVehiculoDTO() };
+    private NuevoVehiculoDTO nuevoVehiculo = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        debounceTimer = new System.Timers.Timer(300);
+        debounceTimer.AutoReset = false;
+        debounceTimer.Elapsed += async (s, e) => await InvokeAsync(PerformSearch);
+
+        serviciosActivos = await ServicioService.ObtenerTodosActivosAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("fullCalendarInterop.init", "mecano-calendar", dotNetRef);
+            calendarInitialized = true;
+        }
+    }
+
+    private void HandleSearch()
+    {
+        isSearching = true;
+        debounceTimer?.Stop();
+        debounceTimer?.Start();
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            clientesEncontrados = null;
+            isSearching = false;
+            StateHasChanged();
+            return;
+        }
+
+        clientesEncontrados = await ClienteService.BuscarClientesAsync(searchTerm);
+        isSearching = false;
+        StateHasChanged();
+    }
+
+    private async Task SelectCliente(Cliente cliente)
+    {
+        selectedCliente = cliente;
+        vehiculosCliente = await VehiculoService.ObtenerPorClienteAsync(cliente.ClienteId);
+        searchTerm = "";
+        clientesEncontrados = null;
+    }
+
+    private void DeselectCliente()
+    {
+        selectedCliente = null;
+        vehiculosCliente = null;
+    }
+
+    [JSInvokable]
+    public async Task<List<CalendarEventDTO>> GetCalendarEvents(string startStr, string endStr)
+    {
+        if (DateTime.TryParse(startStr, out DateTime start) && DateTime.TryParse(endStr, out DateTime end))
+        {
+            return await CalendarQueryService.ObtenerEventosAsync(start, end);
+        }
+        return new List<CalendarEventDTO>();
+    }
+
+    [JSInvokable]
+    public void OnSlotSelected(string startStr, string endStr)
+    {
+        if (selectedCliente == null) return;
+
+        if (DateTime.TryParse(startStr, out DateTime start))
+        {
+            selectedFecha = start.Date;
+            selectedHoraInicio = TimeOnly.FromDateTime(start);
+            
+            // Reset modal state
+            showNewVehicleForm = false;
+            nuevoVehiculo = new NuevoVehiculoDTO();
+            citaDto = new AgendarCitaDTO
+            {
+                ClienteId = selectedCliente.ClienteId,
+                Fecha = selectedFecha,
+                HoraInicio = selectedHoraInicio
+            };
+            selectedServicio = null;
+            mecanicosDisponibles = null;
+            errorMessage = null;
+
+            showModal = true;
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public void OnEventClicked(int eventId)
+    {
+        // Reserved for future details logic
+    }
+
+    private async Task OnServiceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int servicioId))
+        {
+            selectedServicio = await ServicioService.ObtenerPorIdAsync(servicioId);
+            if (selectedServicio != null)
+            {
+                citaDto.ServicioId = selectedServicio.ServicioId;
+                selectedHoraFin = ServicioService.CalcularHoraFin(selectedHoraInicio, selectedServicio.DuracionMinutos);
+
+                if (selectedServicio.CategoriaId.HasValue)
+                {
+                    mecanicosDisponibles = await MecanicoService.ObtenerDisponiblesAsync(
+                        selectedServicio.CategoriaId.Value, 
+                        selectedFecha, 
+                        selectedHoraInicio, 
+                        selectedHoraFin);
+                }
+                else
+                {
+                    mecanicosDisponibles = new List<Mecanico>();
+                }
+            }
+        }
+        else
+        {
+            selectedServicio = null;
+            mecanicosDisponibles = null;
+            citaDto.ServicioId = 0;
+        }
+    }
+
+    private void ToggleNewVehicle()
+    {
+        showNewVehicleForm = !showNewVehicleForm;
+        if (showNewVehicleForm)
+        {
+            citaDto.VehiculoId = null;
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+
+    private async Task SubmitAppointment()
+    {
+        errorMessage = null;
+        isSubmitting = true;
+
+        try
+        {
+            if (showNewVehicleForm)
+            {
+                citaDto.NuevoVehiculo = nuevoVehiculo;
+            }
+            else
+            {
+                citaDto.NuevoVehiculo = null;
+            }
+
+            var nuevaCita = await CitaService.AgendarCitaAsync(citaDto);
+            
+            successMessage = "Cita agendada exitosamente. Se ha enviado una notificación.";
+            await NotificationService.NotificarCitaAgendadaAsync(nuevaCita);
+            
+            CloseModal();
+            
+            if (calendarInitialized)
+            {
+                await JS.InvokeVoidAsync("fullCalendarInterop.refresh");
+            }
+        }
+        catch (Exception ex) when (ex.GetType().Name == "AppointmentOverlapException")
+        {
+            errorMessage = "El horario seleccionado se superpone con otra cita del mecánico.";
+        }
+        catch (Exception ex) when (ex.GetType().Name == "InactiveMechanicException")
+        {
+            errorMessage = "El mecánico seleccionado no está activo.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al agendar la cita: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        debounceTimer?.Dispose();
+        if (calendarInitialized)
+        {
+            try {
+                await JS.InvokeVoidAsync("fullCalendarInterop.destroy");
+            } catch { /* Ignore if disconnected */ }
+        }
+        dotNetRef?.Dispose();
+    }
+}
