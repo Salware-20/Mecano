@@ -1,10 +1,27 @@
 using Mecano.Components;
+using Mecano.Data;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine($"CS => [{connectionString}]");
+Console.WriteLine($"Archivos cargados: {string.Join(", ", builder.Configuration.Sources.Select(s => s.ToString()))}");
+//var connectionString = "server=localhost;user=root;password=;database=mecano";
+
+var serverVersion = new MySqlServerVersion(new Version(8, 0, 41));
+
+builder.Services.AddDbContextFactory<MySQLDBContext>(
+    DbContextOptions => DbContextOptions
+    .UseMySql(connectionString, serverVersion)
+    .LogTo(Console.WriteLine, LogLevel.Information)
+    .EnableSensitiveDataLogging()
+    .EnableDetailedErrors()
+    );
 
 var app = builder.Build();
 

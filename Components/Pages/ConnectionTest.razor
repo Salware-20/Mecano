@@ -1,0 +1,67 @@
+@page "/connectiontest"
+@using Microsoft.EntityFrameworkCore
+@using Mecano.Data
+@inject MySQLDBContext DbContext
+@rendermode InteractiveServer
+
+<h3>Prueba de Conexión a la Base de Datos</h3>
+
+<div class="status @StatusClass">
+    @StatusMessage
+</div>
+
+@if (Tables.Count > 0)
+{
+    <h4>Tablas encontradas:</h4>
+    <ul>
+        @foreach (var table in Tables)
+        {
+            <li>@table</li>
+        }
+    </ul>
+}
+
+<div class="details">
+    <h4>Detalles:</h4>
+    <p>Proveedor: @ProviderName</p>
+    <p>CanConnect: @IsConnectionOpen</p>
+</div>
+
+@code {
+    private string StatusMessage = "Verificando conexión...";
+    private string StatusClass = "loading";
+    private List<string> Tables = new();
+    private bool IsConnectionOpen = false;
+    private string ProviderName = "MySQL";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            IsConnectionOpen = await DbContext.Database.CanConnectAsync();
+
+            if (IsConnectionOpen)
+            {
+                StatusMessage = "✅ Conexión exitosa";
+                StatusClass = "success";
+
+                // Obtener tablas de la base de datos mediante el modelo
+                var model = DbContext.Model;
+                foreach (var entityType in model.GetEntityTypes())
+                {
+                    Tables.Add(entityType.Name);
+                }
+            }
+            else
+            {
+                StatusMessage = "❌ No se pudo conectar a la base de datos";
+                StatusClass = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"❌ Error: {ex.Message}";
+            StatusClass = "error";
+        }
+    }
+}
