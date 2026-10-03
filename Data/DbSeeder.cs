@@ -1,20 +1,36 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Mecano.Entidad.Clases;
+using Mecano.Logica.Servicios;
 
 namespace Mecano.Data
 {
     public class DbSeeder
     {
         private readonly IDbContextFactory<MySQLDBContext> _factory;
-        
-        public DbSeeder(IDbContextFactory<MySQLDBContext> factory) => _factory = factory;
-        
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<DbSeeder> _logger;
+
+        public DbSeeder(
+            IDbContextFactory<MySQLDBContext> factory,
+            IConfiguration configuration,
+            ILogger<DbSeeder> logger)
+        {
+            _factory = factory;
+            _configuration = configuration;
+            _logger = logger;
+        }
+
         public async Task SeedAsync()
         {
             using var context = await _factory.CreateDbContextAsync();
             await context.Database.EnsureCreatedAsync();
+
+            var defaultMecPassword = AuthServices.HashPassword("Mecanico123*");
 
             if (!await context.Categorias.AnyAsync())
             {
@@ -38,11 +54,11 @@ namespace Mecano.Data
                 context.Servicio.AddRange(servPastillas, servRectificado, servDiagMotor, servAfinado, servAlineado, servAmortiguadores, servAceite, servRevision);
                 await context.SaveChangesAsync();
 
-                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = "PLACEHOLDER_HASH", Cedula = "1-1111-1111", EspecialidadId = catFrenos.CategoriaId, Activo = true };
-                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = "PLACEHOLDER_HASH", Cedula = "2-2222-2222", EspecialidadId = catMotor.CategoriaId, Activo = true };
-                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = "PLACEHOLDER_HASH", Cedula = "3-3333-3333", EspecialidadId = catSuspension.CategoriaId, Activo = true };
-                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = "PLACEHOLDER_HASH", Cedula = "4-4444-4444", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
-                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = "PLACEHOLDER_HASH", Cedula = "5-5555-5555", EspecialidadId = catMotor.CategoriaId, Activo = false };
+                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = defaultMecPassword, Cedula = "1-1111-1111", EspecialidadId = catFrenos.CategoriaId, Activo = true };
+                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = defaultMecPassword, Cedula = "2-2222-2222", EspecialidadId = catMotor.CategoriaId, Activo = true };
+                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = defaultMecPassword, Cedula = "3-3333-3333", EspecialidadId = catSuspension.CategoriaId, Activo = true };
+                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = defaultMecPassword, Cedula = "4-4444-4444", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
+                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = defaultMecPassword, Cedula = "5-5555-5555", EspecialidadId = catMotor.CategoriaId, Activo = false };
 
                 context.Mecanico.AddRange(mecCarlos, mecMaria, mecJose, mecAna, mecPedro);
                 await context.SaveChangesAsync();
@@ -92,6 +108,80 @@ namespace Mecano.Data
 
                 context.Cita.AddRange(cita1, cita2);
                 await context.SaveChangesAsync();
+            }
+
+            // Seed y actualización del Administrador Global ("adminglobal")
+            // Las credenciales de producción deben proveerse mediante user-secrets o variables de entorno
+            var globalAdminEmail = _configuration["Seed:GlobalAdmin:Email"] ?? "adminglobal@mecano.cr";
+            var globalAdminPassword = _configuration["Seed:GlobalAdmin:Password"] ?? "AdminGlobal123*";
+
+            var adminGlobal = await context.Administradors.FirstOrDefaultAsync(a => a.EsAdminGlobal || a.Email == globalAdminEmail);
+            if (adminGlobal is null)
+            {
+                adminGlobal = new Administrador
+                {
+                    Cedula = "1-0999-0999",
+                    Email = globalAdminEmail,
+                    Nombre = "Administrador Global",
+                    Telefono = "6132-1206",
+                    Activo = true,
+                    EsAdminGlobal = true,
+                    HashPassword = AuthServices.HashPassword(globalAdminPassword)
+                };
+                await context.Administradors.AddAsync(adminGlobal);
+                await context.SaveChangesAsync();
+                _logger.LogInformation("Global Admin creado exitosamente ({Email}).", globalAdminEmail);
+            }
+            else
+            {
+                bool modified = false;
+                if (!adminGlobal.EsAdminGlobal)
+                {
+                    adminGlobal.EsAdminGlobal = true;
+                    modified = true;
+                }
+                if (!adminGlobal.Activo)
+                {
+                    adminGlobal.Activo = true;
+                    modified = true;
+                }
+                if (string.IsNullOrEmpty(adminGlobal.HashPassword) 
+                    || adminGlobal.HashPassword == "PLACEHOLDER_HASH" 
+                    || !adminGlobal.HashPassword.Contains('$'))
+                {
+                    var rawPassword = (!string.IsNullOrEmpty(adminGlobal.HashPassword) && adminGlobal.HashPassword != "PLACEHOLDER_HASH")
+                        ? adminGlobal.HashPassword
+                        : globalAdminPassword;
+
+                    adminGlobal.HashPassword = AuthServices.HashPassword(rawPassword);
+                    modified = true;
+                }
+                if (adminGlobal.Email == "Admin@mecano.com" && globalAdminEmail != "Admin@mecano.com")
+                {
+                    adminGlobal.Email = globalAdminEmail;
+                    modified = true;
+                }
+
+                if (modified)
+                {
+                    await context.SaveChangesAsync();
+                    _logger.LogInformation("Global Admin actualizado con credenciales válidas ({Email}).", adminGlobal.Email);
+                }
+            }
+
+            // Actualizar contraseñas de mecánicos existentes si tenían PLACEHOLDER_HASH
+            var placeholderMechanics = await context.Mecanico
+                .Where(m => m.HashPassword == "PLACEHOLDER_HASH" || string.IsNullOrEmpty(m.HashPassword))
+                .ToListAsync();
+
+            if (placeholderMechanics.Any())
+            {
+                foreach (var mec in placeholderMechanics)
+                {
+                    mec.HashPassword = defaultMecPassword;
+                }
+                await context.SaveChangesAsync();
+                _logger.LogInformation("Contraseñas de prueba asignadas a mecánicos con placeholder.");
             }
         }
     }

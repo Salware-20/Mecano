@@ -1,6 +1,27 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+@using Microsoft.AspNetCore.Components.Authorization
+@using Mecano.Components.Shared
+
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity is null || !context.User.Identity.IsAuthenticated)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="container text-center py-5">
+                        <div class="alert alert-warning d-inline-block p-4 shadow-sm" role="alert">
+                            <h4 class="alert-heading fw-bold">
+                                <i class="bi bi-shield-slash me-2"></i>No tienes permisos
+                            </h4>
+                            <p class="mb-0 text-muted">No cuentas con los privilegios requeridos para acceder a esta página.</p>
+                        </div>
+                    </div>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
