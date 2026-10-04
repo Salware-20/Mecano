@@ -7,9 +7,9 @@
 | **Nombre del proyecto** | Mecano |
 | **Propósito** | Aplicación de taller mecánico para agendar citas, gestionar clientes, vehículos, servicios y mecánicos. |
 | **Stack principal** | .NET 10.0 (SDK Web), Blazor Server (Interactive Server), Entity Framework Core 9.0, MySQL 8.0 (Pomelo EF Provider) |
-| **Estado general** | Prototipo / MVP — funcionalidades básicas de gestión de citas operativas, sin autenticación/autorización implementada a nivel de ASP.NET Core. |
-| **Páginas Blazor** | Aprox. 8 páginas (.razor) entre Components/Pages y Components/Layout |
-| **Entidades de dominio** | 7 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita |
+| **Estado general** | Prototipo / MVP — funcionalidades básicas de gestión de citas operativas, con autenticación por cookies y autorización por roles implementadas. |
+| **Páginas Blazor** | 10 páginas (.razor) entre Components/Pages y Components/Layout |
+| **Entidades de dominio** | 8 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, NotificacionLog |
 
 ---
 
@@ -41,16 +41,24 @@ Mecano/
 │  │  ├─ RegistroAdminDTO.cs
 │  │  ├─ AgendarCitaDTO.cs
 │  │  ├─ HorarioDisponibleDTO.cs
-│  │  └─ CalendarEventDTO.cs
-│  └─ Excepciones/
-│     ├─ InactiveMechanicException.cs
-│     └─ AppointmentOverlapException.cs
+│  │  ├─ CalendarEventDTO.cs
+│  │  └─ NuevoVehiculoDTO.cs
+│  ├─ Excepciones/
+│  │  ├─ InactiveMechanicException.cs
+│  │  └─ AppointmentOverlapException.cs
+│  └─ Constantes/
+│     └─ Roles.cs            # Strings centralizados: "Administrador", "Mecanico"
 ├─ Data/
-│  └─ MySQLDBContext.cs       # DbContext con DbSet<>
+│  ├─ MySQLDBContext.cs     # DbContext con DbSet<>
+│  ├─ DbSeeder.cs           # Seed de datos iniciales (categorías, servicios, mecánicos, etc.)
+│  └─ Migrations/           # Migración inicial EF Core (20261003033206_Inicial)
+├─ Endpoints/
+│  └─ AuthEndpoints.cs      # Minimal API: POST /api/auth/login, POST /api/auth/logout
 ├─ Logica/
-│  ├─ Interfaces/            # Firmas de servicio (I*Service, IAuthServices)
-│  └─ Servicios/             # Implementaciones (Scoped en DI)
+│  ├─ Interfaces/           # Firmas de servicio (I*Service, IAuthServices)
+│  └─ Servicios/            # Implementaciones (Scoped en DI)
 │     ├─ AuthServices.cs
+│     ├─ CustomAuthenticationStateProvider.cs  # Revalida sesión cada 10 min
 │     ├─ ClienteService.cs
 │     ├─ MecanicoService.cs
 │     ├─ CitaService.cs
@@ -58,7 +66,10 @@ Mecano/
 │     ├─ CategoriaService.cs
 │     ├─ CalendarQueryService.cs
 │     ├─ NotificationService.cs
-│     └─ NotificationService.cs
+│     └─ VehiculoService.cs
+├─ wwwroot/js/
+│  ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin)
+│  └─ fullcalendar-interop.js
 ├─ Components/
 │  ├─ _Imports.razor          # Directivas using compartidas
 │  ├─ Routes.razor           # Configuración del enrutador
@@ -68,13 +79,17 @@ Mecano/
 │  │  ├─ NavMenu.razor      # Enlaces: Home, TEST, Agendar
 │  │  └─ ReconnectModal.razor
 │  └─ Pages/
-│     ├─ Home.razor          # @page "/"
-│     ├─ Counter.razor       # @page "/counter", InteractiveServer
-│     ├─ AgendarCita.razor  # @page "/agendar", InteractiveServer
+│     ├─ Home.razor          # @page "/", [Authorize]
+│     ├─ Counter.razor       # @page "/counter", [Authorize], InteractiveServer
+│     ├─ Weather.razor       # @page "/weather", [Authorize], [StreamRendering]
+│     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer
+│     ├─ Login.razor         # @page "/login", [AllowAnonymous], InteractiveServer
+│     ├─ AccesoDenegado.razor # @page "/acceso-denegado", [AllowAnonymous]
 │     ├─ NotFound.razor      # @page "/not-found"
 │     ├─ Error.razor         # @page "/Error"
-│     ├─ ConnectionTest.razor # @page "/connectiontest", InteractiveServer
-│     └─ Weather.razor
+│     └─ ConnectionTest.razor # @page "/connectiontest", [Authorize(Roles=Administrador)], InteractiveServer
+│  └─ Shared/
+│     └─ RedirectToLogin.razor # Redirige a /login cuando no hay auth state
 ```
 
 **Responsabilidad de cada proyecto (solo uno):**
@@ -96,6 +111,9 @@ Mecano/
 - **Nullable**: `enable` (csproj:5)
 - **ImplicitUsings**: `enable` (csproj:6)
 - **BlazorDisableThrowNavigationException**: true (csproj:7)
+- **SelfContained**: true, **RuntimeIdentifier**: `win-x64` (deployment self-contained)
+- **UserSecretsId**: `ee6ffb4c-1aed-40a4-88b5-09d68d4b6165`
+- **Herramienta local**: `dotnet-ef` 10.0.12 (declarada en `dotnet-tools.json`)
 
 ### Paquetes NuGet
 
@@ -119,31 +137,57 @@ Mecano/
 ```csharp
 using Mecano.Components;
 using Mecano.Data;
+using Mecano.Endpoints;
+using Mecano.Entidad.Constantes;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Servicios;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-Console.WriteLine($"CS => [{connectionString}]");
-Console.WriteLine($"Archivos cargados: {string.Join(", ", builder.Configuration.Sources.Select(s => s.ToString()))}");
 
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 41));
 
-builder.Services.AddDbContextFactory<MySQLDBContext>(
-    DbContextOptions => DbContextOptions
-    .UseMySql(connectionString, serverVersion)
-    .LogTo(Console.WriteLine, LogLevel.Information)
-    .EnableSensitiveDataLogging()
-    .EnableDetailedErrors()
-);
+builder.Services.AddDbContextFactory<MySQLDBContext>(DbContextOptions =>
+{
+    DbContextOptions.UseMySql(connectionString, serverVersion)
+        .LogTo(Console.WriteLine, LogLevel.Information);
+    if (builder.Environment.IsDevelopment())
+    {
+        DbContextOptions.EnableSensitiveDataLogging().EnableDetailedErrors();
+    }
+});
 
-// Register application services
+// Autenticación por cookies
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options => {
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+        options.LoginPath = "/login";
+        options.AccessDeniedPath = "/acceso-denegado";
+    });
+
+// Políticas de autorización
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Administrador", p => p.RequireRole(Roles.Administrador));
+    options.AddPolicy("AdminGlobal", p => p.RequireRole(Roles.Administrador)
+        .RequireClaim("EsAdminGlobal", "true"));
+});
+
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
+
+// Servicios de aplicación
 builder.Services.AddScoped<IClienteService, ClienteService>();
 builder.Services.AddScoped<IVehiculoService, VehiculoService>();
 builder.Services.AddScoped<IServicioService, ServicioService>();
@@ -153,18 +197,17 @@ builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICategoriaService, CategoriaService>();
 builder.Services.AddScoped<IAuthServices, AuthServices>();
+builder.Services.AddScoped<DbSeeder>();
 
 var app = builder.Build();
 
 // Seed data
 using (var scope = app.Services.CreateScope())
 {
-    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MySQLDBContext>>();
-    var seeder = new DbSeeder(factory);
+    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
     await seeder.SeedAsync();
 }
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -172,8 +215,11 @@ if (!app.Environment.IsDevelopment())
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
-
 app.UseAntiforgery();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapAuthEndpoints();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
@@ -202,7 +248,7 @@ app.Run();
 Igual que `appsettings.json` — `DefaultConnection` con `password=` vacío.
 
 ### User-secrets
-- **No detectado**: No hay evidencia de configuración de user-secrets en el proyecto. Las cadenas de conexión quedan en `appsettings.json`.
+- **Configurado**: `UserSecretsId` presente en `Mecano.csproj`. El seeder lee `Seed:GlobalAdmin:Email` y `Seed:GlobalAdmin:Password` desde la configuración (user-secrets o variables de entorno), con defaults `adminglobal@mecano.cr` / `AdminGlobal123*`.
 
 ### Variables de entorno
 - `ASPNETCORE_ENVIRONMENT` = `Development` (definido en `launchSettings.json:10,19` para perfiles http y https).
@@ -341,9 +387,9 @@ namespace Mecano.Data
 2. `Vehiculo.Placa` — Unique index.
 
 ### Estado de migraciones
-- **Carpeta `Migrations/`**: No existe (no hay historial de migraciones detectado en el repo).
-- **¿Migraciones aplicadas a la BD?**: No verificable — no hay tabla `__EFMigrationsHistory` comprobable ni archivos de migración.
-- **Estrategia de acceso a BD**: `IDbContextFactory<MySQLDBContext>` — los servicios crean contexto bajo demanda con `_DB.CreateDbContextAsync()`. No se inyecta `DbContext` directamente.
+- **Carpeta `Data/Migrations/`**: Existe con la migración inicial `20261003033206_Inicial.cs` (+ `.Designer.cs` y `MySQLDBContextModelSnapshot.cs`).
+- **¿Migraciones aplicadas a la BD?**: El seeder usa `Database.EnsureCreatedAsync()` en lugar de `MigrateAsync()`, por lo que el esquema se crea directamente; la migración existe como historial pero no se aplica vía middleware.
+- **Estrategia de acceso a BD**: `IDbContextFactory<MySQLDBContext>` — los servicios crean contexto bajo demanda con `_factory.CreateDbContextAsync()`. No se inyecta `DbContext` directamente.
 - **Patrón de conexión**: MySQL a través de `Pomelo.EntityFrameworkCore.MySql`. `Server=localhost;User=root;Database=mecano` — sin autenticación de usuario con password (root local sin password).
 
 ---
@@ -362,6 +408,8 @@ namespace Mecano.Data
 | `ICalendarQueryService` | `CalendarQueryService` | `ObtenerEventosAsync(inicio, fin)` | Scoped |
 | `INotificationService` | `NotificationService` | `NotificarCitaAgendadaAsync(cita)` | Scoped |
 | `IAuthServices` | `AuthServices` | `LoginAsync(email, password)`<br>`RegisterAdminAsync(email, nombre, password)`<br>`EmailExisteAsync(email)` | Scoped |
+| `AuthenticationStateProvider` | `CustomAuthenticationStateProvider` | Revalida el estado de auth contra BD cada 10 min (hereda de `RevalidatingServerAuthenticationStateProvider`) | Scoped |
+| — | `DbSeeder` | `SeedAsync()` — siembra categorías, servicios, mecánicos, clientes, vehículos, citas, admin global | Scoped |
 
 ### Servicios relacionados con usuarios/auth
 
@@ -375,12 +423,15 @@ namespace Mecano.Data
 - **Inyección DI**: `AddScoped<IAuthServices, AuthServices>` en Program.cs:36.
 
 ### Servicios que usan `HttpContext` o `AuthenticationStateProvider`
-- **Ninguno detectado**: No hay inyección de `HttpContext` en los servicios leídos.
-- **No hay `AuthenticationStateProvider` custom** en el proyecto.
-- El `Error.razor` sí inyecta `HttpContext` cascading parameter (línea 29: `@inject HttpContext? HttpContext`), pero es para páginas de error, no para lógica de auth.
+- `CustomAuthenticationStateProvider` (`Logica/Servicios/CustomAuthenticationStateProvider.cs`) hereda de `RevalidatingServerAuthenticationStateProvider`; revalida cada 10 minutos contra BD que el usuario (admin o mecánico) siga `Activo`, evitando sesiones fantasma cuando se desactiva un usuario.
+- Usa `IServiceScopeFactory` para crear un scope por validación (no mantiene un DbContext vivo durante todo el circuito Blazor).
+- El `Error.razor` inyecta `HttpContext` cascading parameter, pero es para páginas de error, no para lógica de auth.
 
 ### Servicios que manejan sesión, cookies o tokens
-- **Ninguno**: No hay código que maneje cookies de sesión, tokens JWT, o `ISession`. El `AuthServices` trabaja con hashes de password en memoria y retorna un `AuthenticatedUser` record, pero el pipeline ASP.NET Core de autenticación (cookie/session) no está configurado.
+- La cookie de autenticación la emite el endpoint `POST /api/auth/login` (`Endpoints/AuthEndpoints.cs`) vía `HttpContext.SignInAsync` con `AuthenticationProperties.IsPersistent = true` y expiración de 8 horas (con sliding expiration).
+- `POST /api/auth/logout` la cierra con `SignOutAsync` y requiere autorización.
+- El login desde la UI se hace con `window.authFetch.login` (`wwwroot/js/auth.js`) porque la cookie `Set-Cookie` debe llegar al navegador; si se usara `HttpClient` de Blazor Server, la cookie saldría del servidor hacia sí mismo y nunca llegaría al navegador.
+- No se usan tokens JWT ni `ISession`.
 
 ---
 
@@ -419,7 +470,18 @@ namespace Mecano.Data
 ```razor
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity is null || !context.User.Identity.IsAuthenticated)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div>... alerta de "No tienes permisos" ...</div>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
@@ -441,6 +503,8 @@ namespace Mecano.Data
 @using Mecano.Entidad.Clases
 @using Mecano.Entidad.DTOs
 @using Mecano.Logica.Interfaces
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 ```
 
 #### `MainLayout.razor`
@@ -501,16 +565,19 @@ namespace Mecano.Data
 
 | Ruta (`@page`) | Autorización | Propósito |
 |---|---|---|
-| `/` | Ninguna | Página principal / home |
-| `/counter` | Ninguna | Contador de ejemplo (InteractiveServer) |
-| `/agendar` | Ninguna | Formulario para agendar cita (InteractiveServer) — requiere cliente y mecánico seleccionados |
+| `/` | `[Authorize]` | Página principal / home |
+| `/counter` | `[Authorize]` | Contador de ejemplo (InteractiveServer) |
+| `/weather` | `[Authorize]`, `[StreamRendering]` | Ejemplo de clima |
+| `/agendar` | `[Authorize(Roles = "Administrador")]` | Formulario para agendar cita (InteractiveServer) |
+| `/login` | `[AllowAnonymous]` | Login con EditForm + `window.authFetch` (InteractiveServer) |
+| `/acceso-denegado` | `[AllowAnonymous]` | Página de acceso denegado |
 | `/not-found` | Ninguna | Página de error 404 |
 | `/Error` | Ninguna | Página de manejo de errores |
-| `/connectiontest` | Ninguna | Prueba de conexión a la BD (inyecta `MySQLDBContext` directamente) |
+| `/connectiontest` | `[Authorize(Roles = "Administrador")]` | Prueba de conexión a la BD (InteractiveServer) |
 
 ### Componentes compartidos en `Shared/`
-- No hay carpeta `Shared/` separada; los componentes de layout están en `Components/Layout/`.
-- Los componentes reutilizables están implicados en `_Imports.razor`.
+- `Components/Shared/RedirectToLogin.razor` — redirige a `/login` cuando `NotAuthorized` detecta usuario anónimo.
+- Los componentes de layout están en `Components/Layout/`.
 
 ### Render mode configurado
 - **Predominante**: `InteractiveServer` — la mayoría de páginas tienen `@rendermode InteractiveServer` (Counter, AgendarCita, ConnectionTest).
@@ -518,36 +585,35 @@ namespace Mecano.Data
 - No hay configuración `WebAuto` o `WebAssembly` explícita más allá del server.
 
 ### Página de login, register o account
-- **No existe** ningún componente/page para login o registro en el proyecto.
-- El flujo de `AuthServices.RegisterAdminAsync` y `LoginAsync` es puro dominio (capada lógica), sin interfaz de usuario asociada.
-- Las credenciales (`Administrador`, `Mecanico`) se gestionan directamente en BD mediante operaciones de seeding/CRUD, no mediante una UI de login.
+- **Login implementado**: `Components/Pages/Login.razor` (`@page "/login"`, InteractiveServer, `[AllowAnonymous]`) con `EditForm` y `DataAnnotationsValidator` sobre `LoginDTO`. Al autenticarse correctamente hace `NavigateTo("/", forceLoad: true)`.
+- **No existe página de registro de usuarios**. `AuthServices.RegisterAdminAsync` existe en la capa lógica pero no tiene UI.
+- Las credenciales de `Mecanico` se siembran vía `DbSeeder` (password por defecto `Mecanico123*`, email `<nombre>@mecano.cr`).
 
 ---
 
 ## 8. Estado actual de autenticación/autorización
 
 ### `AddAuthentication` / `AddAuthorization` en `Program.cs`
-- **No presente**: No hay llamadas a `builder.Services.AddAuthentication()` o `builder.Services.AddAuthorization()` en el `Program.cs` actual.
-- **Bloque relevante** (líneas 10-11 únicamente):
-```csharp
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-```
+- **Presente**: `AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(...)` con `LoginPath = "/login"` y `AccessDeniedPath = "/acceso-denegado"`, cookie HttpOnly, SecurePolicy Always, SameSite Lax, expiración 8h con sliding expiration.
+- `AddAuthorization` con dos políticas: `"Administrador"` (rol Administrador) y `"AdminGlobal"` (rol Administrador + claim `EsAdminGlobal=true`).
 
 ### `AuthenticationStateProvider` custom
-- **No existe** ningún clase que herede de `AuthenticationStateProvider`.
+- `CustomAuthenticationStateProvider` hereda de `RevalidatingServerAuthenticationStateProvider`; revalida contra BD cada 10 minutos que el usuario siga activo. Los usuarios anónimos se tratan como estado válido (retorna `true`); la redirección la hace `AuthorizeRouteView`.
 
-### Claims / cookies / JWT en uso
-- **No**: No hay configuración de claims, cookies authentication, ni tokens JWT. El `AuthServices` genera un objeto `AuthenticatedUser` en memoria que contiene `id`, `email`, `nombre`, y `rol` ("Administrador" o "Mecanico"), pero esto **no** se integra con el pipeline de autenticación de ASP.NET Core.
+### Claims / cookies en uso
+- Claims emitidos en login (`AuthEndpoints.cs`): `ClaimTypes.NameIdentifier`, `ClaimTypes.Name`, `ClaimTypes.Email`, `ClaimTypes.Role`, y `EsAdminGlobal=true` solo si aplica.
+- Cookie persistente de 8 horas; sin JWT ni `ISession`.
 
 ### `UseAuthentication()` / `UseAuthorization()`
-- **No presentes** en el pipeline HTTP. No hay middleware de autenticación configurado.
+- Presentes en el pipeline, después de `app.UseAntiforgery()` y antes de `MapAuthEndpoints()`.
 
 ### Atributos `[Authorize]` en el código
-- **No encontrados** en ningún archivo .cs o .razor inspeccionado.
+- `[Authorize]` en `Home.razor`, `Counter.razor`, `Weather.razor`.
+- `[Authorize(Roles = Roles.Administrador)]` en `AgendarCita.razor` y `ConnectionTest.razor`.
+- `[AllowAnonymous]` en `Login.razor` y `AccesoDenegado.razor`.
 
 ### `AuthorizeView` / `AuthorizeRouteView` en uso
-- **No detectados** en los archivos Razor leídos. No hay protección de ruta basada en roles en la UI.
+- `Routes.razor` usa `<AuthorizeRouteView>` con plantilla `NotAuthorized`: si el usuario es anónimo, muestra `<RedirectToLogin />`; si está autenticado pero sin permisos, muestra alerta "No tienes permisos".
 
 ---
 
@@ -569,7 +635,7 @@ builder.Services.AddRazorComponents()
 ### Constantes de roles definidas
 - **Constante `SALTSIZE = 16`** y **`HASHSIZE = 32`** en `AuthServices.cs:13-14`.
 - **Constante `Iterations = 310000`** en `AuthServices.cs:15`.
-- No hay enum o clase estática centralizada de roles (como `Role.Admin`). Los roles son strings literales: `"Administrador"` y `"Mecanico"` usados en `AuthServices.LoginAsync` (línea 102, 112) y en el `AuthenticatedUser` record.
+- **Clase estática `Roles`** en `Entidad/Constantes/Roles.cs` con `Administrador` y `Mecanico`, usada en `Program.cs` (políticas) y en atributos `[Authorize(Roles = ...)]`.
 
 ### Tabla de "qué hace cada rol" (deducción del código)
 
@@ -578,7 +644,7 @@ builder.Services.AddRazorComponents()
 | **Administrador** | - Único rol que puede crear/reeschedular/cancelar citas (comentario en `Administrador.cs:6-8`).<br>- Puede registrar nuevos administradores via `RegisterAdminAsync`.<br>- Acceso a todas las entidades en BD (tabla `Administradors`).<br>--- | |
 | **Mecanico** | - Puede ver citas disponibles por especialidad y horario.<br>- No puede agendar si está inactivo (`InactiveMechanicException`).<br>- Puede tener citas asignadas (`Mecanico.Citas` navigation).<br>- Login requiere `m.Activo` (AuthServices:104).<br>- No tiene permisos de administración pura. | |
 
-**Hipótesis (no deducido con certeza):** No hay una política de autorización formal que diferencie roles en la UI, ya que no hay `[Authorize]`, `AuthorizeView`, ni `AuthenticationStateProvider`. Cualquier control de roles tendría que implementarse a nivel de aplicación/lógica de negocio (ej. en los servicios o componentes verificando el `rol` del `AuthenticatedUser`).
+**Ya implementado**: El middleware ASP.NET Core (cookies + claims + `AuthorizeRouteView` + políticas) protege rutas por rol. Los roles se distinguen en el login por el tipo de entidad encontrado (`Administrador` vs `Mecanico` activo), y `AuthenticatedUser` ahora incluye `esAdminGlobal` como quinto campo del record.
 
 ---
 
@@ -631,6 +697,14 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Components/Routes.razor` | Sección 7 |
 | `Mecano/Components/_Imports.razor` | Sección 7 |
 | `Mecano/Components/Layout/MainLayout.razor` | Sección 7 |
+| `Mecano/Components/Pages/Login.razor` + `Login.razor.cs` | Sección 7 |
+| `Mecano/Components/Pages/AccesoDenegado.razor` | Sección 7 |
+| `Mecano/Components/Shared/RedirectToLogin.razor` | Sección 7 |
+| `Mecano/Endpoints/AuthEndpoints.cs` | Sección 8 |
+| `Mecano/Logica/Servicios/CustomAuthenticationStateProvider.cs` | Secciones 6 y 8 |
+| `Mecano/Data/DbSeeder.cs` | Secciones 4 y 5 |
+| `Mecano/Entidad/Constantes/Roles.cs` | Sección 9 |
+| `Mecano/wwwroot/js/auth.js` | Sección 8 |
 | `Mecano/Components/Layout/NavMenu.razor` | Sección 7 |
 | `Mecano/Entidad/Excepciones/InactiveMechanicException.cs` | Riesgos 11 |
 | `Mecano/Entidad/Exceptions/AppointmentOverlapException.cs` | Riesgos 11 |
@@ -639,22 +713,22 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 
 ## 13. Preguntas abiertas para el implementador
 
-1. **¿Cómo se crea el primer usuario si no hay seed?** — El `DbSeeder` se invoca en `Program.cs` durante el arranque, pero no se encuentra su código fuente en el repo inspeccionado (`Data/DbSeeder.cs` existe pero aún no se leyó). Si el seeding falla o la BD está vacía, ¿cómo se crea el primer `Administrador`?
+1. **¿Cómo se crea el primer usuario si no hay seed?** — Resuelto: `DbSeeder` crea/actualiza un Administrador Global en cada arranque (`adminglobal@mecano.cr` / `AdminGlobal123*` por defecto, sobreescribible con `Seed:GlobalAdmin:Email`/`Password`).
 
-2. **¿Se requiere autenticación cookie/session en el pipeline ASP.NET Core?** — Actualmente no hay `AddAuthentication`, `UseAuthentication`, ni `UseAuthorization`. Si se quiere proteger rutas, ¿se debe agregar el middleware completo o se manejará la auth solo a nivel de lógica de servicio?
+2. **¿Se requiere autenticación cookie/session en el pipeline ASP.NET Core?** — Resuelto: ya está implementada (cookies + `UseAuthentication`/`UseAuthorization` + `AuthorizeRouteView` + políticas).
 
-3. **¿Cómo se distingue entre un `Administrador` y un `Mecanico` al login?** — El `AuthServices.LoginAsync` intenta primero `Administrador` y si no encuentra, intenta `Mecanico` con filtro `Activo`. ¿Es esta la lógica deseada o se requieren políticas más granulares?
+3. **¿Cómo se distingue entre un `Administrador` y un `Mecanico` al login?** — `AuthServices.LoginAsync` intenta primero `Administrador` y luego `Mecanico` activo; el rol se codifica en el claim `ClaimTypes.Role`.
 
-4. **¿Qué ocurre si un `Mecánico` es desactivado (`Activo = false`) mientras tiene sesión activa?** — No hay lógica de invalidación de sesión. El `AuthenticatedUser` queda en memoria del cliente hasta que cierre la pestaña o expire la sesión del navegador.
+4. **¿Qué ocurre si un `Mecánico` es desactivado (`Activo = false`) mientras tiene sesión activa?** — Resuelto: `CustomAuthenticationStateProvider` revalida contra BD cada 10 minutos y retorna `false` si el usuario fue desactivado/eliminado, lo que cierra la sesión del circuito.
 
-5. **¿Hay rate limiting en las endpoints de login/register?** — No hay evidencia de límite de intentos en `AuthServices`. Los ataques de fuerza bruta a la contraseña PBKDF2 están mitigados por el costo computacional, pero ¿hay límite a nivel de API/URL?
+5. **¿Hay rate limiting en las endpoints de login/register?** — Sigue sin haber rate limiting visible; PBKDF2 mitiga fuerza bruta a nivel de hash pero no hay límite de intentos a nivel de endpoint.
 
-6. **¿Se requiere soporte para múltiples idiomas (localización)?** — Los mensajes de error y la UI están en español/inglés mixto. ¿Se necesita `IStringLocalizer` o recursos de cadena?
+6. **¿Se requiere soporte para múltiples idiomas?** — Sigue abierto: UI y mensajes mezclan español/inglés.
 
-7. **¿Cómo se manejan los tokens de actualización o "remember me"?** — No hay código para `RememberMe`, tokens JWT, o refresco de sesión. ¿Es un requisito futuro o fuera de alcance?
+7. **¿Cómo se manejan los tokens de actualización o "remember me"?** — No hay `RememberMe` ni refresco; la cookie expira a las 8 horas con sliding expiration.
 
-8. **¿La propiedad `EsAdminGlobal` en `Administrador` se usa en alguna lógica?** — Está definida en la entidad pero no se encontró uso en los servicios o lógica de autorización inspeccionada. ¿Es reserva para futuro o falta implementar?
+8. **¿La propiedad `EsAdminGlobal` se usa en alguna lógica?** — Resuelto: se emite como claim `EsAdminGlobal=true` en el login y existe la política `"AdminGlobal"` que la exige.
 
-9. **¿Existe alguna política de contraseña compleja más allá de los 6 caracteres minimum?** — El `RegistroAdminDTO` tiene `RegularExpression` para mayúscula/minúscula/dígito, pero `AuthServices.RegisterAdminAsync` no valida la fortaleza antes de guardar — confía en el DTO. ¿Hay validación adicional en la capa de aplicación?
+9. **¿Existe alguna política de contraseña compleja más allá de los 6 caracteres minimum?** — Sigue abierto: `LoginDTO`/`RegistroAdminDTO` validan formato, pero no se observó validación de fortaleza en `AuthServices.RegisterAdminAsync`.
 
-10. **¿Cómo se persiste el estado `AuthenticatedUser` entre richiests?** — El `AuthenticatedUser` es un record de valor que no se serializa automáticamente en la sesión del servidor en el patrón Interactive Server actual sin implementación custom de `AuthenticationStateProvider`. ¿Se usa navegación entre páginas con auth state o se pasa manualmente?
+10. **¿Cómo se persiste el estado `AuthenticatedUser` entre requests?** — Resuelto: ya no se usa el record en memoria para auth; la sesión vive en la cookie y el estado Blazor se reconstruye vía `CustomAuthenticationStateProvider` (claims del `ClaimsPrincipal`).
