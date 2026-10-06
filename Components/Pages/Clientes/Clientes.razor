@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @implements IDisposable
 @inject IClienteService ClienteService
+@inject ICitaService CitaService
 
 <PageTitle>Clientes - Mecano</PageTitle>
 
@@ -141,7 +142,7 @@
                                         {
                                             <button class="btn btn-sm btn-outline-success me-1"
                                                     title="Reactivar" disabled="@guardando"
-                                                    @onclick="() => Reactivar(cli)">
+                                                    @onclick="() => ConfirmarReactivar(cli)">
                                                 <i class="bi bi-play-circle"></i>
                                             </button>
                                         }
@@ -304,16 +305,60 @@
                         else
                         {
                             <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
-                            <p class="text-muted small mb-0">
+                            <p class="text-muted small">
                                 El cliente dejará de aparecer en las listas, pero se conserva su historial.
                                 Puedes reactivarlo en cualquier momento.
                             </p>
+                            @if (citasFuturas > 0)
+                            {
+                                <p class="text-warning small mb-0">
+                                    Este cliente tiene @citasFuturas citas futuras. Seguirán agendadas;
+                                    cancelalas manualmente si corresponde.
+                                </p>
+                            }
                         }
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>
                         <button class="btn btn-warning" @onclick="DesactivarConfirmado" disabled="@guardando">
                             Desactivar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ---------- Modal Confirmar Reactivación ---------- *@
+    @if (clienteAReactivar is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar reactivación</h5>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+                        else
+                        {
+                            <p>¿Reactivar al cliente <strong>@clienteAReactivar.NombreCompleto</strong>?</p>
+                            @if (clienteAReactivar.CantidadVehiculos > 0)
+                            {
+                                <p class="text-warning small mb-0">
+                                    Al reactivar este cliente, TODOS sus vehículos (@clienteAReactivar.CantidadVehiculos)
+                                    se reactivarán también.
+                                </p>
+                            }
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelarReactivar">Cancelar</button>
+                        <button class="btn btn-success" @onclick="ReactivarConfirmado" disabled="@guardando">
+                            <i class="bi bi-play-circle"></i> Reactivar
                         </button>
                     </div>
                 </div>

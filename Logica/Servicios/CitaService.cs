@@ -8,6 +8,7 @@ using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs;
 using Mecano.Entidad.Excepciones;
+using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
 
 namespace Mecano.Logica.Servicios;
@@ -51,10 +52,16 @@ public class CitaService : ICitaService
                 var vehiculo = new Vehiculo
                 {
                     ClienteId = dto.ClienteId,
-                    Placa = dto.NuevoVehiculo.Placa,
+                    // Mismo invariante que VehiculoService: se almacena en mayúsculas
+                    // sin guiones, o el índice único de Placa no colisionaría con los
+                    // vehículos creados desde /clientes ("abc-123" vs "ABC123").
+                    Placa = Formatos.NormalizarPlaca(dto.NuevoVehiculo.Placa),
                     Marca = dto.NuevoVehiculo.Marca,
                     Modelo = dto.NuevoVehiculo.Modelo,
-                    Anio = dto.NuevoVehiculo.Anio
+                    Anio = dto.NuevoVehiculo.Anio,
+                    // Activo se asigna en cada punto de creación (VehiculoService,
+                    // DbSeeder y aquí): la entidad no tiene inicializador.
+                    Activo = true
                 };
                 context.Vehiculo.Add(vehiculo);
                 await context.SaveChangesAsync();

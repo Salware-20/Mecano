@@ -2,9 +2,9 @@ using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs;
 using Mecano.Logica.Interfaces;
+using Mecano.Logica.Utilidades;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
 
 namespace Mecano.Logica.Servicios
 {
@@ -12,9 +12,6 @@ namespace Mecano.Logica.Servicios
     {
         private readonly IDbContextFactory<MySQLDBContext> _DB;
         private readonly ILogger<AuthServices> _logger;
-        private const int SALTSIZE = 16; 
-        private const int HASHSIZE = 32; 
-        private const int Iterations = 310000; 
 
         public AuthServices(IDbContextFactory<MySQLDBContext> dB, ILogger<AuthServices> logger)
         {
@@ -22,70 +19,45 @@ namespace Mecano.Logica.Servicios
             _logger = logger;
         }
 
+        /// <summary>
+        /// Genera un hash seguro para la contraseña proporcionada.
+        /// Delega en <see cref="PasswordHasher.Hash"/> — fuente única de verdad para el algoritmo.
+        /// Se mantiene public static para que DbSeeder pueda llamarlo sin inyectar el servicio.
+        /// </summary>
         public static string HashPassword(string password)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(password, nameof(password));
-            byte[] salt = new byte[SALTSIZE];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(salt);
-            } 
-            
-            using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256))
-            {
-                byte[] hash = pbkdf2.GetBytes(HASHSIZE);
+            => PasswordHasher.Hash(password);
 
-                string saltString = Convert.ToBase64String(salt);
-                string hashString = Convert.ToBase64String(hash);
-
-                return $"{saltString}${hashString}";
-            }
-        }
-
+        /// <summary>
+        /// Verifica la contraseña contra el hash almacenado.
+        /// Maneja el caso legado de contraseñas en texto plano (sin '$') con un log de advertencia,
+        /// y delega la verificación PBKDF2 en <see cref="PasswordHasher.Verify"/>.
+        /// </summary>
         private bool VerifyPassword(string password, string hash)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(password);
             ArgumentException.ThrowIfNullOrWhiteSpace(hash);
 
-            try
+            // Compatibilidad: si en la base de datos se insertó la contraseña en texto plano (sin '$')
+            if (!hash.Contains('$'))
             {
-                // Compatibilidad: si en la base de datos se insertó la contraseña en texto plano (sin '$')
-                if (!hash.Contains('$'))
+                if (password == hash)
                 {
-                    if (password == hash)
-                    {
-                        _logger.LogWarning("Contraseña en texto plano detectada en la BD durante el login. Se valida correctamente.");
-                        return true;
-                    }
-                    return false;
+                    _logger.LogWarning("Contraseña en texto plano detectada en la BD durante el login. Se valida correctamente.");
+                    return true;
                 }
-
-                string[] parts = hash.Split('$');
-                if (parts.Length != 2) return false;
-
-                byte[] salt = Convert.FromBase64String(parts[0]);
-                byte[] storeHash = Convert.FromBase64String(parts[1]);
-
-                using (var pbkdf2 = new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256))
-                {
-                    byte[] computedHash = pbkdf2.GetBytes(HASHSIZE);
-                    return CryptographicOperations.FixedTimeEquals(storeHash, computedHash);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error verificando la contraseña. Formato de hash posiblemente inválido.");
                 return false;
             }
+
+            return PasswordHasher.Verify(password, hash);
         }
 
         public async Task<bool> EmailExisteAsync(string email)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(email);
-            var cleanEmail = email.Trim().ToLower();
+            var cleanEmail = email.Trim().ToLowerInvariant();
             using var SQL = await _DB.CreateDbContextAsync();
-            return await SQL.Administradors.AnyAsync(a => a.Email.ToLower() == cleanEmail) 
-                || await SQL.Mecanico.AnyAsync(m => m.Email.ToLower() == cleanEmail);
+            return await SQL.Administradors.AnyAsync(a => a.Email.ToLower() == cleanEmail)
+                || await SQL.Mecanico.AnyAsync(m => m.Email == cleanEmail);
         }
 
         public async Task<AuthenticatedUser?> LoginAsync(string email, string password)
@@ -99,7 +71,7 @@ namespace Mecano.Logica.Servicios
             // 1. Buscamos en Administradores (insensible a mayúsculas/minúsculas y espacios)
             var admin = await SQL.Administradors.AsNoTracking()
                 .FirstOrDefaultAsync(a => a.Email.ToLower() == cleanEmail.ToLower());
-            
+
             if (admin is not null)
             {
                 if (!admin.Activo)
@@ -124,7 +96,7 @@ namespace Mecano.Logica.Servicios
                     return null;
                 }
             }
-            
+
             // 2. Si no es Administrador, buscamos en Mecánicos
             var mec = await SQL.Mecanico.AsNoTracking()
                 .FirstOrDefaultAsync(m => m.Email.ToLower() == cleanEmail.ToLower());
@@ -167,7 +139,7 @@ namespace Mecano.Logica.Servicios
             var cleanEmail = email.Trim().ToLower();
             using var SQL = await _DB.CreateDbContextAsync();
 
-            bool existeEmail = await SQL.Administradors.AnyAsync(a => a.Email.ToLower() == cleanEmail) 
+            bool existeEmail = await SQL.Administradors.AnyAsync(a => a.Email.ToLower() == cleanEmail)
                 || await SQL.Mecanico.AnyAsync(m => m.Email.ToLower() == cleanEmail);
             if (existeEmail) return false;
 

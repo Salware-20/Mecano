@@ -2,16 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mecano.Entidad.DTOs
 {
-    public sealed class NuevoVehiculoDTO
+    public class ActualizarVehiculoDTO
     {
-        // Dueño del vehículo. La página lo asigna desde la ruta (/clientes/{Id});
-        // en el flujo de AgendarCita no se usa (CitaService toma ClienteId de la cita).
-        public int ClienteId { get; set; }
+        public int Id { get; set; }
 
-        // StringLength laxo a propósito: el usuario escribe "ABC-123" (10 con guion) y la
-        // regla estricta de 6 dígitos alfanuméricos vive en VehiculoService.NormalizarYValidar,
-        // de modo que el error llegue a la UI por el catch (InvalidOperationException)
-        // que la página ya maneja. Misma decisión que CrearClienteDTO con la cédula.
+        // Ver comentario en NuevoVehiculoDTO: la regla de largo vive en el servicio.
         [Required(ErrorMessage = "La placa es obligatoria")]
         [StringLength(20)]
         public string Placa { get; set; } = string.Empty;

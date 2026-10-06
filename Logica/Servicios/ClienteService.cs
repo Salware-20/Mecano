@@ -31,16 +31,19 @@ public class ClienteService : IClienteService
             return query;
 
         var digitos = Formatos.SoloDigitos(termino);
+        var placaNormalizada = Formatos.NormalizarPlaca(termino);
 
-        // La cédula se almacena solo con dígitos, pero el usuario la ve formateada
-        // ("1-0111-0111"). Por eso el término se compara de dos maneras: tal como se
-        // escribió, y normalizado a dígitos para que "1-0111" encuentre "101110111".
-        // El nombre y la placa no se normalizan: no son campos numéricos.
+        // La cédula se almacena solo con dígitos y la placa en mayúsculas sin guiones,
+        // pero el usuario las ve formateadas ("1-0111-0111", "ABC-123"). Por eso ambos
+        // términos se comparan de dos formas: tal como se escribió, y normalizado, para
+        // que "1-0111" encuentre 101110111 y "ABC-123" encuentre ABC123.
+        // El nombre no se normaliza: no es un campo numérico/alcanumérico canónico.
         return query.Where(c =>
             EF.Functions.Like(c.NombreCompleto, $"%{termino}%")
             || EF.Functions.Like(c.CedulaIdentidad, $"%{termino}%")
             || (digitos.Length > 0 && EF.Functions.Like(c.CedulaIdentidad, $"%{digitos}%"))
-            || c.Vehiculos.Any(v => EF.Functions.Like(v.Placa, $"%{termino}%")));
+            || c.Vehiculos.Any(v => EF.Functions.Like(v.Placa, $"%{termino}%")
+                || (placaNormalizada.Length > 0 && EF.Functions.Like(v.Placa, $"%{placaNormalizada}%"))));
     }
 
     /// <summary>
@@ -85,7 +88,11 @@ public class ClienteService : IClienteService
         Direccion = c.Direccion,
         FechaRegistro = c.FechaRegistro,
         Activo = c.Activo,
-        CantidadVehiculos = c.Vehiculos.Count(),
+        // El conteo coincide con la lista visible de ObtenerPorClienteAsync:
+        // cliente activo -> solo vehículos activos; cliente inactivo -> todos los vehículos.
+        CantidadVehiculos = c.Activo
+            ? c.Vehiculos.Count(v => v.Activo)
+            : c.Vehiculos.Count(),
         CantidadCitas = c.Citas.Count()
     };
 
@@ -237,11 +244,16 @@ public class ClienteService : IClienteService
         var cliente = await context.Cliente.FindAsync(id);
         if (cliente is null) return false;
 
-        // Soft delete: Cliente tiene Cascade hacia Cita y Vehiculo, un borrado duro
-        // destruiría el historial de citas sin dejar rastro.
+        // Soft delete en cascada: todos los vehículos activos del cliente pasan a inactivos
+        var vehiculos = await context.Vehiculo
+            .Where(v => v.ClienteId == id && v.Activo)
+            .ToListAsync();
+
         cliente.Activo = false;
+        foreach (var v in vehiculos) v.Activo = false;
+
         await context.SaveChangesAsync();
-        _logger.LogInformation("Cliente {Id} desactivado.", id);
+        _logger.LogInformation("Cliente {Id} desactivado; {N} vehículos desactivados en cascada.", id, vehiculos.Count);
         return true;
     }
 
@@ -253,9 +265,17 @@ public class ClienteService : IClienteService
         var cliente = await context.Cliente.FindAsync(id);
         if (cliente is null) return false;
 
+        // Reactivación en cascada: TODOS los vehículos del cliente (activos e inactivos)
+        // vuelven a activos. Sin flag DesactivadoPorCascade (YAGNI).
+        var vehiculos = await context.Vehiculo
+            .Where(v => v.ClienteId == id)
+            .ToListAsync();
+
         cliente.Activo = true;
+        foreach (var v in vehiculos) v.Activo = true;
+
         await context.SaveChangesAsync();
-        _logger.LogInformation("Cliente {Id} reactivado.", id);
+        _logger.LogInformation("Cliente {Id} reactivado; {N} vehículos reactivados en cascada.", id, vehiculos.Count);
         return true;
     }
 

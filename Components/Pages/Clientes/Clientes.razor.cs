@@ -1,3 +1,4 @@
+using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs.Cliente;
 using Microsoft.AspNetCore.Components;
 
@@ -25,6 +26,10 @@ public partial class Clientes : ComponentBase, IDisposable
     private CrearClienteDTO modelo = new();
     private ClienteDTO? clienteAEliminar;
     private ClienteDTO? clienteADesactivar;
+    private ClienteDTO? clienteAReactivar;
+
+    // Citas futuras del cliente a desactivar (para la advertencia en el modal).
+    private int citasFuturas;
 
     // Debounce de la búsqueda: cada pulsación reinicia el temporizador.
     private CancellationTokenSource? _debounceCts;
@@ -217,15 +222,33 @@ public partial class Clientes : ComponentBase, IDisposable
     }
 
     // ~~~ ESTADO: DESACTIVAR / REACTIVAR ~~~
-    private void ConfirmarDesactivar(ClienteDTO cliente)
+    private async Task ConfirmarDesactivar(ClienteDTO cliente)
     {
         clienteADesactivar = cliente;
+        citasFuturas = 0;
         mensajeError = null;
+
+        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelada/Finalizada)
+        // para mostrar la advertencia en el modal de confirmación.
+        try
+        {
+            var citas = await CitaService.ObtenerPorClienteAsync(cliente.Id);
+            citasFuturas = citas.Count(c =>
+                c.Fecha >= DateTime.Today
+                && c.Estado != EstadoCita.Cancelada
+                && c.Estado != EstadoCita.Finalizada);
+        }
+        catch
+        {
+            // Si el conteo falla, el modal simplemente no muestra la advertencia.
+            citasFuturas = 0;
+        }
     }
 
     private void CancelarDesactivar()
     {
         clienteADesactivar = null;
+        citasFuturas = 0;
         mensajeError = null;
     }
 
@@ -240,6 +263,7 @@ public partial class Clientes : ComponentBase, IDisposable
             await ClienteService.DesactivarAsync(clienteADesactivar.Id);
             mensajeExito = $"Cliente “{clienteADesactivar.NombreCompleto}” desactivado.";
             clienteADesactivar = null;
+            citasFuturas = 0;
             await CargarAsync();
         }
         catch (InvalidOperationException ex)
@@ -252,15 +276,35 @@ public partial class Clientes : ComponentBase, IDisposable
         }
     }
 
-    private async Task Reactivar(ClienteDTO cliente)
+    private void ConfirmarReactivar(ClienteDTO cliente)
     {
+        clienteAReactivar = cliente;
+        mensajeError = null;
+    }
+
+    private void CancelarReactivar()
+    {
+        clienteAReactivar = null;
+        mensajeError = null;
+    }
+
+    private async Task ReactivarConfirmado()
+    {
+        if (clienteAReactivar is null) return;
+
         guardando = true;
+        mensajeError = null;
         try
         {
-            if (await ClienteService.ReactivarAsync(cliente.Id))
+            if (await ClienteService.ReactivarAsync(clienteAReactivar.Id))
             {
-                mensajeExito = $"Cliente “{cliente.NombreCompleto}” reactivado.";
+                mensajeExito = $"Cliente “{clienteAReactivar.NombreCompleto}” reactivado.";
+                clienteAReactivar = null;
                 await CargarAsync();
+            }
+            else
+            {
+                mensajeError = "No se pudo reactivar el cliente.";
             }
         }
         finally

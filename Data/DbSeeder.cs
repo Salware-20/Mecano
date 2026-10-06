@@ -73,11 +73,13 @@ namespace Mecano.Data
                 context.Cliente.AddRange(cliJuan, cliLaura, cliRoberto);
                 await context.SaveChangesAsync();
 
-                var vehJuan1 = new Vehiculo { Placa = "ABC-123", Marca = "Toyota", Modelo = "Corolla", Anio = 2020, ClienteId = cliJuan.ClienteId };
-                var vehJuan2 = new Vehiculo { Placa = "DEF-456", Marca = "Honda", Modelo = "CRV", Anio = 2019, ClienteId = cliJuan.ClienteId };
-                var vehLaura = new Vehiculo { Placa = "GHI-789", Marca = "Hyundai", Modelo = "Tucson", Anio = 2021, ClienteId = cliLaura.ClienteId };
-                var vehRoberto1 = new Vehiculo { Placa = "JKL-012", Marca = "Nissan", Modelo = "Sentra", Anio = 2018, ClienteId = cliRoberto.ClienteId };
-                var vehRoberto2 = new Vehiculo { Placa = "MNO-345", Marca = "Suzuki", Modelo = "Vitara", Anio = 2022, ClienteId = cliRoberto.ClienteId };
+                // La placa se guarda en mayúsculas sin guiones (invariante de VehiculoService).
+                // El formato legible "ABC-123" lo aplica Formatos en la UI.
+                var vehJuan1 = new Vehiculo { Placa = "ABC123", Marca = "Toyota", Modelo = "Corolla", Anio = 2020, ClienteId = cliJuan.ClienteId, Activo = true };
+                var vehJuan2 = new Vehiculo { Placa = "DEF456", Marca = "Honda", Modelo = "CRV", Anio = 2019, ClienteId = cliJuan.ClienteId, Activo = true };
+                var vehLaura = new Vehiculo { Placa = "GHI789", Marca = "Hyundai", Modelo = "Tucson", Anio = 2021, ClienteId = cliLaura.ClienteId, Activo = true };
+                var vehRoberto1 = new Vehiculo { Placa = "JKL012", Marca = "Nissan", Modelo = "Sentra", Anio = 2018, ClienteId = cliRoberto.ClienteId, Activo = true };
+                var vehRoberto2 = new Vehiculo { Placa = "MNO345", Marca = "Suzuki", Modelo = "Vitara", Anio = 2022, ClienteId = cliRoberto.ClienteId, Activo = true };
 
                 context.Vehiculo.AddRange(vehJuan1, vehJuan2, vehLaura, vehRoberto1, vehRoberto2);
                 await context.SaveChangesAsync();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Mecano.Entidad.Clases;
+using MecanicoClase = Mecano.Entidad.Clases.Mecanico;
 
 namespace Mecano.Entidad.DTOs
 {
@@ -9,6 +10,6 @@ namespace Mecano.Entidad.DTOs
         public TimeOnly HoraInicio { get; init; }
         public TimeOnly HoraFin { get; init; }
         public bool EstaOcupado { get; init; }
-        public List<Mecanico> MecanicosLibres { get; init; } = new();
+        public List<MecanicoClase> MecanicosLibres { get; init; } = new();
     }
 }

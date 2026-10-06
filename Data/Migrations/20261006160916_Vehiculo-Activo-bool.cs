@@ -14,8 +14,7 @@ namespace Mecano.Data.Migrations
                 name: "Activo",
                 table: "Vehiculo",
                 type: "tinyint(1)",
-                nullable: false,
-                defaultValue: false);
+                nullable: false);
         }
 
         /// <inheritdoc />

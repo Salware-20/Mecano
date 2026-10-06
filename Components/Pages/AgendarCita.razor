@@ -136,7 +136,7 @@
                                 {
                                     @foreach(var v in vehiculosCliente)
                                     {
-                                        <option value="@v.VehiculoId">@v.Placa - @v.Marca @v.Modelo</option>
+                                        <option value="@v.VehiculoId">@Formatos.Placa(v.Placa) - @v.Marca @v.Modelo</option>
                                     }
                                 }
                             </select>
@@ -178,7 +178,7 @@
                             {
                                 @foreach(var s in serviciosActivos)
                                 {
-                                    <option value="@s.ServicioId">@s.Nombre ($@s.Precio)</option>
+                                    <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
                                 }
                             }
                         </select>

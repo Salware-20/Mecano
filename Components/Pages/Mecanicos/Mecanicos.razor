@@ -1,0 +1,248 @@
+@page "/mecanicos"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Administrador")]
+@inject IMecanicoService MecanicoService
+@inject ICategoriaService CategoriaService
+
+<PageTitle>Mecánicos - Mecano</PageTitle>
+
+<h1><i class="bi bi-person-gear"></i> Gestión de Mecánicos</h1>
+
+@if (!string.IsNullOrEmpty(mensajeExito))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeExito
+        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(mensajeErrorPagina))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeErrorPagina
+        <button type="button" class="btn-close" @onclick="() => mensajeErrorPagina = null"></button>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <p class="text-muted mb-0">
+            @mecanicos.Count mecánico(s) @(mostrarInactivos ? "registrado(s)" : "activo(s)")
+        </p>
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="chkMecanicosInactivos"
+                   checked="@mostrarInactivos"
+                   @onchange="e => CambiarMostrarInactivos((bool)(e.Value ?? false))" />
+            <label class="form-check-label" for="chkMecanicosInactivos">Mostrar inactivos</label>
+        </div>
+    </div>
+    @if (especialidades.Count > 0)
+    {
+        <button class="btn btn-primary" @onclick="AbrirCrear">
+            <i class="bi bi-plus-circle"></i> Nuevo mecánico
+        </button>
+    }
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border" role="status"></div>
+    </div>
+}
+else if (!mecanicos.Any())
+{
+    <div class="alert alert-info">
+        @(mostrarInactivos
+            ? "No hay mecánicos registrados todavía."
+            : "No hay mecánicos activos. Si hay mecánicos inactivos, actívalos con el interruptor “Mostrar inactivos”.")
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Teléfono</th>
+                <th>Especialidad</th>
+                <th class="text-center">Estado</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var mec in mecanicos)
+            {
+                <tr class="@(mec.Activo ? "" : "table-secondary")">
+                    <td>@(mec.Cedula ?? "—")</td>
+                    <td><strong>@mec.Nombre</strong></td>
+                    <td>@mec.Email</td>
+                    <td>@(mec.Telefono ?? "—")</td>
+                    <td>@(mec.EspecialidadNombre ?? "—")</td>
+                    <td class="text-center">
+                        @if (mec.Activo)
+                        {
+                            <span class="badge bg-success">Activo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inactivo</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                disabled="@guardando" @onclick="() => AbrirEditar(mec)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        @if (mec.Activo)
+                        {
+                            <button class="btn btn-sm btn-outline-warning" title="Desactivar"
+                                    disabled="@guardando" @onclick="() => ConfirmarDesactivar(mec)">
+                                <i class="bi bi-pause-circle"></i>
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-success" title="Reactivar"
+                                    disabled="@guardando" @onclick="() => Reactivar(mec)">
+                                <i class="bi bi-play-circle"></i>
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@* ---------- Modal Crear/Editar ---------- *@
+@if (mostrarModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <EditForm Model="modelo" OnValidSubmit="Guardar" FormName="mecanicoForm">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(esEdicion ? "Editar mecánico" : "Nuevo mecánico")</h5>
+                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Nombre *</label>
+                            <InputText class="form-control" @bind-Value="modelo.Nombre" />
+                            <ValidationMessage For="() => modelo.Nombre" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email *</label>
+                            <InputText class="form-control" @bind-Value="modelo.Email" />
+                            <ValidationMessage For="() => modelo.Email" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Cédula</label>
+                                <InputText class="form-control" @bind-Value="modelo.Cedula" />
+                                <ValidationMessage For="() => modelo.Cedula" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Teléfono</label>
+                                <InputText class="form-control" @bind-Value="modelo.Telefono" />
+                                <ValidationMessage For="() => modelo.Telefono" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Especialidad *</label>
+                            <InputSelect class="form-select" @bind-Value="modelo.EspecialidadId">
+                                <option value="">Seleccione una especialidad…</option>
+                                @foreach (var esp in especialidades)
+                                {
+                                    <option value="@esp.Id">@esp.Nombre</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modelo.EspecialidadId" />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">@(esEdicion ? "Contraseña" : "Contraseña *")</label>
+                                <InputText type="password" class="form-control"
+                                           autocomplete="new-password"
+                                           placeholder="@PasswordPlaceholder"
+                                           Value="modelo.Password"
+                                           ValueChanged="AsignarPassword"
+                                           ValueExpression="() => modelo.Password" />
+                                <ValidationMessage For="() => modelo.Password" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">@(esEdicion ? "Confirmar contraseña" : "Confirmar contraseña *")</label>
+                                <InputText type="password" class="form-control"
+                                           autocomplete="new-password"
+                                           placeholder="@PasswordPlaceholder"
+                                           Value="modelo.ConfirmarPassword"
+                                           ValueChanged="AsignarConfirmarPassword"
+                                           ValueExpression="() => modelo.ConfirmarPassword" />
+                                <ValidationMessage For="() => modelo.ConfirmarPassword" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CerrarModal">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Guardar
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* ---------- Modal Confirmar Desactivación ---------- *@
+@if (mecanicoADesactivar is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar desactivación</h5>
+                    <button type="button" class="btn-close" @onclick="CancelarDesactivar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensajeError))
+                    {
+                        <div class="alert alert-danger">@mensajeError</div>
+                    }
+                    else
+                    {
+                        <p>¿Desactivar al mecánico <strong>@mecanicoADesactivar.Nombre</strong>?</p>
+                        <p class="text-muted small mb-0">
+                            Se marcará como inactivo. Las citas existentes no se modifican y
+                            podrás reactivarlo en cualquier momento.
+                        </p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>
+                    <button class="btn btn-warning" @onclick="DesactivarConfirmado" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Desactivar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
