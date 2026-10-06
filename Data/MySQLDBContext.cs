@@ -76,9 +76,10 @@ namespace Mecano.Data
                 .HasForeignKey(nl => nl.CitaId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Unique index on Cliente.CedulaIdentidad
+            // Unique index on Cliente: la identidad solo es única dentro de su tipo de documento.
+            // Fase 1 solo usa Nacional, pero el índice compuesto evita tener que migrar en Fase 2.
             modelBuilder.Entity<Cliente>()
-                .HasIndex(c => c.CedulaIdentidad)
+                .HasIndex(c => new { c.CedulaIdentidad, c.TipoIdentificacion })
                 .IsUnique();
 
             // Unique index on Vehiculo.Placa

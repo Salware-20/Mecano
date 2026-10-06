@@ -4,16 +4,19 @@ using Mecano.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Mecano.Migrations
+namespace Mecano.Data.Migrations
 {
     [DbContext(typeof(MySQLDBContext))]
-    partial class MySQLDBContextModelSnapshot : ModelSnapshot
+    [Migration("20261006160916_Vehiculo-Activo-bool")]
+    partial class VehiculoActivobool
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

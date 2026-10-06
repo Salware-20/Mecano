@@ -4,16 +4,19 @@ using Mecano.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Mecano.Migrations
+namespace Mecano.Data.Migrations
 {
     [DbContext(typeof(MySQLDBContext))]
-    partial class MySQLDBContextModelSnapshot : ModelSnapshot
+    [Migration("20261005232947_AgregarTipoIdentificacionCliente")]
+    partial class AgregarTipoIdentificacionCliente
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -307,9 +310,6 @@ namespace Mecano.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("VehiculoId"));
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("tinyint(1)");
 
                     b.Property<int>("Anio")
                         .HasColumnType("int");

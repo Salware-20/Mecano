@@ -132,4 +132,29 @@ public class CitaService : ICitaService
             .AsNoTracking()
             .ToListAsync();
     }
+
+    // ~~~ READ (por cliente) ~~~
+    public async Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId)
+    {
+        using var context = await _factory.CreateDbContextAsync();
+
+        // Proyección directa: no usamos Include para no materializar el grafo completo.
+        return await context.Cita
+            .AsNoTracking()
+            .Where(c => c.ClienteId == clienteId)
+            .OrderByDescending(c => c.Fecha)
+            .ThenByDescending(c => c.HoraInicio)
+            .Select(c => new CitaDTO
+            {
+                Id = c.CitaId,
+                Fecha = c.Fecha,
+                HoraInicio = c.HoraInicio,
+                HoraFin = c.HoraFin,
+                Estado = c.Estado,
+                VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
+                ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
+                MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null
+            })
+            .ToListAsync();
+    }
 }

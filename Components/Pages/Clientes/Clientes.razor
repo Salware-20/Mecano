@@ -1,0 +1,360 @@
+@page "/clientes"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@implements IDisposable
+@inject IClienteService ClienteService
+
+<PageTitle>Clientes - Mecano</PageTitle>
+
+<h1><i class="bi bi-people"></i> Gestión de Clientes</h1>
+
+@if (!string.IsNullOrEmpty(mensajeExito))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeExito
+        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" @onclick="() => mensajeError = null"></button>
+    </div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar por nombre, cédula o placa..."
+                           value="@terminoBusqueda" @oninput="OnBuscarCambio" />
+                    @if (!string.IsNullOrEmpty(terminoBusqueda))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" title="Limpiar búsqueda"
+                                @onclick="LimpiarBusqueda">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="chkClientesInactivos"
+                           checked="@mostrarInactivos"
+                           @onchange="e => CambiarMostrarInactivos((bool)(e.Value ?? false))" />
+                    <label class="form-check-label" for="chkClientesInactivos">Mostrar inactivos</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" value="@tamanioPagina" @onchange="CambiarTamanioPagina">
+                    @foreach (var t in TamaniosPagina)
+                    {
+                        <option value="@t">@t por página</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 text-md-end">
+                <AuthorizeView Roles="Administrador" Context="authCtx">
+                    <button class="btn btn-primary w-100" @onclick="AbrirCrear">
+                        <i class="bi bi-plus-circle"></i> Nuevo cliente
+                    </button>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        @if (cargando)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border" role="status"></div>
+            </div>
+        }
+        else if (!clientes.Any())
+        {
+            <div class="alert alert-info mb-0">
+                @(string.IsNullOrWhiteSpace(terminoBusqueda)
+                    ? "No hay clientes registrados todavía."
+                    : "No se encontraron clientes que coincidan con la búsqueda.")
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Contacto</th>
+                            <th class="text-center">Vehículos</th>
+                            <th class="text-center">Citas</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cli in clientes)
+                        {
+                            <tr class="@(cli.Activo ? "" : "table-secondary")">
+                                <td>@Formatos.CedulaNacional(cli.CedulaIdentidad)</td>
+                                <td><strong>@cli.NombreCompleto</strong></td>
+                                <td>
+                                    @Formatos.Telefono(cli.Telefono)
+                                    @if (!string.IsNullOrWhiteSpace(cli.Correo))
+                                    {
+                                        <small class="text-muted d-block">@cli.Correo</small>
+                                    }
+                                </td>
+                                <td class="text-center">@cli.CantidadVehiculos</td>
+                                <td class="text-center">@cli.CantidadCitas</td>
+                                <td class="text-center">
+                                    @if (cli.Activo)
+                                    {
+                                        <span class="badge bg-success">Activo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary me-1" href="clientes/@cli.Id">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </a>
+                                    <AuthorizeView Roles="Administrador" Context="authCtx">
+                                        <button class="btn btn-sm btn-outline-primary me-1"
+                                                title="Editar" @onclick="() => AbrirEditar(cli)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (cli.Activo)
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning me-1"
+                                                    title="Desactivar" @onclick="() => ConfirmarDesactivar(cli)">
+                                                <i class="bi bi-pause-circle"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-success me-1"
+                                                    title="Reactivar" disabled="@guardando"
+                                                    @onclick="() => Reactivar(cli)">
+                                                <i class="bi bi-play-circle"></i>
+                                            </button>
+                                        }
+                                        @if (SinHistoria(cli))
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    title="Eliminar definitivamente" @onclick="() => ConfirmarEliminar(cli)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @* ---------- Paginación numerada ---------- *@
+    @if (!cargando && totalPaginas > 1)
+    {
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <small class="text-muted">
+                Página @paginaActual de @totalPaginas — @totalRegistros cliente(s)
+            </small>
+            <nav aria-label="Paginación de clientes">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(paginaActual == 1 ? "disabled" : "")">
+                        <button class="page-link" type="button" @onclick="PaginaAnterior">
+                            <span aria-hidden="true">&laquo;</span>
+                        </button>
+                    </li>
+
+                    @if (MostrarElipsisAntes())
+                    {
+                        <li class="page-item">
+                            <button class="page-link" type="button" @onclick="() => IrAPagina(1)">1</button>
+                        </li>
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+
+                    @foreach (var p in PaginasVisibles())
+                    {
+                        <li class="page-item @(p == paginaActual ? "active" : "")">
+                            <button class="page-link" type="button" @onclick="() => IrAPagina(p)">@p</button>
+                        </li>
+                    }
+
+                    @if (MostrarElipsisDespues())
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                        <li class="page-item">
+                            <button class="page-link" type="button" @onclick="() => IrAPagina(totalPaginas)">@totalPaginas</button>
+                        </li>
+                    }
+
+                    <li class="page-item @(paginaActual == totalPaginas ? "disabled" : "")">
+                        <button class="page-link" type="button" @onclick="PaginaSiguiente">
+                            <span aria-hidden="true">&raquo;</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@* ---------- Modal Crear/Editar (solo Administrador) ---------- *@
+<AuthorizeView Roles="Administrador" Context="authCtx">
+    @if (mostrarModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <EditForm Model="modelo" OnValidSubmit="Guardar" FormName="clienteForm">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                @(esEdicion ? "Editar cliente" : "Nuevo cliente")
+                            </h5>
+                            <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            @if (!string.IsNullOrEmpty(mensajeError))
+                            {
+                                <div class="alert alert-danger">@mensajeError</div>
+                            }
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="cliCedula">Cédula *</label>
+                                    <InputText id="cliCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
+                                               placeholder="Ej. 101010101" />
+                                    <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="cliNombre">Nombre completo *</label>
+                                    <InputText id="cliNombre" class="form-control" @bind-Value="modelo.NombreCompleto"
+                                               placeholder="Nombre y apellidos" />
+                                    <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="cliTelefono">Teléfono</label>
+                                    <InputText id="cliTelefono" class="form-control" @bind-Value="modelo.Telefono"
+                                               placeholder="Ej. 80808080" />
+                                    <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="cliCorreo">Correo</label>
+                                    <InputText id="cliCorreo" class="form-control" @bind-Value="modelo.Correo"
+                                               placeholder="cliente@correo.com" />
+                                    <ValidationMessage For="() => modelo.Correo" class="text-danger small" />
+                                </div>
+                            </div>
+
+                            <div class="mb-1">
+                                <label class="form-label" for="cliDireccion">Dirección</label>
+                                <InputTextArea id="cliDireccion" class="form-control" @bind-Value="modelo.Direccion"
+                                               rows="2" placeholder="Dirección opcional" />
+                                <ValidationMessage For="() => modelo.Direccion" class="text-danger small" />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CerrarModal">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@guardando">
+                                @if (guardando)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Guardar
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ---------- Modal Confirmar Desactivación ---------- *@
+    @if (clienteADesactivar is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar desactivación</h5>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+                        else
+                        {
+                            <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
+                            <p class="text-muted small mb-0">
+                                El cliente dejará de aparecer en las listas, pero se conserva su historial.
+                                Puedes reactivarlo en cualquier momento.
+                            </p>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>
+                        <button class="btn btn-warning" @onclick="DesactivarConfirmado" disabled="@guardando">
+                            Desactivar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ---------- Modal Confirmar Eliminación Definitiva ---------- *@
+    @if (clienteAEliminar is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar eliminación definitiva</h5>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+                        else
+                        {
+                            <p>
+                                ¿Eliminar permanentemente a <strong>@clienteAEliminar.NombreCompleto</strong>
+                                (@Formatos.CedulaNacional(clienteAEliminar.CedulaIdentidad))?
+                            </p>
+                            <p class="text-muted small mb-0">
+                                Esta acción no se puede deshacer. Si solo quieres ocultarlo del listado,
+                                usa Desactivar.
+                            </p>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
+                        <button class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
+                            <span class="bi bi-trash"></span> Eliminar definitivamente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</AuthorizeView>

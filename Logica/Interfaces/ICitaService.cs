@@ -11,4 +11,5 @@ public interface ICitaService
     Task<Cita> AgendarCitaAsync(AgendarCitaDTO dto);
     Task CancelarCitaAsync(int citaId);
     Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin);
+    Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId);
 }

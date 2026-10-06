@@ -1,0 +1,377 @@
+@page "/clientes/{Id:int}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IClienteService ClienteService
+@inject IVehiculoService VehiculoService
+@inject ICitaService CitaService
+
+<PageTitle>@(cliente?.NombreCompleto ?? "Cliente") - Mecano</PageTitle>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="clientes">Clientes</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@(cliente?.NombreCompleto ?? "Cliente")</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0"><i class="bi bi-person"></i> @(cliente?.NombreCompleto ?? "Cliente")</h1>
+    <a class="btn btn-outline-secondary" href="clientes">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</div>
+
+@if (!string.IsNullOrEmpty(mensajeExito))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeExito
+        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" @onclick="() => mensajeError = null"></button>
+    </div>
+}
+
+@if (cargando)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border" role="status"></div>
+    </div>
+}
+else if (cliente is null)
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-person-x display-4 text-muted"></i>
+            <h2 class="h5 mt-3">Cliente no encontrado</h2>
+            <p class="text-muted">
+                El cliente con ID @Id no existe o fue eliminado.
+            </p>
+            <a class="btn btn-primary" href="clientes">
+                <i class="bi bi-arrow-left"></i> Volver a clientes
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    @* ---------- Tarjeta de datos ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-card-heading"></i> Datos del cliente</strong>
+            <AuthorizeView Roles="Administrador" Context="authCtx">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" @onclick="AbrirEditar">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                    @if (cliente.Activo)
+                    {
+                        <button class="btn btn-outline-warning" @onclick="ConfirmarDesactivar">
+                            <i class="bi bi-pause-circle"></i> Desactivar
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-success" disabled="@guardando" @onclick="Reactivar">
+                            <i class="bi bi-play-circle"></i> Reactivar
+                        </button>
+                    }
+                    @if (SinHistoria)
+                    {
+                        <button class="btn btn-outline-danger" @onclick="ConfirmarEliminar">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    }
+                </div>
+            </AuthorizeView>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Cédula</label>
+                    <div>@Formatos.CedulaNacional(cliente.CedulaIdentidad)</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Tipo de identificación</label>
+                    <div>
+                        Nacional
+                        <small class="text-muted">(único tipo disponible por ahora)</small>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Teléfono</label>
+                    <div>@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "-" : Formatos.Telefono(cliente.Telefono))</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Correo</label>
+                    <div>@(string.IsNullOrWhiteSpace(cliente.Correo) ? "-" : cliente.Correo)</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Dirección</label>
+                    <div>@(string.IsNullOrWhiteSpace(cliente.Direccion) ? "-" : cliente.Direccion)</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Fecha de registro</label>
+                    <div>@cliente.FechaRegistro.ToString("dd/MM/yyyy")</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Estado</label>
+                    <div>
+                        @if (cliente.Activo)
+                        {
+                            <span class="badge bg-success">Activo</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inactivo</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ---------- Vehículos ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-car-front"></i> Vehículos (@vehiculos.Count)</strong>
+            <button class="btn btn-sm btn-primary" disabled
+                    title="Disponible en la siguiente fase">
+                <i class="bi bi-plus-circle"></i> Nuevo vehículo
+            </button>
+        </div>
+        <div class="card-body">
+            @if (!vehiculos.Any())
+            {
+                <div class="alert alert-info mb-0">Este cliente no tiene vehículos registrados.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Placa</th>
+                                <th>Marca</th>
+                                <th>Modelo</th>
+                                <th class="text-center">Año</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var veh in vehiculos)
+                            {
+                                <tr>
+                                    <td><strong>@veh.Placa</strong></td>
+                                    <td>@veh.Marca</td>
+                                    <td>@veh.Modelo</td>
+                                    <td class="text-center">@veh.Anio</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary" disabled
+                                                title="Disponible en la siguiente fase">
+                                            <i class="bi bi-eye"></i> Ver detalle
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ---------- Citas ---------- *@
+    <div class="card shadow-sm">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-calendar-event"></i> Citas (@citas.Count)</strong>
+            <button class="btn btn-sm btn-primary" disabled
+                    title="Disponible en la siguiente fase">
+                <i class="bi bi-plus-circle"></i> Agendar cita
+            </button>
+        </div>
+        <div class="card-body">
+            @if (!citas.Any())
+            {
+                <div class="alert alert-info mb-0">Este cliente no tiene citas registradas.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Servicio</th>
+                                <th>Mecánico</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cita in citas)
+                            {
+                                <tr>
+                                    <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                    <td>@(cita.ServicioNombre ?? "-")</td>
+                                    <td>@(cita.MecanicoNombre ?? "-")</td>
+                                    <td>
+                                        <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ---------- Modales (solo Administrador) ---------- *@
+    <AuthorizeView Roles="Administrador" Context="authCtx">
+        @if (mostrarModal)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <EditForm Model="modelo" OnValidSubmit="Guardar" FormName="clienteDetalleForm">
+                            <DataAnnotationsValidator />
+                            <div class="modal-header">
+                                <h5 class="modal-title">Editar cliente</h5>
+                                <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                            </div>
+                            <div class="modal-body">
+                                @if (!string.IsNullOrEmpty(mensajeError))
+                                {
+                                    <div class="alert alert-danger">@mensajeError</div>
+                                }
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="detCedula">Cédula *</label>
+                                        <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
+                                                   placeholder="Ej. 1-0101-0101" />
+                                        <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="detNombre">Nombre completo *</label>
+                                        <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto"
+                                                   placeholder="Nombre y apellidos" />
+                                        <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="detTelefono">Teléfono</label>
+                                        <InputText id="detTelefono" class="form-control" @bind-Value="modelo.Telefono"
+                                                   placeholder="Ej. 8888-0000" />
+                                        <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="detCorreo">Correo</label>
+                                        <InputText id="detCorreo" class="form-control" @bind-Value="modelo.Correo"
+                                                   placeholder="cliente@correo.com" />
+                                        <ValidationMessage For="() => modelo.Correo" class="text-danger small" />
+                                    </div>
+                                </div>
+
+                                <div class="mb-1">
+                                    <label class="form-label" for="detDireccion">Dirección</label>
+                                    <InputTextArea id="detDireccion" class="form-control" @bind-Value="modelo.Direccion"
+                                                   rows="2" placeholder="Dirección opcional" />
+                                    <ValidationMessage For="() => modelo.Direccion" class="text-danger small" />
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @onclick="CerrarModal">
+                                    Cancelar
+                                </button>
+                                <button type="submit" class="btn btn-primary" disabled="@guardando">
+                                    @if (guardando)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    Guardar
+                                </button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (clienteADesactivar is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Confirmar desactivación</h5>
+                        </div>
+                        <div class="modal-body">
+                            @if (!string.IsNullOrEmpty(mensajeError))
+                            {
+                                <div class="alert alert-danger">@mensajeError</div>
+                            }
+                            else
+                            {
+                                <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
+                                <p class="text-muted small mb-0">
+                                    El cliente dejará de aparecer en las listas, pero se conserva su historial.
+                                </p>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>
+                            <button class="btn btn-warning" @onclick="DesactivarConfirmado" disabled="@guardando">
+                                Desactivar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (clienteAEliminar is not null)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Confirmar eliminación definitiva</h5>
+                        </div>
+                        <div class="modal-body">
+                            @if (!string.IsNullOrEmpty(mensajeError))
+                            {
+                                <div class="alert alert-danger">@mensajeError</div>
+                            }
+                            else
+                            {
+                                <p>
+                                    ¿Eliminar permanentemente a <strong>@clienteAEliminar.NombreCompleto</strong>
+                                    (@Formatos.CedulaNacional(clienteAEliminar.CedulaIdentidad))?
+                                </p>
+                                <p class="text-muted small mb-0">
+                                    Esta acción no se puede deshacer. Si solo quieres ocultarlo del listado,
+                                    usa Desactivar.
+                                </p>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
+                            <button class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
+                                <i class="bi bi-trash"></i> Eliminar definitivamente
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </AuthorizeView>
+}

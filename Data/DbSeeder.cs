@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Logica.Servicios;
 
 namespace Mecano.Data
@@ -63,9 +64,11 @@ namespace Mecano.Data
                 context.Mecanico.AddRange(mecCarlos, mecMaria, mecJose, mecAna, mecPedro);
                 await context.SaveChangesAsync();
 
-                var cliJuan = new Cliente { NombreCompleto = "Juan Pérez", CedulaIdentidad = "1-0101-0101", Telefono = "8888-1111" };
-                var cliLaura = new Cliente { NombreCompleto = "Laura Vargas", CedulaIdentidad = "2-0202-0202", Telefono = "8888-2222" };
-                var cliRoberto = new Cliente { NombreCompleto = "Roberto Solís", CedulaIdentidad = "3-0303-0303", Telefono = "8888-3333" };
+                // Cédula y teléfono se guardan solo con dígitos (invariante de ClienteService).
+                // El formato legible "1-0101-0101" / "8888-1111" lo aplica Formatos en la UI.
+                var cliJuan = new Cliente { NombreCompleto = "Juan Pérez", CedulaIdentidad = "101010101", TipoIdentificacion = TipoIdentificacion.Nacional, Telefono = "88881111" };
+                var cliLaura = new Cliente { NombreCompleto = "Laura Vargas", CedulaIdentidad = "202020202", TipoIdentificacion = TipoIdentificacion.Nacional, Telefono = "88882222" };
+                var cliRoberto = new Cliente { NombreCompleto = "Roberto Solís", CedulaIdentidad = "303030303", TipoIdentificacion = TipoIdentificacion.Nacional, Telefono = "88883333" };
 
                 context.Cliente.AddRange(cliJuan, cliLaura, cliRoberto);
                 await context.SaveChangesAsync();
@@ -120,10 +123,10 @@ namespace Mecano.Data
             {
                 adminGlobal = new Administrador
                 {
-                    Cedula = "1-0999-0999",
+                    Cedula = "109990999",
                     Email = globalAdminEmail,
                     Nombre = "Administrador Global",
-                    Telefono = "6132-1206",
+                    Telefono = "61321206",
                     Activo = true,
                     EsAdminGlobal = true,
                     HashPassword = AuthServices.HashPassword(globalAdminPassword)
