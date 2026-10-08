@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,13 +8,8 @@
 	  <!-- Self-contained deployment -->
 	  <SelfContained>true</SelfContained>
 	  <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UserSecretsId>ee6ffb4c-1aed-40a4-88b5-09d68d4b6165</UserSecretsId>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Folder Include="Entidad\" />
-    <Folder Include="Data\" />
-    <Folder Include="Logica\" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20">

@@ -1,0 +1,9 @@
+@inject NavigationManager NavigationManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Redirige al login preservando forceLoad para limpiar estados o evitar bucles en SPA
+        NavigationManager.NavigateTo("/login", forceLoad: false);
+    }
+}

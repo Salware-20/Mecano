@@ -35,6 +35,8 @@ namespace Mecano.Entidad.Clases
         [MaxLength(500)]
         public string? Notas { get; set; }
 
+        public bool Activo { get; set; }
+
         // Navigation properties
         public ICollection<Cita> Citas { get; } = new List<Cita>();
     }

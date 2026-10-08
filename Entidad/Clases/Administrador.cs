@@ -22,7 +22,6 @@ namespace Mecano.Entidad.Clases
         [MaxLength(200)]
         public string Email { get; set; } = string.Empty;
 
-        /// <summary>Hashed password (ASP.NET Identity format). Never store plain text.</summary>
         [Required]
         public string HashPassword { get; set; } = string.Empty;
 
@@ -30,5 +29,6 @@ namespace Mecano.Entidad.Clases
         public string? Telefono { get; set; }
 
         public bool Activo { get; set; } = true;
+        public bool EsAdminGlobal { get; set; }
     }
 }

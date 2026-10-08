@@ -1,4 +1,6 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +9,43 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <AuthorizeView>
+                <Authorized>
+                    <div class="dropdown">
+                        <button class="btn btn-link text-decoration-none dropdown-toggle d-flex align-items-center gap-2 text-dark p-0"
+                                type="button"
+                                @onclick="ToggleUserMenu"
+                                aria-expanded="@isUserMenuOpen">
+                            <i class="bi bi-person-circle fs-5 text-primary"></i>
+                            <span class="fw-semibold">@context.User.Identity?.Name</span>
+                        </button>
+
+                        @if (isUserMenuOpen)
+                        {
+                            <!-- Fondo transparente para cerrar el menú al hacer clic afuera -->
+                            <div class="position-fixed top-0 start-0 w-100 h-100" style="z-index: 1040;" @onclick="CloseUserMenu"></div>
+
+                            <div class="dropdown-menu dropdown-menu-end shadow show position-absolute mt-2" style="right: 1.5rem; min-width: 220px; z-index: 1050;">
+                                <div class="px-3 py-2 border-bottom">
+                                    <div class="fw-bold text-truncate">@context.User.Identity?.Name</div>
+                                    <div class="small text-muted text-truncate">@context.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value</div>
+                                    <span class="badge bg-secondary mt-1">@context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span>
+                                </div>
+                                <button class="dropdown-item text-danger d-flex align-items-center gap-2 py-2" @onclick="HandleLogout">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                    <span>Cerrar sesión</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        <span>Iniciar Sesión</span>
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">
@@ -21,3 +59,28 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool isUserMenuOpen = false;
+
+    private void ToggleUserMenu() => isUserMenuOpen = !isUserMenuOpen;
+    private void CloseUserMenu() => isUserMenuOpen = false;
+
+    private async Task HandleLogout()
+    {
+        isUserMenuOpen = false;
+        try
+        {
+            // CRÍTICO: Invocamos /api/auth/logout vía fetch de JavaScript con credentials: 'same-origin'
+            // para que el navegador reciba la orden de eliminar la cookie de autenticación.
+            await JS.InvokeVoidAsync("window.authFetch.logout", "/api/auth/logout");
+        }
+        catch
+        {
+            // Ignorar en caso de corte inmediato del circuito
+        }
+
+        // Forzar recarga total (forceLoad: true) para reiniciar el circuito como usuario anónimo
+        NavigationManager.NavigateTo("/login", forceLoad: true);
+    }
+}

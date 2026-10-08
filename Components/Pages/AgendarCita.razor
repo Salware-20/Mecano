@@ -1,4 +1,5 @@
 @page "/agendar"
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 @inject IClienteService ClienteService
@@ -62,8 +63,8 @@
                                 @foreach (var c in clientesEncontrados)
                                 {
                                     <li class="list-group-item list-group-item-action cursor-pointer" @onclick="() => SelectCliente(c)">
-                                        <strong>@c.NombreCompleto</strong> - @c.CedulaIdentidad<br />
-                                        <small class="text-muted">@c.Telefono | @c.Correo</small>
+                                        <strong>@c.NombreCompleto</strong> - @Formatos.CedulaNacional(c.CedulaIdentidad)<br />
+                                        <small class="text-muted">@Formatos.Telefono(c.Telefono) | @c.Correo</small>
                                     </li>
                                 }
                             </ul>
@@ -78,8 +79,8 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title text-success"><i class="bi bi-person-check"></i> Cliente Seleccionado</h5>
-                                <strong>@selectedCliente.NombreCompleto</strong> (@selectedCliente.CedulaIdentidad)<br/>
-                                <small>@selectedCliente.Telefono | @selectedCliente.Correo</small>
+                                <strong>@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br/>
+                                <small>@Formatos.Telefono(selectedCliente.Telefono) | @selectedCliente.Correo</small>
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="DeselectCliente">Cambiar</button>
                         </div>
@@ -135,7 +136,7 @@
                                 {
                                     @foreach(var v in vehiculosCliente)
                                     {
-                                        <option value="@v.VehiculoId">@v.Placa - @v.Marca @v.Modelo</option>
+                                        <option value="@v.VehiculoId">@Formatos.Placa(v.Placa) - @v.Marca @v.Modelo</option>
                                     }
                                 }
                             </select>
@@ -177,7 +178,7 @@
                             {
                                 @foreach(var s in serviciosActivos)
                                 {
-                                    <option value="@s.ServicioId">@s.Nombre ($@s.Precio)</option>
+                                    <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
                                 }
                             }
                         </select>

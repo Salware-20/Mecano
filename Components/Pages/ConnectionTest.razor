@@ -1,4 +1,5 @@
 @page "/connectiontest"
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @using Microsoft.EntityFrameworkCore
 @using Mecano.Data
 @inject MySQLDBContext DbContext
