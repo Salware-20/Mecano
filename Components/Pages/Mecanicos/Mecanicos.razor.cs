@@ -30,7 +30,7 @@ public partial class Mecanicos : ComponentBase
     private MecanicoDTO? mecanicoADesactivar;
 
     private string PasswordPlaceholder =>
-        esEdicion ? "Dejar en blanco para conservar la actual" : string.Empty;
+        esEdicion ? "Conservar la actual" : string.Empty;
 
     protected override async Task OnInitializedAsync()
     {

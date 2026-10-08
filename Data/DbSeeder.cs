@@ -96,7 +96,7 @@ namespace Mecano.Data
                     Fecha = tomorrow,
                     HoraInicio = new TimeOnly(9, 0),
                     HoraFin = new TimeOnly(9, 45),
-                    Estado = EstadoCita.Pendiente
+                    Estado = EstadoCita.EnProceso
                 };
                 
                 var cita2 = new Cita
