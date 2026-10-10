@@ -1,27 +1,106 @@
+:root {
+    --bg-app: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --bg-sidebar: #1E293B;
+    --bg-header: #FFFFFF;
+    --text-primary: #0F172A;
+    --text-secondary: #64748B;
+    --text-sidebar: #E2E8F0;
+    --text-sidebar-muted: #94A3B8;
+    --border-color: #E2E8F0;
+    --primary-accent: #0284C7;
+    --primary-hover: #0369A1;
+    --badge-success-bg: #DCFCE7;
+    --badge-success-text: #15803D;
+    --badge-warning-bg: #FEF3C7;
+    --badge-warning-text: #B45309;
+    --badge-danger-bg: #FEE2E2;
+    --badge-danger-text: #B91C1C;
+    --nav-active-bg: rgba(2, 132, 199, 0.18);
+    --nav-hover-bg: rgba(255, 255, 255, 0.08);
+    color-scheme: light;
+}
+
+[data-bs-theme="dark"],
+body.dark-mode {
+    --bg-app: #0F172A;
+    --bg-surface: #1E293B;
+    --bg-sidebar: #020617;
+    --bg-header: #1E293B;
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-sidebar: #E2E8F0;
+    --text-sidebar-muted: #64748B;
+    --border-color: #334155;
+    --primary-accent: #38BDF8;
+    --primary-hover: #7DD3FC;
+    --badge-success-bg: #14532D;
+    --badge-success-text: #86EFAC;
+    --badge-warning-bg: #78350F;
+    --badge-warning-text: #FCD34D;
+    --badge-danger-bg: #7F1D1D;
+    --badge-danger-text: #FCA5A5;
+    --nav-active-bg: rgba(56, 189, 248, 0.18);
+    --nav-hover-bg: rgba(255, 255, 255, 0.06);
+    color-scheme: dark;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    min-height: 100vh;
+}
+
 a, .btn-link {
-    color: #006bb7;
+    color: var(--primary-accent);
+}
+
+a:hover, .btn-link:hover {
+    color: var(--primary-hover);
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: var(--primary-accent);
+    border-color: var(--primary-accent);
+}
+
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+    color: #fff;
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+.btn-check:checked + .btn-primary {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
   box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-.content {
-    padding-top: 1.1rem;
-}
-
 h1:focus {
     outline: none;
+}
+
+.badge-status-success {
+    background-color: var(--badge-success-bg);
+    color: var(--badge-success-text);
+}
+
+.badge-status-warning {
+    background-color: var(--badge-warning-bg);
+    color: var(--badge-warning-text);
+}
+
+.badge-status-danger {
+    background-color: var(--badge-danger-bg);
+    color: var(--badge-danger-text);
 }
 
 .valid.modified:not([type=checkbox]) {

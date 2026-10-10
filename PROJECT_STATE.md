@@ -8,7 +8,7 @@
 | **Propósito** | Aplicación de taller mecánico para agendar citas, gestionar clientes, vehículos, servicios y mecánicos. |
 | **Stack principal** | .NET 10.0 (SDK Web), Blazor Server (Interactive Server), Entity Framework Core 9.0, MySQL 8.0 (Pomelo EF Provider) |
 | **Estado general** | Prototipo / MVP — gestión operativa de citas, clientes, vehículos, categorías y servicios, con autenticación por cookies y autorización por roles implementadas. |
-| **Páginas Blazor** | 12 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Layout (MainLayout, NavMenu, ReconnectModal) |
+| **Páginas Blazor** | 12 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Layout (MainLayout, NavMenu, ReconnectModal). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). |
 | **Entidades de dominio** | 8 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, NotificacionLog |
 | **Invariante de datos** | `Cliente.CedulaIdentidad` (9 dígitos), `Cliente.Telefono` (8 dígitos, opcional) y `Vehiculo.Placa` (6 caracteres alfanuméricos, **mayúsculas y sin guiones**, ej. `ABC123`) se persisten **solo con la forma canónica**. El formato legible se aplica en la capa de presentación vía `Entidad/Utilidades/Formatos.cs`. Ver Sección 5.1. Los precios (`Servicio.Precio`) se presentan como colones vía `Formatos.Moneda` (cultura es-CR fija). |
 | ** Keep “YAGNI” and “KISS” in mind ** | I don't want a project with a super-complex backend
@@ -91,16 +91,21 @@ Mecano/
 │     ├─ CalendarQueryService.cs
 │     ├─ NotificationService.cs
 │     └─ VehiculoService.cs
-├─ wwwroot/js/
-│  ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin)
-│  └─ fullcalendar-interop.js
+├─ wwwroot/
+│  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark) + estilos globales
+│  └─ js/
+│     ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin)
+│     ├─ fullcalendar-interop.js
+│     └─ theme.js              # window.mecanoTheme: toggle light/dark + persistencia en localStorage
 ├─ Components/
 │  ├─ _Imports.razor          # Directivas using compartidas
 │  ├─ Routes.razor           # Configuración del enrutador
 │  ├─ App.razor              # Raíz HTML con script de framework Blazor
 │  ├─ Layout/
-│  │  ├─ MainLayout.razor    # Sidebar + NavMenu + @Body
-│  │  ├─ NavMenu.razor      # Enlaces: Home, Agendar, Categorías, Mecánicos, TEST (sin enlace directo a /clientes)
+│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + sidebar + @Body (canvas px-4 py-3)
+│  │  ├─ MainLayout.razor.css # Sidebar con var(--bg-sidebar); header con var(--bg-header) y var(--border-color)
+│  │  ├─ NavMenu.razor       # Brand MECANO; Inicio, Agendar Cita; sección "Gestión" (AuthorizeView Administrador): Clientes y Vehículos, Categorías y Servicios, Mecánicos; TEST al final
+│  │  ├─ NavMenu.razor.css    # Links con tokens (--text-sidebar, --nav-active-bg, --nav-hover-bg, --primary-accent)
 │  │  └─ ReconnectModal.razor
 │  ├─ Pages/
 │     ├─ Home.razor          # @page "/", [Authorize]
@@ -541,16 +546,27 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Mecano.styles.css"]" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('mecano-theme');
+                var dark = t ? t === 'dark' : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (dark) document.documentElement.setAttribute('data-bs-theme', 'dark');
+            } catch (e) { }
+        })();
+    </script>
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
     <HeadOutlet />
 </head>
 <body>
-    <Routes />
+    <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
     <script src='js/fullcalendar-interop.js'></script>
+    <script src="js/auth.js"></script>
+    <script src="js/theme.js"></script>
 </body>
 </html>
 ```
@@ -600,31 +616,56 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 #### `MainLayout.razor`
 ```razor
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
+
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-wrench-adjustable fs-5 text-primary"></i>
+                <h5 class="mb-0 fw-semibold">Panel de Control</h5>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button class="theme-toggle-btn btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                        type="button"
+                        title="Cambiar tema oscuro/claro"
+                        aria-label="Cambiar tema oscuro/claro"
+                        @onclick="ToggleTheme">
+                    <i class="bi theme-toggle-icon" data-on="bi-moon-stars" data-off="bi-sun"></i>
+                </button>
+
+                <AuthorizeView>
+                    <Authorized>
+                    <div class="dropdown"> ... menú de usuario (nombre, email, rol, logout vía HandleLogout) ... </div>
+                    </Authorized>
+                    <NotAuthorized> ... botón "Iniciar Sesión" -> /login ... </NotAuthorized>
+                </AuthorizeView>
+            </div>
         </div>
-        <article class="content px-4">
+
+        <article class="px-4 py-3">
             @Body
         </article>
     </main>
 </div>
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
 ```
+
+`@code`: `ToggleTheme` invoca `window.mecanoTheme.toggle`; `OnAfterRenderAsync(firstRender)` llama `window.mecanoTheme.syncIcons` para pintar el ícono del toggle (luna/sol) según el tema inicial. `HandleLogout` conserva el flujo JS original (`window.authFetch.logout` a `/api/auth/logout` + `NavigateTo("/login", forceLoad: true)`).
 
 #### `NavMenu.razor`
 ```razor
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Mecano</a>
+        <a class="navbar-brand" href="">
+            <i class="bi bi-gear-wide-connected" aria-hidden="true"></i>
+            <span>MECANO</span>
+        </a>
     </div>
 </div>
 
@@ -634,27 +675,52 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
     <nav class="nav flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="connectiontest">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> TEST
+                <i class="bi bi-speedometer2" aria-hidden="true"></i> Inicio
             </NavLink>
         </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="agendar">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Agendar
+                <i class="bi bi-calendar-plus" aria-hidden="true"></i> Agendar Cita
             </NavLink>
         </div>
+
+        <AuthorizeView Roles="Administrador">
+            <div class="section-header">Gestión</div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="clientes">
+                    <i class="bi bi-people" aria-hidden="true"></i> Clientes y Vehículos
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="categorias">
+                    <i class="bi bi-tags" aria-hidden="true"></i> Categorías y Servicios
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="mecanicos">
+                    <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
+                </NavLink>
+            </div>
+        </AuthorizeView>
+
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="categorias">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Categorías
+            <NavLink class="nav-link" href="connectiontest">
+                <i class="bi bi-list-nested-nav-menu" aria-hidden="true"></i> TEST
             </NavLink>
         </div>
     </nav>
 </div>
 ```
+
+### Tema "Industrial Clean" (variables CSS + light/dark)
+
+- **Tokens en `wwwroot/app.css`**: `:root` define la paleta light (slate + acento cian-600 `#0284C7`); `[data-bs-theme="dark"], body.dark-mode` la versión dark (slate oscuro `#0F172A`/`#1E293B`, sidebar `#020617`, acento cian-400 `#38BDF8`, badges en contraste suave). Ambos bloques fijan `color-scheme`.
+- **Tema**: `data-bs-theme` se aplica en `<html>` (Bootstrap 5.3.3 lo usa nativamente para tablas/modales/dropdowns/formularios); `body.dark-mode` se añade como gancho de respaldo. Script inline en `<head>` de `App.razor` aplica el tema guardado antes del primer paint (sin flash).
+- **`theme.js`** (`window.mecanoTheme`): `toggle()`/`apply()`/`init()`/`syncIcons()`; persiste en `localStorage` bajo `mecano-theme`; `init()` cae a `prefers-color-scheme` si no hay valor guardado. `syncIcons` alterna `bi-moon-stars`/`bi-sun` en los elementos `.theme-toggle-icon`.
+- **Badges de estado opt-in**: `.badge-status-success/-warning/-danger` (BG/texto por token) — no sobre-escriben las utilidades `bg-*` de Bootstrap que ya usan Clientes/Detalle.
+- **Sidebar del menú**: siempre oscuro en ambos temas (`var(--bg-sidebar)`); link activo con tinte `--nav-active-bg` + barra izq `--primary-accent` vía `box-shadow: inset 3px`; brand `MECANO` con `bi-gear-wide-connected`.
+- **`.btn-primary`/**`a` globales** repuntan a los tokens de acento en vez de los colores hardcodeados de la plantilla.
+- El **logout** del header no usa una ruta `/logout` (no existe): reutiliza el `HandleLogout` existente (fetch + navegación forzada).
 
 ### Páginas `.razor` (lista completa)
 
@@ -794,6 +860,9 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 | **CRUD de mecánicos: backend + UI** | Resuelto: `Mecanicos.razor(.cs)` (`/mecanicos`, página completa administrativa con `[Authorize(Roles = "Administrador")]`) consume el CRUD; enlace en `NavMenu`. Quedan como deuda: el guard de citas futuras en `DesactivarAsync` (más abajo) y el smoke test manual de la UI. |
 | **`MecanicoService.DesactivarAsync` no verifica citas futuras** | A diferencia del comportamiento esperado para clientes (warning de citas futuras), el desactivado de mecánico solo baja `Activo` (las citas existentes conservan su `MecanicoId`). Deuda conocida del ticket: decidir si agregar warning/conteo como en cliente. |
 | **SYSLIB0060 eliminado** | La extracción a `PasswordHasher` (método estático `Rfc2898DeriveBytes.Pbkdf2`) eliminó las 3 advertencias SYSLIB0060 que tenía `AuthServices.cs`; hoy la build queda solo con las 3 preexistentes de `CategoriaService`. |
+| **Refactor de layout "Industrial Clean" (CSS variables + tema light/dark)** | `app.css` declara los tokens `:root` (light) y `[data-bs-theme="dark"], body.dark-mode` (dark). `wwwroot/js/theme.js` (`window.mecanoTheme`) aplica/toggle/persiste en `localStorage` (clave `mecano-theme`); script inline en `<head>` de `App.razor` evita el flash al cargar. El toggle vive en el header (`MainLayout`, botón `.theme-toggle-btn` con ícono `bi-moon-stars`/`bi-sun`). `.badge-status-*` son opt-in (no sobre-escriben `bg-*` de Bootstrap). El sidebar es oscuro en ambos temas. Ver Sección 7. |
+| **`NavMenu` ahora secciona por rol** | Los enlaces `Clientes y Vehículos`, `Categorías y Servicios` y `Mecánicos` quedaron bajo `<AuthorizeView Roles="Administrador">` con header `Gestión`. Cambio semántico deliberado: antes los veía cualquier usuario autenticado (incluido un `Mecanico`). `Inicio`, `Agendar Cita` y `TEST` quedan fuera de la sección. El `AuthorizeView` no necesita `Context="authCtx"` (la trampa RZ9999 solo aplica anidado dentro de `EditForm`). |
+| **Clase `.content` eliminada del canvas** | El canvas pasó de `article.content px-4` (padding-top 1.1rem) a `article.px-4.py-3`; la regla `.content` ya no existe en `app.css`. Ritmo vertical de todas las páginas cambió levemente (aprobado, Q3-a). |
 | **Comentarios que contradicen el código actual** | El comentario en `Cliente.cs:7` dice "Clients do NOT have login accounts" — lo cual es coherente con que `Cliente` no tenga `HashPassword`. Sin embargo, `AuthServices.LoginAsync` intenta login en `Mecanico` y `Administrador` solo, lo cual es consistente. |
 | **Dependencias circulares entre proyectos** | No hay múltiples proyectos — riesgo de circulares no aplica en la actualidad. |
 | **Paquetes NuGet desactualizados con vulnerabilidades** | `Pomelo.EntityFrameworkCore.MySql` versión 9.0.0 vs .NET 10.0 release. No hay evidencia de vulnerabilidades conocidas en las versiones usadas, pero es el primer release de EF Core 9/10 con este proveedor. |
@@ -852,6 +921,10 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Entidad/DTOs/NuevoVehiculoDTO.cs` · `ActualizarVehiculoDTO.cs` | Sección 2 y 6 |
 | `Mecano/Logica/Interfaces/IVehiculoService.cs` · `VehiculoService.cs` | Sección 6 |
 | `Mecano/Data/Migrations/20261006160916_Vehiculo-Activo-bool.cs` | Sección 5 |
+| `Mecano/wwwroot/app.css` | Sección 7 (tema Industrial Clean) |
+| `Mecano/wwwroot/js/theme.js` | Sección 7 |
+| `Mecano/Components/Layout/MainLayout.razor(.css)` | Sección 7 |
+| `Mecano/Components/Layout/NavMenu.razor(.css)` | Sección 7 |
 
 ---
 

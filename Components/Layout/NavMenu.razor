@@ -1,6 +1,9 @@
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Mecano</a>
+        <a class="navbar-brand" href="">
+            <i class="bi bi-gear-wide-connected" aria-hidden="true"></i>
+            <span>MECANO</span>
+        </a>
     </div>
 </div>
 
@@ -10,34 +13,35 @@
     <nav class="nav flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                <i class="bi bi-speedometer2" aria-hidden="true"></i> Inicio
             </NavLink>
         </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="agendar">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Agendar
+                <i class="bi bi-calendar-plus" aria-hidden="true"></i> Agendar Cita
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="clientes">
-                <span aria-hidden="true"><i class="bi bi-people text-center fs-5"></i></span> Clientes
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="categorias">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Categorías
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="mecanicos">
-                <span aria-hidden="true"><i class="bi bi-person-gear text-center fs-5"></i></span> Mecánicos
-            </NavLink>
-        </div>
+            <div class="section-header">Gestión</div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="clientes">
+                    <i class="bi bi-people" aria-hidden="true"></i> Clientes y Vehículos
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="categorias">
+                    <i class="bi bi-tags" aria-hidden="true"></i> Categorías y Servicios
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="mecanicos">
+                    <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
+                </NavLink>
+            </div>
+
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="connectiontest">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> TEST
+                <i class="bi bi-list-nested-nav-menu" aria-hidden="true"></i> TEST
             </NavLink>
         </div>
     </nav>
 </div>
-
