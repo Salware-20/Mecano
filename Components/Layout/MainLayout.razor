@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="page">
     <div class="sidebar">
@@ -87,7 +88,12 @@
     {
         if (firstRender)
         {
-            await JS.InvokeVoidAsync("window.mecanoTheme.syncIcons");
+            await JS.InvokeVoidAsync("window.mecanoRedirectFeedback.init", ".nav-scrollable");
+
+            /* Aplicar el filtro de oscurecimiento solo cuando el usuario NO está autenticado */
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+            await JS.InvokeVoidAsync("window.mecanoRedirectFeedback.setAuthenticated", isAuthenticated);
         }
     }
 

@@ -45,3 +45,30 @@ window.authFetch = {
         }
     }
 };
+
+/* --- Redirect Animation Feedback --- */
+
+window.mecanoRedirectFeedback = {
+    navMenu: null,
+
+    init(selector) {
+        this.navMenu = document.querySelector(selector);
+    },
+
+    /* Oscurece o restaura el menú según el estado de autenticación */
+    setAuthenticated(isAuthenticated) {
+        const navMenu = this.navMenu || document.querySelector('.nav-scrollable');
+        if (!navMenu) return;
+        navMenu.classList.toggle('navmenu-obscured', !isAuthenticated);
+    },
+
+    assignRedirectClass() {
+        /* Fallback por si init() aún no corrió (ej. navegación directa a una ruta protegida) */
+        const navMenu = this.navMenu || document.querySelector('.nav-scrollable');
+        if (!navMenu) return;
+
+        navMenu.classList.add('redirect-animation');
+        /* Auto-remove after animation completes */
+        setTimeout(() => navMenu.classList.remove('redirect-animation'), 3100);
+    }
+};
