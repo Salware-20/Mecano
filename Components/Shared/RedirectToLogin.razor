@@ -1,8 +1,26 @@
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
+
+        try
+        {
+            // Asigna la clase especial que ejecuta la keyframe de motion por algunos segundos.
+            // Se usa OnAfterRenderAsync (no OnInitialized) porque el JS interop no está disponible
+            // durante el prerender estático de Blazor Server.
+            await JS.InvokeVoidAsync("window.mecanoRedirectFeedback.assignRedirectClass");
+
+            // Breve pausa para que la animación sea perceptible antes de salir hacia /login.
+            await Task.Delay(400);
+        }
+        catch
+        {
+            // Si el JS falla, la redirección debe continuar de todos modos.
+        }
+
         // Redirige al login preservando forceLoad para limpiar estados o evitar bucles en SPA
         NavigationManager.NavigateTo("/login", forceLoad: false);
     }
