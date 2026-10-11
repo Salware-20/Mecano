@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using Mecano.Entidad.Constantes;
 using System.ComponentModel.DataAnnotations;
 
 namespace Mecano.Entidad.Clases
@@ -12,6 +12,8 @@ namespace Mecano.Entidad.Clases
 
         [MaxLength(20)]
         public string? Cedula { get; set; }
+
+        public TipoIdentificacion TipoIdentificacion { get; set; } = TipoIdentificacion.Nacional;
 
         [Required]
         [MaxLength(150)]

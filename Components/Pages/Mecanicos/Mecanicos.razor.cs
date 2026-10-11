@@ -109,12 +109,13 @@ public partial class Mecanicos : ComponentBase
         esEdicion = true;
         modelo = new ActualizarMecanicoDTO
         {
-            Id = detalle.Id,
-            Nombre = detalle.Nombre,
-            Email = detalle.Email,
-            Cedula = detalle.Cedula,
-            Telefono = detalle.Telefono,
-            EspecialidadId = detalle.EspecialidadId
+            Id                 = detalle.Id,
+            Nombre             = detalle.Nombre,
+            Email              = detalle.Email,
+            Cedula             = detalle.Cedula,
+            TipoIdentificacion = detalle.TipoIdentificacion,
+            Telefono           = detalle.Telefono,
+            EspecialidadId     = detalle.EspecialidadId
         };
         mensajeError = null;
         mostrarModal = true;
@@ -176,13 +177,14 @@ public partial class Mecanicos : ComponentBase
             await MecanicoService.CrearAsync(new CrearMecanicoDTO
             {
                 // modelo.Id queda en 0: CrearMecanicoDTO no tiene campo Id.
-                Nombre           = modelo.Nombre,
-                Email            = modelo.Email,
-                Cedula           = modelo.Cedula,
-                Telefono         = modelo.Telefono,
-                EspecialidadId   = modelo.EspecialidadId!.Value,
-                Password         = modelo.Password,
-                ConfirmarPassword = modelo.ConfirmarPassword
+                Nombre             = modelo.Nombre,
+                Email              = modelo.Email,
+                Cedula             = modelo.Cedula,
+                TipoIdentificacion = modelo.TipoIdentificacion,
+                Telefono           = modelo.Telefono,
+                EspecialidadId     = modelo.EspecialidadId!.Value,
+                Password           = modelo.Password,
+                ConfirmarPassword  = modelo.ConfirmarPassword
             });
             mensajeExito = $"Mecánico “{modelo.Nombre}” creado correctamente.";
             CerrarModal();

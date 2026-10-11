@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace Mecano.Entidad.DTOs
 {
@@ -12,6 +12,11 @@ namespace Mecano.Entidad.DTOs
         [EmailAddress(ErrorMessage = "El email no es válido")]
         [MaxLength(200)]
         public string Email { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string? Cedula { get; set; }
+
+        public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
 
         [Required(ErrorMessage = "La contraseña es requerida")]
         [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres")]

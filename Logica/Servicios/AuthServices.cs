@@ -1,6 +1,7 @@
 using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs;
+using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Utilidades;
 using Microsoft.EntityFrameworkCore;
@@ -130,7 +131,10 @@ namespace Mecano.Logica.Servicios
             return null;
         }
 
-        public async Task<bool> RegisterAdminAsync(string email, string nombre, string password)
+        public Task<bool> RegisterAdminAsync(string email, string nombre, string password)
+            => RegisterAdminAsync(email, nombre, password, null, Entidad.Constantes.TipoIdentificacion.Nacional);
+
+        public async Task<bool> RegisterAdminAsync(string email, string nombre, string password, string? cedula, Entidad.Constantes.TipoIdentificacion tipoIdentificacion)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(email);
             ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
@@ -143,10 +147,16 @@ namespace Mecano.Logica.Servicios
                 || await SQL.Mecanico.AnyAsync(m => m.Email.ToLower() == cleanEmail);
             if (existeEmail) return false;
 
+            string? cleanCedula = !string.IsNullOrWhiteSpace(cedula)
+                ? Formatos.NormalizarIdentificacion(cedula, tipoIdentificacion)
+                : null;
+
             var admin = new Administrador
             {
                 Email = email.Trim(),
                 Nombre = nombre.Trim(),
+                Cedula = cleanCedula,
+                TipoIdentificacion = tipoIdentificacion,
                 HashPassword = HashPassword(password),
                 Activo = true
             };

@@ -22,6 +22,8 @@ namespace Mecano.Entidad.DTOs.Mecanico
         [StringLength(20, ErrorMessage = "La cédula no puede superar 20 caracteres")]
         public string? Cedula { get; set; }
 
+        public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
+
         [StringLength(20, ErrorMessage = "El teléfono no puede superar 20 caracteres")]
         public string? Telefono { get; set; }
 

@@ -10,6 +10,8 @@ namespace Mecano.Entidad.DTOs.Cliente
         [StringLength(20, MinimumLength = 1)]
         public string CedulaIdentidad { get; set; } = string.Empty;
 
+        public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
+
         [Required(ErrorMessage = "El nombre es obligatorio")]
         [StringLength(150, MinimumLength = 3)]
         public string NombreCompleto { get; set; } = string.Empty;

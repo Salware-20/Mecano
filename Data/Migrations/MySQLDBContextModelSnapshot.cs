@@ -58,6 +58,9 @@ namespace Mecano.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<int>("TipoIdentificacion")
+                        .HasColumnType("int");
+
                     b.HasKey("AdministradorId");
 
                     b.ToTable("Administradors");
@@ -218,6 +221,9 @@ namespace Mecano.Migrations
                     b.Property<string>("Telefono")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<int>("TipoIdentificacion")
+                        .HasColumnType("int");
 
                     b.HasKey("MecanicoId");
 

@@ -1,4 +1,5 @@
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Cliente;
 
 namespace Mecano.Logica.Interfaces;
@@ -24,5 +25,5 @@ public interface IClienteService
 
     // --- Helpers ---
     Task<int> ContarBusquedaAsync(string? termino, bool incluirInactivos = false);
-    Task<bool> ExisteIdentificacionAsync(string cedulaIdentidad, int? excluirId = null);
+    Task<bool> ExisteIdentificacionAsync(string cedulaIdentidad, int? excluirId = null, TipoIdentificacion? tipo = null);
 }
