@@ -11,6 +11,7 @@ namespace Mecano.Data
         public DbSet<Categoria> Categorias { get; set; }
         public DbSet<Cita> Cita { get; set; }
         public DbSet<Cliente> Cliente { get; set; }
+        public DbSet<Comentario> Comentario { get; set; }
         public DbSet<Mecanico> Mecanico { get; set; }
         public DbSet<NotificacionLog> NotificacionLog { get; set; }
         public DbSet<Servicio> Servicio { get; set; }
@@ -75,6 +76,16 @@ namespace Mecano.Data
                 .WithOne(nl => nl.Cita)
                 .HasForeignKey(nl => nl.CitaId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Cliente - Comentario: un cliente tiene muchos comentarios
+            modelBuilder.Entity<Cliente>()
+                .HasMany(c => c.Comentarios)
+                .WithOne(cm => cm.Cliente)
+                .HasForeignKey(cm => cm.ClienteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Comentario>()
+                .HasIndex(cm => cm.ClienteId);
 
             // Unique index on Cliente: la identidad solo es única dentro de su tipo de documento.
             // Fase 1 solo usa Nacional, pero el índice compuesto evita tener que migrar en Fase 2.

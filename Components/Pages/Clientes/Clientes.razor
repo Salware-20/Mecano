@@ -105,7 +105,7 @@
                                     <span>@Formatos.FormatearIdentificacion(cli.CedulaIdentidad, cli.TipoIdentificacion)</span>
                                     <small class="text-muted d-block">@cli.TipoIdentificacion</small>
                                 </td>
-                                <td><strong>@cli.NombreCompleto</strong></td>
+                                <td style="text-transform:capitalize;"><strong>@cli.NombreCompleto</strong></td>
                                 <td>
                                     @Formatos.Telefono(cli.Telefono)
                                     @if (!string.IsNullOrWhiteSpace(cli.Correo))
@@ -253,7 +253,7 @@
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" for="cliNombre">Nombre completo *</label>
-                                    <InputText id="cliNombre" class="form-control" @bind-Value="modelo.NombreCompleto" style="text-transform: capitalize;
+                                    <InputText id="cliNombre" class="form-control" @bind-Value="modelo.NombreCompleto" autocapitalize="words" style="text-transform:capitalize;"
                                                placeholder="Nombre y apellidos" />
                                     <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
                                 </div>

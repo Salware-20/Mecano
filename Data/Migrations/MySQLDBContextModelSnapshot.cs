@@ -186,6 +186,40 @@ namespace Mecano.Migrations
                     b.ToTable("Cliente");
                 });
 
+            modelBuilder.Entity("Mecano.Entidad.Clases.Comentario", b =>
+                {
+                    b.Property<int>("ComentarioId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ComentarioId"));
+
+                    b.Property<string>("AutorNombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<int>("AutorTipo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaHora")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.HasKey("ComentarioId");
+
+                    b.HasIndex("ClienteId");
+
+                    b.ToTable("Comentario");
+                });
+
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
                 {
                     b.Property<int>("MecanicoId")
@@ -391,6 +425,17 @@ namespace Mecano.Migrations
                     b.Navigation("Vehiculo");
                 });
 
+            modelBuilder.Entity("Mecano.Entidad.Clases.Comentario", b =>
+                {
+                    b.HasOne("Mecano.Entidad.Clases.Cliente", "Cliente")
+                        .WithMany("Comentarios")
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
+                });
+
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
                 {
                     b.HasOne("Mecano.Entidad.Clases.Categoria", "Especialidad")
@@ -448,6 +493,8 @@ namespace Mecano.Migrations
             modelBuilder.Entity("Mecano.Entidad.Clases.Cliente", b =>
                 {
                     b.Navigation("Citas");
+
+                    b.Navigation("Comentarios");
 
                     b.Navigation("Vehiculos");
                 });
