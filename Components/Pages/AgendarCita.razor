@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @rendermode InteractiveServer
 @implements IAsyncDisposable
+@using System.Globalization
 @inject IClienteService ClienteService
 @inject IVehiculoService VehiculoService
 @inject IServicioService ServicioService
@@ -118,7 +119,7 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <strong>Fecha:</strong> @selectedFecha.ToString("dd/MM/yyyy") <br/>
-                        <strong>Hora:</strong> @selectedHoraInicio.ToString("HH:mm")
+                        <strong>Hora:</strong> @selectedHoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
                     </div>
                     
                     <div class="card mb-3 bg-light">
@@ -185,7 +186,7 @@
                         @if (selectedServicio != null)
                         {
                             <div class="form-text mt-2">
-                                Duración: @selectedServicio.DuracionMinutos min | Fin estimado: @selectedHoraFin.ToString("HH:mm")
+                                Duración: @selectedServicio.DuracionMinutos min | Fin estimado: @selectedHoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
                             </div>
                         }
                     </div>

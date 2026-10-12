@@ -1,4 +1,5 @@
 @using Mecano.Entidad.Constantes
+@using System.Globalization
 @page "/clientes/{Id:int}"
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -94,14 +95,17 @@ else
         </div>
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-sm-6 col-lg-3">
-                    <label class="form-label text-muted small mb-0">Identificación</label>
-                    <div>@Formatos.FormatearIdentificacion(cliente.CedulaIdentidad, cliente.TipoIdentificacion)</div>
-                </div>
-                <div class="col-sm-6 col-lg-3">
-                    <label class="form-label text-muted small mb-0">Tipo de identificación</label>
-                    <div>@cliente.TipoIdentificacion</div>
-                </div>
+                @* La identificación del cliente solo es visible para el Administrador. *@
+                <AuthorizeView Roles="Administrador">
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label text-muted small mb-0">Identificación</label>
+                        <div>@Formatos.FormatearIdentificacion(cliente.CedulaIdentidad, cliente.TipoIdentificacion)</div>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label text-muted small mb-0">Tipo de identificación</label>
+                        <div>@cliente.TipoIdentificacion</div>
+                    </div>
+                </AuthorizeView>
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Teléfono</label>
                     <div>@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "-" : Formatos.Telefono(cliente.Telefono))</div>
@@ -226,7 +230,7 @@ else
                             {
                                 <tr>
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
-                                    <td>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                    <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>@(cita.ServicioNombre ?? "-")</td>
                                     <td>@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
@@ -287,7 +291,7 @@ else
                                     <div class="small text-secondary">
                                         <i class="bi bi-clock" aria-hidden="true"></i>
                                         <time datetime="@c.FechaHora.ToString("yyyy-MM-ddTHH:mm")">
-                                            @c.FechaHora.ToString("dd/MM/yyyy HH:mm")
+                                            @c.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
                                         </time>
                                     </div>
                                 </div>
@@ -396,7 +400,7 @@ else
                             <figure class="bg-body-tertiary border rounded p-3 mb-3">
                                 <blockquote class="mb-1">@PrevioComentario(comentarioAEliminar.Texto)</blockquote>
                                 <figcaption class="small text-secondary">
-                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy HH:mm")
+                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
                                 </figcaption>
                             </figure>
 

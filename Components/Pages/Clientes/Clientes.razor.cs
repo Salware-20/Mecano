@@ -1,7 +1,10 @@
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
+using Mecano.Entidad.DTOs;
 using Mecano.Entidad.DTOs.Cliente;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 
 namespace Mecano.Components.Pages.Clientes;
 
@@ -13,6 +16,18 @@ public partial class Clientes : ComponentBase, IDisposable
 
     private string terminoBusqueda = string.Empty;
     private FiltroActivo filtro = FiltroActivo.Activos;
+
+    // El Mecánico no puede ver ni buscar clientes por cédula (solo nombre y placa).
+    private bool incluirIdentificacion;
+
+    // ~~~ PANEL EXPANDIBLE (vehículos + citas) ~~~
+    // Solo una fila expandida a la vez; los datos se cargan al abrir y quedan en caché
+    // por cliente hasta que una operación de estado los invalide.
+    private int? filaExpandidaId;
+    private readonly Dictionary<int, List<Vehiculo>> vehiculosPorCliente = new();
+    private readonly Dictionary<int, List<CitaDTO>> citasPorCliente = new();
+    private readonly HashSet<int> detalleCargando = new();
+    private readonly HashSet<int> detalleError = new();
     private int paginaActual = 1;
     private int tamanioPagina = 20;
     private int totalRegistros;
@@ -39,16 +54,23 @@ public partial class Clientes : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        // La cédula se oculta y no se busca para roles distintos de Administrador.
+        var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        incluirIdentificacion = auth.User.FindFirst(ClaimTypes.Role)?.Value == Roles.Administrador;
+
         await CargarAsync();
     }
 
     // ~~~ CARGA ~~~
     private async Task CargarAsync()
     {
+        // La lista visible cambió (búsqueda, filtro, página o mutación): colapsamos el detalle.
+        filaExpandidaId = null;
+
         cargando = true;
         try
         {
-            totalRegistros = await ClienteService.ContarBusquedaAsync(terminoBusqueda, filtro);
+            totalRegistros = await ClienteService.ContarBusquedaAsync(terminoBusqueda, filtro, incluirIdentificacion);
             totalPaginas = totalRegistros == 0
                 ? 1
                 : (int)Math.Ceiling(totalRegistros / (double)tamanioPagina);
@@ -58,7 +80,7 @@ public partial class Clientes : ComponentBase, IDisposable
                 paginaActual = totalPaginas;
 
             clientes = await ClienteService.BuscarClientesPaginadoAsync(
-                terminoBusqueda, paginaActual, tamanioPagina, filtro);
+                terminoBusqueda, paginaActual, tamanioPagina, filtro, incluirIdentificacion);
         }
         finally
         {
@@ -267,6 +289,7 @@ public partial class Clientes : ComponentBase, IDisposable
         try
         {
             await ClienteService.DesactivarAsync(clienteADesactivar.Id);
+            InvalidarDetalle(clienteADesactivar.Id);
             mensajeExito = $"Cliente “{clienteADesactivar.NombreCompleto}” desactivado.";
             clienteADesactivar = null;
             citasFuturas = 0;
@@ -304,6 +327,7 @@ public partial class Clientes : ComponentBase, IDisposable
         {
             if (await ClienteService.ReactivarAsync(clienteAReactivar.Id))
             {
+                InvalidarDetalle(clienteAReactivar.Id);
                 mensajeExito = $"Cliente “{clienteAReactivar.NombreCompleto}” reactivado.";
                 clienteAReactivar = null;
                 await CargarAsync();
@@ -341,6 +365,7 @@ public partial class Clientes : ComponentBase, IDisposable
         try
         {
             await ClienteService.EliminarDefinitivoAsync(clienteAEliminar.Id);
+            InvalidarDetalle(clienteAEliminar.Id);
             mensajeExito = $"Cliente “{clienteAEliminar.NombreCompleto}” eliminado definitivamente.";
             clienteAEliminar = null;
             await CargarAsync();
@@ -355,6 +380,95 @@ public partial class Clientes : ComponentBase, IDisposable
         }
     }
 
+    // ~~~ PANEL EXPANDIBLE: CARGA Y ACCIONES ~~~
+    private bool EstaExpandido(int clienteId) => filaExpandidaId == clienteId;
+
+    private static string IdDetalle(int clienteId) => $"detalle-{clienteId}";
+
+    private async Task ToggleFila(ClienteDTO cliente)
+    {
+        if (filaExpandidaId == cliente.Id)
+        {
+            filaExpandidaId = null;
+            return;
+        }
+
+        filaExpandidaId = cliente.Id;
+
+        if (vehiculosPorCliente.ContainsKey(cliente.Id))
+            return;
+
+        await CargarDetalleAsync(cliente);
+    }
+
+    private async Task CargarDetalleAsync(ClienteDTO cliente)
+    {
+        detalleError.Remove(cliente.Id);
+        detalleCargando.Add(cliente.Id);
+
+        // Fuerza el render del spinner antes de la consulta (Blazor solo repinta al
+        // completar el handler async, así que sin esto el panel aparecería de golpe).
+        StateHasChanged();
+
+        try
+        {
+            // Mismo criterio que ClienteDetalle: un cliente inactivo conserva su flota
+            // completa (incluye vehículos inactivos); uno activo muestra solo los activos.
+            var incluirInactivos = !cliente.Activo;
+            var tareaVehiculos = VehiculoService.ObtenerPorClienteAsync(cliente.Id, incluirInactivos);
+            var tareaCitas = CitaService.ObtenerPorClienteAsync(cliente.Id);
+
+            await Task.WhenAll(tareaVehiculos, tareaCitas);
+
+            vehiculosPorCliente[cliente.Id] = tareaVehiculos.Result;
+            citasPorCliente[cliente.Id] = tareaCitas.Result;
+        }
+        catch
+        {
+            // Sin caché ante error: el próximo intento vuelve a consultar.
+            detalleError.Add(cliente.Id);
+        }
+        finally
+        {
+            detalleCargando.Remove(cliente.Id);
+        }
+    }
+
+    private async Task RecargarDetalle(ClienteDTO cliente)
+    {
+        vehiculosPorCliente.Remove(cliente.Id);
+        citasPorCliente.Remove(cliente.Id);
+        filaExpandidaId = cliente.Id;
+        await CargarDetalleAsync(cliente);
+    }
+
+    private List<Vehiculo> VehiculosDe(int clienteId) =>
+        vehiculosPorCliente.TryGetValue(clienteId, out var vehiculos) ? vehiculos : new List<Vehiculo>();
+
+    private List<CitaDTO> CitasDe(int clienteId) =>
+        citasPorCliente.TryGetValue(clienteId, out var citas) ? citas : new List<CitaDTO>();
+
+    /// <summary>Descarta el detalle cacheado de un cliente tras un cambio de estado que lo afecta.</summary>
+    private void InvalidarDetalle(int clienteId)
+    {
+        vehiculosPorCliente.Remove(clienteId);
+        citasPorCliente.Remove(clienteId);
+        detalleError.Remove(clienteId);
+
+        if (filaExpandidaId == clienteId)
+            filaExpandidaId = null;
+    }
+
+    private static string BadgeEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Pendiente => "bg-secondary",
+        EstadoCita.Confirmada => "bg-primary",
+        EstadoCita.EnProceso => "bg-info text-dark",
+        EstadoCita.Finalizada => "bg-success",
+        EstadoCita.Cancelada => "bg-danger",
+        _ => "bg-secondary"
+    };
+
     private bool SinHistoria(ClienteDTO cliente) => cliente.CantidadVehiculos == 0 && cliente.CantidadCitas == 0;
 
     private string TextoVacio() =>
@@ -366,6 +480,9 @@ public partial class Clientes : ComponentBase, IDisposable
                 FiltroActivo.Todos => "No hay clientes registrados todavía.",
                 _ => "No hay clientes activos."
             };
+
+    private string TextoPlaceholderBusqueda() =>
+        incluirIdentificacion ? "Buscar por nombre, cédula o placa..." : "Buscar por nombre o placa...";
 
     public void Dispose()
     {
