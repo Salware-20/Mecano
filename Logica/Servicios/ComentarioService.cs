@@ -26,7 +26,9 @@ public class ComentarioService : IComentarioService
         return await context.Comentario
             .AsNoTracking()
             .Where(c => c.ClienteId == clienteId)
-            .OrderBy(c => c.FechaHora)   // orden cronológico del hilo
+            // El comentario más nuevo va primero; ComentarioId desempata los del mismo segundo
+            .OrderByDescending(c => c.FechaHora)
+            .ThenByDescending(c => c.ComentarioId)
             .Select(c => new ComentarioDTO
             {
                 Id = c.ComentarioId,
@@ -74,13 +76,23 @@ public class ComentarioService : IComentarioService
         return comentario.ComentarioId;
     }
 
-    public async Task<bool> EliminarAsync(int comentarioId)
+    public async Task<bool> EliminarAsync(int comentarioId, string solicitanteNombre, TipoAutorComentario solicitanteTipo)
     {
+        if (string.IsNullOrWhiteSpace(solicitanteNombre))
+            throw new UnauthorizedAccessException("No se pudo identificar al usuario actual.");
+
         await using var context = await _factory.CreateDbContextAsync();
 
         var comentario = await context.Comentario
             .FirstOrDefaultAsync(c => c.ComentarioId == comentarioId);
         if (comentario is null) return false;
+
+        // Regla: solo el autor puede eliminar su propio comentario.
+        // La identidad guardada es (AutorNombre, AutorTipo), así que comparamos ambos.
+        var esAutor = string.Equals(comentario.AutorNombre?.Trim(), solicitanteNombre.Trim(), StringComparison.OrdinalIgnoreCase)
+                      && comentario.AutorTipo == solicitanteTipo;
+        if (!esAutor)
+            throw new UnauthorizedAccessException("Solo el autor puede eliminar este comentario.");
 
         context.Comentario.Remove(comentario);
         await context.SaveChangesAsync();

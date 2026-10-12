@@ -12,7 +12,7 @@ public interface IClienteService
     Task<int> RegistrarAsync(string cedulaIdentidad, string nombreCompleto, string? telefono, string? correo);
 
     // --- CRUD ---
-    Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, bool incluirInactivos = false);
+    Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, FiltroActivo filtro = FiltroActivo.Activos);
     Task<List<ClienteDTO>> ObtenerTodosAsync(bool soloActivos = true);
     Task<ClienteDTO?> ObtenerDetallePorIdAsync(int id);
     Task<int> CrearAsync(CrearClienteDTO dto);
@@ -24,6 +24,6 @@ public interface IClienteService
     Task<bool> EliminarDefinitivoAsync(int id);
 
     // --- Helpers ---
-    Task<int> ContarBusquedaAsync(string? termino, bool incluirInactivos = false);
+    Task<int> ContarBusquedaAsync(string? termino, FiltroActivo filtro = FiltroActivo.Activos);
     Task<bool> ExisteIdentificacionAsync(string cedulaIdentidad, int? excluirId = null, TipoIdentificacion? tipo = null);
 }

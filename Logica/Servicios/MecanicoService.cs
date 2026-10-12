@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Mecanico;
 using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
@@ -59,13 +60,19 @@ public class MecanicoService : IMecanicoService
 
     // ~~~ READ (lista) ~~~
 
-    public async Task<List<MecanicoDTO>> ObtenerTodosAsync(bool soloActivos = true)
+    public async Task<List<MecanicoDTO>> ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        return await context.Mecanico
-            .AsNoTracking()
-            .Where(m => !soloActivos || m.Activo)
+        var query = context.Mecanico.AsNoTracking();
+        query = filtro switch
+        {
+            FiltroActivo.Activos => query.Where(m => m.Activo),
+            FiltroActivo.Inactivos => query.Where(m => !m.Activo),
+            _ => query
+        };
+
+        return await query
             .OrderBy(m => m.Nombre)
             .Select(m => new MecanicoDTO
             {

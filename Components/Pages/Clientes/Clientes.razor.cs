@@ -1,4 +1,5 @@
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Cliente;
 using Microsoft.AspNetCore.Components;
 
@@ -11,7 +12,7 @@ public partial class Clientes : ComponentBase, IDisposable
     private bool guardando;
 
     private string terminoBusqueda = string.Empty;
-    private bool mostrarInactivos;
+    private FiltroActivo filtro = FiltroActivo.Activos;
     private int paginaActual = 1;
     private int tamanioPagina = 20;
     private int totalRegistros;
@@ -47,7 +48,7 @@ public partial class Clientes : ComponentBase, IDisposable
         cargando = true;
         try
         {
-            totalRegistros = await ClienteService.ContarBusquedaAsync(terminoBusqueda, mostrarInactivos);
+            totalRegistros = await ClienteService.ContarBusquedaAsync(terminoBusqueda, filtro);
             totalPaginas = totalRegistros == 0
                 ? 1
                 : (int)Math.Ceiling(totalRegistros / (double)tamanioPagina);
@@ -57,7 +58,7 @@ public partial class Clientes : ComponentBase, IDisposable
                 paginaActual = totalPaginas;
 
             clientes = await ClienteService.BuscarClientesPaginadoAsync(
-                terminoBusqueda, paginaActual, tamanioPagina, mostrarInactivos);
+                terminoBusqueda, paginaActual, tamanioPagina, filtro);
         }
         finally
         {
@@ -95,11 +96,14 @@ public partial class Clientes : ComponentBase, IDisposable
         await CargarAsync();
     }
 
-    private async Task CambiarMostrarInactivos(bool valor)
+    private async Task CambiarFiltro(ChangeEventArgs e)
     {
-        mostrarInactivos = valor;
-        paginaActual = 1;
-        await CargarAsync();
+        if (Enum.TryParse<FiltroActivo>(e.Value?.ToString(), out var valor))
+        {
+            filtro = valor;
+            paginaActual = 1;
+            await CargarAsync();
+        }
     }
 
     private async Task CambiarTamanioPagina(ChangeEventArgs e)
@@ -352,6 +356,16 @@ public partial class Clientes : ComponentBase, IDisposable
     }
 
     private bool SinHistoria(ClienteDTO cliente) => cliente.CantidadVehiculos == 0 && cliente.CantidadCitas == 0;
+
+    private string TextoVacio() =>
+        !string.IsNullOrWhiteSpace(terminoBusqueda)
+            ? "No se encontraron clientes que coincidan con la búsqueda."
+            : filtro switch
+            {
+                FiltroActivo.Inactivos => "No hay clientes inactivos.",
+                FiltroActivo.Todos => "No hay clientes registrados todavía.",
+                _ => "No hay clientes activos."
+            };
 
     public void Dispose()
     {

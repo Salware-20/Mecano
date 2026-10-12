@@ -22,10 +22,14 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ FILTRO COMPARTIDO ~~~
-    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, bool incluirInactivos)
+    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, FiltroActivo filtro)
     {
-        if (!incluirInactivos)
-            query = query.Where(c => c.Activo);
+        query = filtro switch
+        {
+            FiltroActivo.Activos => query.Where(c => c.Activo),
+            FiltroActivo.Inactivos => query.Where(c => !c.Activo),
+            _ => query
+        };
 
         if (string.IsNullOrWhiteSpace(termino))
             return query;
@@ -94,7 +98,7 @@ public class ClienteService : IClienteService
         await using var context = await _factory.CreateDbContextAsync();
 
         // El contrato legado nunca filtró por Activo; no lo alteramos para no romper a AgendarCita.razor.
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos: true);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, FiltroActivo.Todos);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -104,11 +108,11 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ READ (lista paginada) ~~~
-    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, bool incluirInactivos = false)
+    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, FiltroActivo filtro = FiltroActivo.Activos)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -344,11 +348,11 @@ public class ClienteService : IClienteService
     // ~~~ COUNT (para paginación) ~~~
     // Comparte AplicarFiltro con BuscarClientesPaginadoAsync para que el total coincida
     // exactamente con el conjunto paginado.
-    public async Task<int> ContarBusquedaAsync(string? termino, bool incluirInactivos = false)
+    public async Task<int> ContarBusquedaAsync(string? termino, FiltroActivo filtro = FiltroActivo.Activos)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos)
+        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro)
             .CountAsync();
     }
 }

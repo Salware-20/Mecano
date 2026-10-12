@@ -1,6 +1,7 @@
 @page "/mecanicos"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Administrador")]
+@using Mecano.Entidad.Constantes
 @inject IMecanicoService MecanicoService
 @inject ICategoriaService CategoriaService
 
@@ -26,13 +27,16 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-3 flex-wrap">
         <p class="text-muted mb-0">
-            @mecanicos.Count mecánico(s) @(mostrarInactivos ? "registrado(s)" : "activo(s)")
+            @mecanicos.Count mecánico(s) @TextoEtiquetaFiltro()
         </p>
-        <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="chkMecanicosInactivos"
-                   checked="@mostrarInactivos"
-                   @onchange="e => CambiarMostrarInactivos((bool)(e.Value ?? false))" />
-            <label class="form-check-label" for="chkMecanicosInactivos">Mostrar inactivos</label>
+        <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 text-nowrap" for="selMecanicosEstado">Estado</label>
+            <select id="selMecanicosEstado" class="form-select form-select-sm"
+                    value="@filtro" @onchange="CambiarFiltro">
+                <option value="@FiltroActivo.Activos">Activos</option>
+                <option value="@FiltroActivo.Inactivos">Inactivos</option>
+                <option value="@FiltroActivo.Todos">Todos</option>
+            </select>
         </div>
     </div>
     @if (especialidades.Count > 0)
@@ -52,9 +56,7 @@
 else if (!mecanicos.Any())
 {
     <div class="alert alert-info">
-        @(mostrarInactivos
-            ? "No hay mecánicos registrados todavía."
-            : "No hay mecánicos activos. Si hay mecánicos inactivos, actívalos con el interruptor “Mostrar inactivos”.")
+        @TextoVacio()
     </div>
 }
 else

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @implements IDisposable
+@using Mecano.Entidad.Constantes
 @inject IClienteService ClienteService
 @inject ICitaService CitaService
 
@@ -42,11 +43,14 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="chkClientesInactivos"
-                           checked="@mostrarInactivos"
-                           @onchange="e => CambiarMostrarInactivos((bool)(e.Value ?? false))" />
-                    <label class="form-check-label" for="chkClientesInactivos">Mostrar inactivos</label>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 text-nowrap" for="selClientesEstado">Estado</label>
+                    <select id="selClientesEstado" class="form-select form-select-sm"
+                            value="@filtro" @onchange="CambiarFiltro">
+                        <option value="@FiltroActivo.Activos">Activos</option>
+                        <option value="@FiltroActivo.Inactivos">Inactivos</option>
+                        <option value="@FiltroActivo.Todos">Todos</option>
+                    </select>
                 </div>
             </div>
             <div class="col-md-2">
@@ -77,9 +81,7 @@
         else if (!clientes.Any())
         {
             <div class="alert alert-info mb-0">
-                @(string.IsNullOrWhiteSpace(terminoBusqueda)
-                    ? "No hay clientes registrados todavía."
-                    : "No se encontraron clientes que coincidan con la búsqueda.")
+                @TextoVacio()
             </div>
         }
         else

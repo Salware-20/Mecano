@@ -1,9 +1,12 @@
+@using Mecano.Entidad.Constantes
 @page "/clientes/{Id:int}"
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inject IClienteService ClienteService
 @inject IVehiculoService VehiculoService
 @inject ICitaService CitaService
+@inject IComentarioService ComentarioService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>@(cliente?.NombreCompleto ?? "Cliente") - Mecano</PageTitle>
 
@@ -192,7 +195,7 @@ else
     </div>
 
     @* ---------- Citas ---------- *@
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong><i class="bi bi-calendar-event"></i> Citas (@citas.Count)</strong>
             <button class="btn btn-sm btn-primary" disabled
@@ -237,6 +240,191 @@ else
             }
         </div>
     </div>
+
+    @* ---------- Comentarios (Administrador y Mecánico) ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-chat-left-text" aria-hidden="true"></i> Comentarios (@comentarios.Count)</strong>
+            <button class="btn btn-sm btn-primary" @onclick="AbrirCrearComentario">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Nuevo comentario
+            </button>
+        </div>
+        <div class="card-body">
+            @if (cargandoComentarios)
+            {
+                <div class="text-center py-3">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="ms-2 text-secondary small">Cargando comentarios…</span>
+                </div>
+            }
+            else if (!comentarios.Any())
+            {
+                <div class="text-center py-4">
+                    <i class="bi bi-chat-left-text display-6 text-secondary" aria-hidden="true"></i>
+                    <h2 class="h6 mt-2 mb-1">Sin comentarios</h2>
+                    <p class="text-secondary small mb-3">
+                        @(errorCargaComentarios
+                            ? "No se pudieron cargar los comentarios. Intentá de nuevo."
+                            : "Todavía no hay notas sobre este cliente.")
+                    </p>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="AbrirCrearComentario">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Escribir el primero
+                    </button>
+                </div>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush comentarios-lista">
+                    @foreach (var c in comentarios)
+                    {
+                        <li class="list-group-item px-0">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <span class="fw-semibold">@c.AutorNombre</span>
+                                    <span class="badge text-bg-@(c.AutorTipo == TipoAutorComentario.Administrador ? "info" : "secondary") ms-1">
+                                        @c.AutorTipo
+                                    </span>
+                                    <div class="small text-secondary">
+                                        <i class="bi bi-clock" aria-hidden="true"></i>
+                                        <time datetime="@c.FechaHora.ToString("yyyy-MM-ddTHH:mm")">
+                                            @c.FechaHora.ToString("dd/MM/yyyy HH:mm")
+                                        </time>
+                                    </div>
+                                </div>
+                                @* Solo el autor ve el botón de eliminar *@
+                                @if (EsAutor(c))
+                                {
+                                    <button class="btn btn-sm btn-outline-danger comentario-btn-eliminar flex-shrink-0"
+                                            title="Eliminar comentario"
+                                            aria-label="Eliminar comentario"
+                                            @onclick="() => ConfirmarEliminarComentario(c)">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                    </button>
+                                }
+                            </div>
+                            <p class="mb-0 mt-1 comentario-texto">@c.Texto</p>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+
+    @* ---------- Modal: nuevo comentario ---------- *@
+    @if (mostrarModalComentario)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="tituloNuevoComentario" style="background:rgba(0,0,0,.5);"
+             @onkeydown="OnKeyDownModalComentario">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <EditForm Model="modeloComentario" OnValidSubmit="GuardarComentario" FormName="ComentarioCliente">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tituloNuevoComentario">
+                                <i class="bi bi-chat-left-text" aria-hidden="true"></i> Nuevo comentario
+                            </h5>
+                            <button type="button" class="btn-close" aria-label="Cerrar"
+                                    @onclick="CerrarCrearComentario"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-secondary small">
+                                Comentario para <strong>@(cliente?.NombreCompleto ?? "-")</strong>.
+                                Quedará con tu nombre y la fecha de hoy.
+                            </p>
+
+                            <div class="mb-2">
+                                <label class="form-label" for="nuevoComentarioTexto">Comentario *</label>
+                                <InputTextArea id="nuevoComentarioTexto" class="form-control" rows="4"
+                                               @bind-Value="modeloComentario.Texto"
+                                               placeholder="Escribí una nota sobre este cliente…"
+                                               maxlength="1000" autocapitalize="sentences"
+                                               aria-describedby="ayudaComentario" />
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <ValidationMessage For="() => modeloComentario.Texto"
+                                                       class="text-danger small mb-0" />
+                                    <small id="ayudaComentario" class="text-secondary ms-auto">
+                                        @(modeloComentario.Texto?.Length ?? 0)/1000
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CerrarCrearComentario">Cancelar</button>
+                            <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="GuardarComentario">
+                                @if (guardando)
+                                {
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-send" aria-hidden="true"></i>
+                                }
+                                Publicar comentario 
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ---------- Modal: eliminar comentario ---------- *@
+    @if (comentarioAEliminar is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="tituloEliminarComentario" style="background:rgba(0,0,0,.5);"
+             @onkeydown="OnKeyDownModalComentario">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger" id="tituloEliminarComentario">
+                            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Eliminar comentario
+                        </h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar"
+                                @onclick="CancelarEliminarComentario"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger" role="alert">@mensajeError</div>
+                        }
+                        else
+                        {
+                            <p>¿Eliminar este comentario de <strong>@comentarioAEliminar.AutorNombre</strong>?</p>
+
+                            <figure class="bg-body-tertiary border rounded p-3 mb-3">
+                                <blockquote class="mb-1">@PrevioComentario(comentarioAEliminar.Texto)</blockquote>
+                                <figcaption class="small text-secondary">
+                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy HH:mm")
+                                </figcaption>
+                            </figure>
+
+                            <p class="text-secondary small mb-0">
+                                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                Esta acción no se puede deshacer. Si querés corregir el texto,
+                                cancelá y publicá un comentario nuevo.
+                            </p>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelarEliminarComentario">Cancelar</button>
+                        <button class="btn btn-danger" @onclick="EliminarComentarioConfirmado" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-trash" aria-hidden="true"></i>
+                            }
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     @* ---------- Modales (solo Administrador) ---------- *@
     <AuthorizeView Roles="Administrador" Context="authCtx">

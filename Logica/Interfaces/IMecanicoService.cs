@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Mecanico;
 
 namespace Mecano.Logica.Interfaces;
@@ -16,10 +17,11 @@ public interface IMecanicoService
     // --- CRUD administrativo ---
 
     /// <summary>
-    /// Devuelve la lista de mecánicos. Por defecto solo los activos.
-    /// Pasar soloActivos = false para obtener todos (activos e inactivos).
+    /// Devuelve la lista de mecánicos filtrada por estado. Por defecto solo los activos.
+    /// Usar <see cref="FiltroActivo.Inactivos"/> o <see cref="FiltroActivo.Todos"/> para
+    /// ver inactivos.
     /// </summary>
-    Task<List<MecanicoDTO>> ObtenerTodosAsync(bool soloActivos = true);
+    Task<List<MecanicoDTO>> ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos);
 
     /// <summary>
     /// Devuelve el detalle de un mecánico por su id, sin filtrar por Activo,
