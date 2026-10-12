@@ -86,7 +86,7 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Nombre *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Nombre" />
+                            <InputText class="form-control" @bind-Value="modelo.Nombre" autocomplete="off" style="text-transform:capitalize;" placeholder="Nombre de la categoría (ej. Frenos)" />
                             <ValidationMessage For="() => modelo.Nombre" />
                         </div>
                         <div class="mb-3">

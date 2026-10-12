@@ -19,6 +19,8 @@ namespace Mecano.Entidad.Utilidades
     public static class Formatos
     {
         public const int LargoCedulaNacional = 9;
+        public const int LargoDimexMin = 11;
+        public const int LargoDimexMax = 12;
         public const int LargoTelefono = 8;
         public const int LargoPlaca = 6;
 
@@ -73,6 +75,55 @@ namespace Mecano.Entidad.Utilidades
                 return raw;
 
             return $"{digitos[..1]}-{digitos[1..5]}-{digitos[5..]}";
+        }
+
+        /// <summary>
+        /// Normaliza y valida el documento de identidad según su tipo.
+        /// Lanza <see cref="InvalidOperationException"/> si no cumple con las reglas del tipo.
+        /// </summary>
+        public static string NormalizarIdentificacion(string? raw, Mecano.Entidad.Constantes.TipoIdentificacion tipo)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                throw new InvalidOperationException("El número de identificación es obligatorio.");
+
+            switch (tipo)
+            {
+                case Mecano.Entidad.Constantes.TipoIdentificacion.Nacional:
+                    var digitosNac = SoloDigitos(raw);
+                    if (digitosNac.Length != LargoCedulaNacional)
+                        throw new InvalidOperationException($"La cédula nacional debe tener exactamente {LargoCedulaNacional} dígitos.");
+                    return digitosNac;
+
+                case Mecano.Entidad.Constantes.TipoIdentificacion.Dimex:
+                    var digitosDimex = SoloDigitos(raw);
+                    if (digitosDimex.Length < LargoDimexMin || digitosDimex.Length > LargoDimexMax)
+                        throw new InvalidOperationException($"El DIMEX debe tener entre {LargoDimexMin} y {LargoDimexMax} dígitos.");
+                    return digitosDimex;
+
+                case Mecano.Entidad.Constantes.TipoIdentificacion.Pasaporte:
+                    var pasaporte = raw.Trim();
+                    if (pasaporte.Length == 0)
+                        throw new InvalidOperationException("El pasaporte no puede estar vacío.");
+                    if (pasaporte.Length > 20)
+                        throw new InvalidOperationException("El pasaporte no puede exceder 20 caracteres.");
+                    return pasaporte;
+
+                default:
+                    throw new InvalidOperationException("Tipo de identificación no válido.");
+            }
+        }
+
+        /// <summary>
+        /// Presenta la identificación de forma legible según su tipo.
+        /// </summary>
+        public static string FormatearIdentificacion(string? raw, Mecano.Entidad.Constantes.TipoIdentificacion tipo)
+        {
+            if (string.IsNullOrEmpty(raw)) return string.Empty;
+            return tipo switch
+            {
+                Mecano.Entidad.Constantes.TipoIdentificacion.Nacional => CedulaNacional(raw),
+                _ => raw.Trim()
+            };
         }
 
         /// <summary>

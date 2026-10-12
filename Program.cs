@@ -66,6 +66,7 @@ builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICategoriaService, CategoriaService>();
+builder.Services.AddScoped<IComentarioService, ComentarioService>();
 builder.Services.AddScoped<IAuthServices, AuthServices>();
 
 builder.Services.AddScoped<DbSeeder>();

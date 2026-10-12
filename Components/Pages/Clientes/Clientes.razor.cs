@@ -167,6 +167,7 @@ public partial class Clientes : ComponentBase, IDisposable
         modelo = new CrearClienteDTO
         {
             CedulaIdentidad = detalle.CedulaIdentidad,
+            TipoIdentificacion = detalle.TipoIdentificacion,
             NombreCompleto = detalle.NombreCompleto,
             Telefono = detalle.Telefono,
             Correo = detalle.Correo,
@@ -195,6 +196,7 @@ public partial class Clientes : ComponentBase, IDisposable
                 {
                     Id = idEditando.Value,
                     CedulaIdentidad = modelo.CedulaIdentidad,
+                    TipoIdentificacion = modelo.TipoIdentificacion,
                     NombreCompleto = modelo.NombreCompleto,
                     Telefono = modelo.Telefono,
                     Correo = modelo.Correo,

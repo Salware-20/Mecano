@@ -1,4 +1,4 @@
-﻿using Mecano.Entidad.DTOs;
+using Mecano.Entidad.DTOs;
 
 namespace Mecano.Logica.Interfaces
 {
@@ -6,6 +6,7 @@ namespace Mecano.Logica.Interfaces
     {
         Task<AuthenticatedUser?> LoginAsync(string email, string password);
         Task<bool> RegisterAdminAsync(string email, string nombre, string password);
+        Task<bool> RegisterAdminAsync(string email, string nombre, string password, string? cedula, Entidad.Constantes.TipoIdentificacion tipoIdentificacion);
         Task<bool> EmailExisteAsync(string email);
     }
 }

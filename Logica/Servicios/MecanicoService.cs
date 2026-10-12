@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs.Mecanico;
+using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Utilidades;
 using Microsoft.EntityFrameworkCore;
@@ -72,6 +73,7 @@ public class MecanicoService : IMecanicoService
                 Nombre             = m.Nombre,
                 Email              = m.Email,
                 Cedula             = m.Cedula,
+                TipoIdentificacion = m.TipoIdentificacion,
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
@@ -95,6 +97,7 @@ public class MecanicoService : IMecanicoService
                 Nombre             = m.Nombre,
                 Email              = m.Email,
                 Cedula             = m.Cedula,
+                TipoIdentificacion = m.TipoIdentificacion,
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
@@ -111,7 +114,9 @@ public class MecanicoService : IMecanicoService
 
         var nombre   = dto.Nombre.Trim();
         var email    = dto.Email.Trim().ToLowerInvariant();
-        var cedula   = dto.Cedula?.Trim();      // solo Trim — los guiones se conservan
+        var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
+            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
+            : null;
         var telefono = dto.Telefono?.Trim();
 
         // Validar unicidad de email en Administradores y Mecánicos
@@ -125,13 +130,14 @@ public class MecanicoService : IMecanicoService
 
         var mecanico = new Mecanico
         {
-            Nombre        = nombre,
-            Email         = email,
-            Cedula        = cedula,
-            Telefono      = telefono,
-            EspecialidadId = dto.EspecialidadId!.Value,
-            HashPassword  = PasswordHasher.Hash(dto.Password),
-            Activo        = true
+            Nombre             = nombre,
+            Email              = email,
+            Cedula             = cedula,
+            TipoIdentificacion = dto.TipoIdentificacion,
+            Telefono           = telefono,
+            EspecialidadId     = dto.EspecialidadId!.Value,
+            HashPassword       = PasswordHasher.Hash(dto.Password),
+            Activo             = true
         };
 
         context.Mecanico.Add(mecanico);
@@ -150,7 +156,9 @@ public class MecanicoService : IMecanicoService
 
         var nombre   = dto.Nombre.Trim();
         var email    = dto.Email.Trim().ToLowerInvariant();
-        var cedula   = dto.Cedula?.Trim();      // solo Trim — los guiones se conservan
+        var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
+            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
+            : null;
         var telefono = dto.Telefono?.Trim();
 
         // Validar unicidad de email excluyendo al propio mecánico
@@ -173,11 +181,12 @@ public class MecanicoService : IMecanicoService
             mecanico.HashPassword = PasswordHasher.Hash(dto.Password);
         }
 
-        mecanico.Nombre        = nombre;
-        mecanico.Email         = email;
-        mecanico.Cedula        = cedula;
-        mecanico.Telefono      = telefono;
-        mecanico.EspecialidadId = dto.EspecialidadId!.Value;
+        mecanico.Nombre             = nombre;
+        mecanico.Email              = email;
+        mecanico.Cedula             = cedula;
+        mecanico.TipoIdentificacion = dto.TipoIdentificacion;
+        mecanico.Telefono           = telefono;
+        mecanico.EspecialidadId     = dto.EspecialidadId!.Value;
         // Activo no se toca en una actualización de datos
 
         await context.SaveChangesAsync();
