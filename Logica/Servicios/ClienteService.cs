@@ -22,16 +22,32 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ FILTRO COMPARTIDO ~~~
-    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, bool incluirInactivos)
+    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, FiltroActivo filtro, bool incluirIdentificacion)
     {
-        if (!incluirInactivos)
-            query = query.Where(c => c.Activo);
+        query = filtro switch
+        {
+            FiltroActivo.Activos => query.Where(c => c.Activo),
+            FiltroActivo.Inactivos => query.Where(c => !c.Activo),
+            _ => query
+        };
 
         if (string.IsNullOrWhiteSpace(termino))
             return query;
 
-        var digitos = Formatos.SoloDigitos(termino);
         var placaNormalizada = Formatos.NormalizarPlaca(termino);
+
+        // Nombre y placa se buscan siempre. La cédula solo cuando el rol puede verla
+        // (Administrador): para el Mecánico, permitir buscarla dejaría confirmar una
+        // identificación adivinada aunque la columna esté oculta en la vista.
+        if (!incluirIdentificacion)
+        {
+            return query.Where(c =>
+                EF.Functions.Like(c.NombreCompleto, $"%{termino}%")
+                || c.Vehiculos.Any(v => EF.Functions.Like(v.Placa, $"%{termino}%")
+                    || (placaNormalizada.Length > 0 && EF.Functions.Like(v.Placa, $"%{placaNormalizada}%"))));
+        }
+
+        var digitos = Formatos.SoloDigitos(termino);
 
         // La cédula se almacena solo con dígitos y la placa en mayúsculas sin guiones,
         // pero el usuario las ve formateadas ("1-0111-0111", "ABC-123"). Por eso ambos
@@ -94,7 +110,7 @@ public class ClienteService : IClienteService
         await using var context = await _factory.CreateDbContextAsync();
 
         // El contrato legado nunca filtró por Activo; no lo alteramos para no romper a AgendarCita.razor.
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos: true);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, FiltroActivo.Todos, incluirIdentificacion: true);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -104,11 +120,11 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ READ (lista paginada) ~~~
-    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, bool incluirInactivos = false)
+    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, FiltroActivo filtro = FiltroActivo.Activos, bool incluirIdentificacion = true)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro, incluirIdentificacion);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -344,11 +360,11 @@ public class ClienteService : IClienteService
     // ~~~ COUNT (para paginación) ~~~
     // Comparte AplicarFiltro con BuscarClientesPaginadoAsync para que el total coincida
     // exactamente con el conjunto paginado.
-    public async Task<int> ContarBusquedaAsync(string? termino, bool incluirInactivos = false)
+    public async Task<int> ContarBusquedaAsync(string? termino, FiltroActivo filtro = FiltroActivo.Activos, bool incluirIdentificacion = true)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos)
+        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro, incluirIdentificacion)
             .CountAsync();
     }
 }

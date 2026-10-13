@@ -40,7 +40,37 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"Servicio con ID {dto.ServicioId} no existe.");
         }
 
+        // Reglas de agenda (defensa en profundidad: la UI ya las restringe, pero el
+        // servicio es la última barrera ante llamadas directas o datos manipulados).
+        if (dto.Fecha.Date < DateTime.Today)
+        {
+            throw new InvalidOperationException("No se pueden agendar citas en fechas pasadas.");
+        }
+
+        if (dto.Fecha.DayOfWeek == DayOfWeek.Sunday)
+        {
+            throw new InvalidOperationException("El taller no atiende los domingos.");
+        }
+
+        var apertura = new TimeOnly(8, 0);
+        var cierre = new TimeOnly(18, 0);
+
+        if (dto.HoraInicio < apertura || dto.HoraInicio >= cierre)
+        {
+            throw new InvalidOperationException("El horario de atención es de 8:00 a. m. a 6:00 p. m.");
+        }
+
+        if (dto.Fecha.Date == DateTime.Today && dto.HoraInicio <= TimeOnly.FromDateTime(DateTime.Now))
+        {
+            throw new InvalidOperationException("No se pueden agendar citas en horarios que ya pasaron.");
+        }
+
         var horaFin = dto.HoraInicio.AddMinutes(servicio.DuracionMinutos);
+
+        if (horaFin > cierre)
+        {
+            throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
+        }
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         try

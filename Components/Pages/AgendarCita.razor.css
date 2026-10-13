@@ -1,0 +1,289 @@
+/* ============================================================
+   Tablero de mecánicos (Agendar Cita)
+   Diseño limpio/minimalista: una fila por mecánico, una columna
+   por día (lunes a sábado). Sigue los tokens de wwwroot/app.css.
+   ============================================================ */
+
+.tablero-card {
+    background-color: var(--bg-surface, #fff);
+    border: 1px solid var(--border-color, #E2E8F0);
+    border-radius: .75rem;
+    overflow: hidden;
+}
+
+.tablero-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .75rem 1rem;
+    border-bottom: 1px solid var(--border-color, #E2E8F0);
+    background-color: var(--bg-surface, #fff);
+}
+
+.tablero-rango {
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+    margin-left: .35rem;
+}
+
+.tablero-aviso {
+    padding: .75rem 1rem;
+    color: var(--text-secondary, #64748B);
+    background-color: color-mix(in srgb, var(--primary-accent, #0284C7) 8%, transparent);
+    border-bottom: 1px solid var(--border-color, #E2E8F0);
+    font-size: .9rem;
+}
+
+.tablero-cargando,
+.tablero-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 320px;
+    color: var(--text-secondary, #64748B);
+}
+
+.tablero-scroll {
+    overflow-x: auto;
+}
+
+.tablero-bloqueado {
+    opacity: .55;
+    pointer-events: none;
+    user-select: none;
+    filter: grayscale(20%);
+}
+
+.tablero {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.tablero th,
+.tablero td {
+    border-bottom: 1px solid var(--border-color, #E2E8F0);
+    border-right: 1px solid var(--border-color, #E2E8F0);
+    vertical-align: top;
+}
+
+.tablero tr:last-child th,
+.tablero tr:last-child td {
+    border-bottom: 0;
+}
+
+/* ---------- Cabecera ---------- */
+
+.tablero-esquina {
+    background-color: var(--bg-surface, #fff);
+    text-align: left;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary, #64748B);
+    padding: .6rem .75rem;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+}
+
+.col-mecanico {
+    width: 190px;
+    min-width: 190px;
+}
+
+.col-dia {
+    text-align: center;
+    padding: .5rem .25rem;
+    background-color: var(--bg-surface, #fff);
+}
+
+.col-dia .dia-nombre {
+    display: block;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary, #64748B);
+}
+
+.col-dia .dia-numero {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary, #0F172A);
+    line-height: 1.1;
+}
+
+.col-dia.es-hoy .dia-numero {
+    color: var(--primary-accent, #0284C7);
+}
+
+.col-dia.es-pasado {
+    opacity: .55;
+}
+
+.dia-hoy-badge {
+    display: inline-block;
+    margin-top: .1rem;
+    font-size: .6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #fff;
+    background-color: var(--primary-accent, #0284C7);
+    border-radius: 999px;
+    padding: 0 .4rem;
+}
+
+/* ---------- Columna de mecánico ---------- */
+
+.tablero-mecanico {
+    text-align: left;
+    padding: .6rem .75rem;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: var(--bg-surface, #fff);
+}
+
+.mecanico-nombre {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+    font-size: .9rem;
+}
+
+.mecanico-especialidad {
+    display: block;
+    font-size: .72rem;
+    color: var(--text-secondary, #64748B);
+}
+
+/* ---------- Celdas de día ---------- */
+
+.celda-dia {
+    position: relative;
+    min-height: 92px;
+    padding: .4rem;
+    background-color: var(--bg-surface, #fff);
+    transition: background-color .15s ease;
+}
+
+.celda-dia.es-hoy {
+    background-color: color-mix(in srgb, var(--primary-accent, #0284C7) 4%, transparent);
+}
+
+.celda-dia.es-pasado {
+    background-color: color-mix(in srgb, #64748B 6%, transparent);
+}
+
+.celda-dia.es-clicable {
+    cursor: pointer;
+}
+
+.celda-dia.es-clicable:hover {
+    background-color: color-mix(in srgb, var(--primary-accent, #0284C7) 9%, transparent);
+}
+
+.celda-dia.es-clicable:hover .celda-agregar {
+    opacity: 1;
+}
+
+.celda-agregar {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--primary-accent, #0284C7);
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .celda-dia,
+    .celda-agregar {
+        transition: none;
+    }
+}
+
+/* ---------- Chips de cita ---------- */
+
+.chip {
+    --chip-color: #64748B;
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    margin-bottom: .25rem;
+    padding: .3rem .45rem;
+    font-size: .75rem;
+    line-height: 1.15;
+    border-left: 3px solid var(--chip-color);
+    border-radius: .375rem;
+    background-color: color-mix(in srgb, var(--chip-color) 12%, var(--bg-surface, #fff));
+}
+
+.chip-hora {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--chip-color);
+    white-space: nowrap;
+}
+
+.chip-cuerpo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.chip-cliente {
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chip-servicio {
+    color: var(--text-secondary, #64748B);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chip-pendiente {
+    --chip-color: #D97706;
+}
+
+.chip-confirmada {
+    --chip-color: #059669;
+}
+
+.chip-proceso {
+    --chip-color: #0284C7;
+}
+
+.chip-finalizada {
+    --chip-color: #64748B;
+}
+
+/* ---------- Modal ---------- */
+
+.resumen-cita {
+    padding: .6rem .85rem;
+    border: 1px solid var(--border-color, #E2E8F0);
+    border-left: 3px solid var(--primary-accent, #0284C7);
+    border-radius: .5rem;
+    background-color: color-mix(in srgb, var(--primary-accent, #0284C7) 5%, transparent);
+    font-size: .9rem;
+}
+
+/* Ajuste para tema oscuro: los colores claros de los chips bajan de intensidad. */
+[data-bs-theme="dark"] .chip {
+    background-color: color-mix(in srgb, var(--chip-color) 26%, var(--bg-surface, #1E293B));
+}

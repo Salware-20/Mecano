@@ -2,8 +2,12 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @implements IDisposable
+@using Mecano.Entidad.Constantes
+@using System.Globalization
 @inject IClienteService ClienteService
 @inject ICitaService CitaService
+@inject IVehiculoService VehiculoService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Clientes - Mecano</PageTitle>
 
@@ -30,7 +34,7 @@
             <div class="col-md-5">
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" placeholder="Buscar por nombre, cédula o placa..."
+                    <input type="text" class="form-control" placeholder="@TextoPlaceholderBusqueda()"
                            value="@terminoBusqueda" @oninput="OnBuscarCambio" />
                     @if (!string.IsNullOrEmpty(terminoBusqueda))
                     {
@@ -42,11 +46,14 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="chkClientesInactivos"
-                           checked="@mostrarInactivos"
-                           @onchange="e => CambiarMostrarInactivos((bool)(e.Value ?? false))" />
-                    <label class="form-check-label" for="chkClientesInactivos">Mostrar inactivos</label>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 text-nowrap" for="selClientesEstado">Estado</label>
+                    <select id="selClientesEstado" class="form-select form-select-sm"
+                            value="@filtro" @onchange="CambiarFiltro">
+                        <option value="@FiltroActivo.Activos">Activos</option>
+                        <option value="@FiltroActivo.Inactivos">Inactivos</option>
+                        <option value="@FiltroActivo.Todos">Todos</option>
+                    </select>
                 </div>
             </div>
             <div class="col-md-2">
@@ -77,9 +84,7 @@
         else if (!clientes.Any())
         {
             <div class="alert alert-info mb-0">
-                @(string.IsNullOrWhiteSpace(terminoBusqueda)
-                    ? "No hay clientes registrados todavía."
-                    : "No se encontraron clientes que coincidan con la búsqueda.")
+                @TextoVacio()
             </div>
         }
         else
@@ -88,7 +93,11 @@
                 <table class="table table-striped table-hover align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>Identificación</th>
+                            <th class="expand-cell"><span class="visually-hidden">Detalle</span></th>
+                            @* La identificación del cliente solo es visible para el Administrador. *@
+                            <AuthorizeView Roles="Administrador">
+                                <th>Identificación</th>
+                            </AuthorizeView>
                             <th>Nombre</th>
                             <th>Contacto</th>
                             <th class="text-center">Vehículos</th>
@@ -100,11 +109,23 @@
                     <tbody>
                         @foreach (var cli in clientes)
                         {
-                            <tr class="@(cli.Activo ? "" : "table-secondary")">
-                                <td>
-                                    <span>@Formatos.FormatearIdentificacion(cli.CedulaIdentidad, cli.TipoIdentificacion)</span>
-                                    <small class="text-muted d-block">@cli.TipoIdentificacion</small>
+                            <tr class="fila-cliente @(cli.Activo ? "" : "table-secondary") @(EstaExpandido(cli.Id) ? "table-active" : "")"
+                                @onclick="() => ToggleFila(cli)">
+                                <td class="expand-cell text-center">
+                                    <button type="button" class="btn btn-sm btn-link expand-btn p-0"
+                                            aria-expanded="@EstaExpandido(cli.Id)"
+                                            aria-controls="@IdDetalle(cli.Id)"
+                                            aria-label="@(EstaExpandido(cli.Id) ? "Ocultar" : "Mostrar") vehículos y citas de @cli.NombreCompleto">
+                                        <i class="bi @(EstaExpandido(cli.Id) ? "bi-chevron-down" : "bi-chevron-right")" aria-hidden="true"></i>
+                                    </button>
                                 </td>
+                                @* La identificación del cliente solo es visible para el Administrador. *@
+                                <AuthorizeView Roles="Administrador">
+                                    <td>
+                                        <span>@Formatos.FormatearIdentificacion(cli.CedulaIdentidad, cli.TipoIdentificacion)</span>
+                                        <small class="text-muted d-block">@cli.TipoIdentificacion</small>
+                                    </td>
+                                </AuthorizeView>
                                 <td style="text-transform:capitalize;"><strong>@cli.NombreCompleto</strong></td>
                                 <td>
                                     @Formatos.Telefono(cli.Telefono)
@@ -126,18 +147,21 @@
                                     }
                                 </td>
                                 <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary me-1" href="clientes/@cli.Id">
+                                    <a class="btn btn-sm btn-outline-primary me-1" href="clientes/@cli.Id"
+                                       @onclick:stopPropagation="true">
                                         <i class="bi bi-eye"></i> Ver
                                     </a>
                                     <AuthorizeView Roles="Administrador" Context="authCtx">
                                         <button class="btn btn-sm btn-outline-primary me-1"
-                                                title="Editar" @onclick="() => AbrirEditar(cli)">
+                                                title="Editar" @onclick="() => AbrirEditar(cli)"
+                                                @onclick:stopPropagation="true">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         @if (cli.Activo)
                                         {
                                             <button class="btn btn-sm btn-outline-warning me-1"
-                                                    title="Desactivar" @onclick="() => ConfirmarDesactivar(cli)">
+                                                    title="Desactivar" @onclick="() => ConfirmarDesactivar(cli)"
+                                                    @onclick:stopPropagation="true">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
                                         }
@@ -145,20 +169,141 @@
                                         {
                                             <button class="btn btn-sm btn-outline-success me-1"
                                                     title="Reactivar" disabled="@guardando"
-                                                    @onclick="() => ConfirmarReactivar(cli)">
+                                                    @onclick="() => ConfirmarReactivar(cli)"
+                                                    @onclick:stopPropagation="true">
                                                 <i class="bi bi-play-circle"></i>
                                             </button>
                                         }
                                         @if (SinHistoria(cli))
                                         {
                                             <button class="btn btn-sm btn-outline-danger"
-                                                    title="Eliminar definitivamente" @onclick="() => ConfirmarEliminar(cli)">
+                                                    title="Eliminar definitivamente" @onclick="() => ConfirmarEliminar(cli)"
+                                                    @onclick:stopPropagation="true">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         }
                                     </AuthorizeView>
                                 </td>
                             </tr>
+
+                            @if (EstaExpandido(cli.Id))
+                            {
+                                <tr class="detalle-row">
+                                    <td colspan="@(incluirIdentificacion ? 8 : 7)" class="p-0">
+                                        <div id="@IdDetalle(cli.Id)" class="detalle-panel p-3">
+                                            @if (detalleCargando.Contains(cli.Id))
+                                            {
+                                                <div class="text-center py-3">
+                                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                                    <span class="ms-2 text-secondary small">Cargando vehículos y citas…</span>
+                                                </div>
+                                            }
+                                            else if (detalleError.Contains(cli.Id))
+                                            {
+                                                <div class="d-flex align-items-center gap-2 text-secondary small">
+                                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                                    <span>No se pudo cargar el detalle de este cliente.</span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+                                                            @onclick:stopPropagation="true"
+                                                            @onclick="() => RecargarDetalle(cli)">
+                                                        Reintentar
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-xl-4">
+                                                        <div class="detalle-seccion-titulo">
+                                                            <i class="bi bi-car-front" aria-hidden="true"></i>
+                                                            <strong>Vehículos</strong>
+                                                            <span class="badge text-bg-light border">@VehiculosDe(cli.Id).Count</span>
+                                                        </div>
+                                                        @if (!VehiculosDe(cli.Id).Any())
+                                                        {
+                                                            <p class="text-secondary small mb-0">Este cliente no tiene vehículos registrados.</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="d-flex flex-column gap-2">
+                                                                @foreach (var veh in VehiculosDe(cli.Id))
+                                                                {
+                                                                    <div class="vehiculo-item d-flex align-items-center gap-2">
+                                                                        <span class="placa-badge">@Formatos.Placa(veh.Placa)</span>
+                                                                        <div class="min-w-0 flex-grow-1">
+                                                                            <div class="fw-semibold text-truncate">@veh.Marca @veh.Modelo</div>
+                                                                            <div class="text-secondary small">
+                                                                                @veh.Anio@(string.IsNullOrWhiteSpace(veh.Color) ? "" : $" · {veh.Color}")
+                                                                            </div>
+                                                                        </div>
+                                                                        @if (!veh.Activo)
+                                                                        {
+                                                                            <span class="badge bg-secondary">Inactivo</span>
+                                                                        }
+                                                                    </div>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+
+                                                    <div class="col-12 col-xl-8">
+                                                        <div class="detalle-seccion-titulo">
+                                                            <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                                            <strong>Citas agendadas</strong>
+                                                            <span class="badge text-bg-light border">@CitasDe(cli.Id).Count</span>
+                                                        </div>
+                                                        @if (!CitasDe(cli.Id).Any())
+                                                        {
+                                                            <p class="text-secondary small mb-0">Este cliente no tiene citas agendadas.</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="table-responsive">
+                                                                <table class="table table-sm align-middle mb-0 citas-mini">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Fecha</th>
+                                                                            <th>Hora</th>
+                                                                            <th>Placa</th>
+                                                                            <th>Servicio</th>
+                                                                            <th>Mecánico</th>
+                                                                            <th class="text-center">Estado</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        @foreach (var cita in CitasDe(cli.Id).OrderByDescending(c => c.Fecha).ThenByDescending(c => c.HoraInicio))
+                                                                        {
+                                                                            <tr>
+                                                                                <td class="text-nowrap">@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                                                                <td class="text-nowrap">@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
+                                                                                <td>
+                                                                                    @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
+                                                                                    {
+                                                                                        <span class="placa-badge placa-badge-sm">@Formatos.Placa(cita.VehiculoPlaca)</span>
+                                                                                    }
+                                                                                    else
+                                                                                    {
+                                                                                        <span class="text-secondary">-</span>
+                                                                                    }
+                                                                                </td>
+                                                                                <td>@(cita.ServicioNombre ?? "-")</td>
+                                                                                <td>@(cita.MecanicoNombre ?? "-")</td>
+                                                                                <td class="text-center">
+                                                                                    <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                                                                </td>
+                                                                            </tr>
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>

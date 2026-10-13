@@ -176,3 +176,23 @@ h1:focus {
         100% { opacity: 0.5; transform: none; }
     }
 }
+
+/* --- Comentarios del cliente --- */
+.comentarios-lista {
+    max-height: 26rem;
+    overflow-y: auto;
+}
+
+.comentario-texto {
+    white-space: pre-wrap;   /* respeta los saltos de línea que escribió el usuario */
+    overflow-wrap: anywhere;
+}
+
+/* Área de toque cómoda aunque el ícono sea chico */
+.comentario-btn-eliminar {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
