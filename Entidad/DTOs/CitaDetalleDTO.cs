@@ -42,6 +42,7 @@ namespace Mecano.Entidad.DTOs
         // Mecánico
         public int MecanicoId { get; set; }
         public string? MecanicoNombre { get; set; }
+        public int MecanicoEspecialidadId { get; set; }
         public string? MecanicoEspecialidadNombre { get; set; }
     }
 }

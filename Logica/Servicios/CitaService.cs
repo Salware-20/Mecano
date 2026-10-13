@@ -251,11 +251,73 @@ public class CitaService : ICitaService
 
                 MecanicoId = c.MecanicoId,
                 MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null,
+                MecanicoEspecialidadId = c.Mecanico != null ? c.Mecanico.EspecialidadId : 0,
                 MecanicoEspecialidadNombre = c.Mecanico != null && c.Mecanico.Especialidad != null
                     ? c.Mecanico.Especialidad.Nombre
                     : null
             })
             .FirstOrDefaultAsync();
+    }
+
+    // ~~~ UPDATE (datos no de agenda: vehículo, servicio y notas) ~~~
+    // La fecha, la hora y el mecánico no se tocan aquí: eso es la reprogramación (fase posterior).
+    public async Task<bool> ActualizarCitaAsync(EditarCitaDTO dto)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var cita = await context.Cita.FindAsync(dto.Id);
+        if (cita is null)
+            return false;
+
+        if (!cita.EstaActiva())
+            throw new InvalidOperationException("No se puede editar una cita cancelada o finalizada.");
+
+        var servicio = await context.Servicio.FindAsync(dto.ServicioId);
+        if (servicio is null)
+            throw new InvalidOperationException($"Servicio con ID {dto.ServicioId} no existe.");
+
+        // Se permite conservar el servicio/vehículo actual aunque esté inactivo, pero no
+        // cambiar a uno inactivo (defensa en profundidad: la UI ya ofrece solo activos).
+        if (!servicio.Activo && servicio.ServicioId != cita.ServicioId)
+            throw new InvalidOperationException("El servicio seleccionado no está activo.");
+
+        var vehiculo = await context.Vehiculo.FindAsync(dto.VehiculoId);
+        if (vehiculo is null || vehiculo.ClienteId != cita.ClienteId)
+            throw new InvalidOperationException("El vehículo seleccionado no pertenece al cliente de la cita.");
+
+        if (!vehiculo.Activo && vehiculo.VehiculoId != cita.VehiculoId)
+            throw new InvalidOperationException("El vehículo seleccionado no está activo.");
+
+        // Cambiar el servicio cambia la duración: se recalcula el fin y se revalida la agenda.
+        var mecanicoId = cita.MecanicoId;
+        var fecha = cita.Fecha;
+        var horaInicio = cita.HoraInicio;
+        var horaFin = horaInicio.AddMinutes(servicio.DuracionMinutos);
+        var cierre = new TimeOnly(18, 0);
+        if (horaFin > cierre)
+            throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
+
+        bool overlapExists = await context.Cita.AnyAsync(c =>
+            c.CitaId != dto.Id
+            && c.MecanicoId == mecanicoId
+            && c.Fecha.Date == fecha.Date
+            && c.Estado != EstadoCita.Cancelada
+            && c.Estado != EstadoCita.Finalizada
+            && c.HoraInicio < horaFin
+            && horaInicio < c.HoraFin);
+
+        if (overlapExists)
+            throw new AppointmentOverlapException("El mecánico ya tiene otra cita que se solapa con el nuevo horario.");
+
+        cita.VehiculoId = dto.VehiculoId;
+        cita.ServicioId = dto.ServicioId;
+        cita.HoraFin = horaFin;
+        cita.NotasAdmin = string.IsNullOrWhiteSpace(dto.NotasAdmin) ? null : dto.NotasAdmin.Trim();
+
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Cita {Id} actualizada (vehículo {VehiculoId}, servicio {ServicioId}).",
+            cita.CitaId, dto.VehiculoId, dto.ServicioId);
+        return true;
     }
 
     // ~~~ FILTRO COMPARTIDO (listado + conteo) ~~~

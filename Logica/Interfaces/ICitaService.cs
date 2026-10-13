@@ -22,4 +22,11 @@ public interface ICitaService
 
     /// <summary>Detalle completo de una cita, o null si no existe.</summary>
     Task<CitaDetalleDTO?> ObtenerDetallePorIdAsync(int citaId);
+
+    // --- UPDATE (datos no de agenda) ---
+    /// <summary>
+    /// Edita el vehículo, el servicio y las notas de una cita. Recalcula <c>HoraFin</c> a partir de
+    /// la duración del nuevo servicio y revalida horario y solape por mecánico. Devuelve false si la cita no existe.
+    /// </summary>
+    Task<bool> ActualizarCitaAsync(EditarCitaDTO dto);
 }

@@ -4,6 +4,8 @@
 @using System.Globalization
 @using Mecano.Entidad.Constantes
 @inject ICitaService CitaService
+@inject IVehiculoService VehiculoService
+@inject IServicioService ServicioService
 
 <PageTitle>Cita #@Id - Mecano</PageTitle>
 
@@ -16,9 +18,17 @@
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="mb-0"><i class="bi bi-calendar-event"></i> Cita #@Id</h1>
-    <a class="btn btn-outline-secondary" href="citas">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        @if (cita is not null && EsEditable(cita.Estado))
+        {
+            <button class="btn btn-primary" @onclick="AbrirEditar">
+                <i class="bi bi-pencil"></i> Editar
+            </button>
+        }
+        <a class="btn btn-outline-secondary" href="citas">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
 </div>
 
 @if (cargando)
@@ -44,6 +54,14 @@ else if (cita is null)
 }
 else
 {
+    @if (!string.IsNullOrWhiteSpace(mensajeExito))
+    {
+        <div class="alert alert-success d-flex align-items-center" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            <div>@mensajeExito</div>
+        </div>
+    }
+
     @* ---------- Programación ---------- *@
     <div class="card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -199,6 +217,71 @@ else
                         <p class="mb-0" style="white-space:pre-wrap;">@cita.NotasAdmin</p>
                     }
                 </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (mostrarModalEditar)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,.5);" @onclick="CerrarEditar">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <EditForm Model="modeloEditar" OnValidSubmit="GuardarEdicion">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar cita #@Id</h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarEditar" disabled="@guardando"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrWhiteSpace(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+
+                        <p class="text-secondary small">
+                            La fecha, la hora y el mecánico no se modifican aquí.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Vehículo *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloEditar.VehiculoId">
+                                @foreach (var v in vehiculos)
+                                {
+                                    <option value="@v.VehiculoId">@Formatos.Placa(v.Placa) · @v.Marca @v.Modelo@(v.Activo ? "" : " (inactivo)")</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloEditar.VehiculoId" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Servicio *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloEditar.ServicioId">
+                                @foreach (var s in servicios)
+                                {
+                                    <option value="@s.Id">@s.Nombre (@s.DuracionMinutos min · @Formatos.Moneda(s.Precio)@(s.Activo ? "" : " (inactivo)"))</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloEditar.ServicioId" />
+                        </div>
+
+                        <div class="mb-0">
+                            <label class="form-label">Notas</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="modeloEditar.NotasAdmin" />
+                            <ValidationMessage For="() => modeloEditar.NotasAdmin" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CerrarEditar" disabled="@guardando">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-check-lg"></i> Guardar cambios
+                        </button>
+                    </div>
+                </EditForm>
             </div>
         </div>
     </div>
