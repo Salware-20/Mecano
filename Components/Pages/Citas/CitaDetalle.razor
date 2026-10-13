@@ -6,6 +6,7 @@
 @inject ICitaService CitaService
 @inject IVehiculoService VehiculoService
 @inject IServicioService ServicioService
+@inject IMecanicoService MecanicoService
 
 <PageTitle>Cita #@Id - Mecano</PageTitle>
 
@@ -23,6 +24,9 @@
         {
             <button class="btn btn-primary" @onclick="AbrirEditar">
                 <i class="bi bi-pencil"></i> Editar
+            </button>
+            <button class="btn btn-outline-primary" @onclick="AbrirReprogramar">
+                <i class="bi bi-calendar-week"></i> Reprogramar
             </button>
         }
         <a class="btn btn-outline-secondary" href="citas">
@@ -273,6 +277,74 @@ else
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" @onclick="CerrarEditar" disabled="@guardando">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-check-lg"></i> Guardar cambios
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@if (mostrarModalReprogramar)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,.5);" @onclick="CerrarReprogramar">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <EditForm Model="modeloReprogramar" OnValidSubmit="GuardarReprogramacion">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-calendar-week"></i> Reprogramar cita #@Id</h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarReprogramar" disabled="@guardando"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrWhiteSpace(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+
+                        <p class="text-secondary small">
+                            El vehículo, el servicio y las notas no se modifican aquí.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mecánico *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloReprogramar.MecanicoId">
+                                @foreach (var m in mecanicos)
+                                {
+                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(m.Activo ? "" : " (inactivo)")</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloReprogramar.MecanicoId" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label">Fecha *</label>
+                                <InputDate class="form-control" @bind-Value="modeloReprogramar.Fecha" @bind-Value:after="CargarOcupados" min="@FechaMinima" />
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label">Hora de inicio *</label>
+                                <select class="form-select" @bind="horaTexto">
+                                    @foreach (var o in OpcionesHora)
+                                    {
+                                        <option value="@o.Valor" disabled="@(!o.Habilitada)">@o.Etiqueta</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <p class="text-secondary small mb-0">
+                            <i class="bi bi-clock"></i> El servicio actual dura @(cita?.ServicioDuracionMinutos ?? 0) min.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CerrarReprogramar" disabled="@guardando">Cancelar</button>
                         <button type="submit" class="btn btn-primary" disabled="@guardando">
                             @if (guardando)
                             {

@@ -29,4 +29,11 @@ public interface ICitaService
     /// la duración del nuevo servicio y revalida horario y solape por mecánico. Devuelve false si la cita no existe.
     /// </summary>
     Task<bool> ActualizarCitaAsync(EditarCitaDTO dto);
+
+    // --- UPDATE (reprogramación: fecha, hora y mecánico) ---
+    /// <summary>
+    /// Reprograma una cita (fecha, hora y mecánico). Conserva el servicio y recalcula <c>HoraFin</c>
+    /// con su duración; revalida la ventana de atención y el solape por mecánico. Devuelve false si la cita no existe.
+    /// </summary>
+    Task<bool> ReprogramarCitaAsync(ReprogramarCitaDTO dto);
 }

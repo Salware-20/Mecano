@@ -320,6 +320,69 @@ public class CitaService : ICitaService
         return true;
     }
 
+    // ~~~ UPDATE (reprogramación: fecha, hora y mecánico) ~~~
+    // El vehículo, el servicio y las notas no se tocan aquí: eso es la edición (fase anterior).
+    public async Task<bool> ReprogramarCitaAsync(ReprogramarCitaDTO dto)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var cita = await context.Cita.FindAsync(dto.Id);
+        if (cita is null)
+            return false;
+
+        if (!cita.EstaActiva())
+            throw new InvalidOperationException("No se puede reprogramar una cita cancelada o finalizada.");
+
+        var mecanico = await context.Mecanico.FindAsync(dto.MecanicoId);
+        if (mecanico is null || !mecanico.Activo)
+            throw new InactiveMechanicException($"Mecánico con ID {dto.MecanicoId} no existe o está inactivo.");
+
+        var servicio = await context.Servicio.FindAsync(cita.ServicioId);
+        if (servicio is null)
+            throw new InvalidOperationException($"Servicio con ID {cita.ServicioId} no existe.");
+
+        if (dto.Fecha.Date < DateTime.Today)
+            throw new InvalidOperationException("No se pueden reprogramar citas a fechas pasadas.");
+
+        if (dto.Fecha.DayOfWeek == DayOfWeek.Sunday)
+            throw new InvalidOperationException("El taller no atiende los domingos.");
+
+        var apertura = new TimeOnly(8, 0);
+        var cierre = new TimeOnly(18, 0);
+
+        if (dto.HoraInicio < apertura || dto.HoraInicio >= cierre)
+            throw new InvalidOperationException("El horario de atención es de 8:00 a. m. a 6:00 p. m.");
+
+        if (dto.Fecha.Date == DateTime.Today && dto.HoraInicio <= TimeOnly.FromDateTime(DateTime.Now))
+            throw new InvalidOperationException("No se pueden reprogramar citas a horarios que ya pasaron.");
+
+        var horaFin = dto.HoraInicio.AddMinutes(servicio.DuracionMinutos);
+        if (horaFin > cierre)
+            throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
+
+        bool overlapExists = await context.Cita.AnyAsync(c =>
+            c.CitaId != dto.Id
+            && c.MecanicoId == dto.MecanicoId
+            && c.Fecha.Date == dto.Fecha.Date
+            && c.Estado != EstadoCita.Cancelada
+            && c.Estado != EstadoCita.Finalizada
+            && c.HoraInicio < horaFin
+            && dto.HoraInicio < c.HoraFin);
+
+        if (overlapExists)
+            throw new AppointmentOverlapException("El mecánico ya tiene una cita asignada en ese horario.");
+
+        cita.MecanicoId = dto.MecanicoId;
+        cita.Fecha = dto.Fecha;
+        cita.HoraInicio = dto.HoraInicio;
+        cita.HoraFin = horaFin;
+
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Cita {Id} reprogramada a {Fecha} {Hora} con mecánico {MecanicoId}.",
+            cita.CitaId, dto.Fecha, dto.HoraInicio, dto.MecanicoId);
+        return true;
+    }
+
     // ~~~ FILTRO COMPARTIDO (listado + conteo) ~~~
     // BuscarPaginadoAsync y ContarAsync comparten este filtro para que el total de la
     // paginación coincida exactamente con el conjunto paginado.
