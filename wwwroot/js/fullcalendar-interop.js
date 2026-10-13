@@ -7,9 +7,29 @@ window.fullCalendarInterop = {
         var calendarEl = document.getElementById(elementId);
         if (!calendarEl) return;
 
+        // Fecha local de hoy (YYYY-MM-DD). No usamos toISOString(): convierte a UTC y,
+        // en zonas como Costa Rica (UTC-6), por la noche devolvería el día siguiente.
+        var hoy = new Date();
+        var hoyStr = hoy.getFullYear() + '-' +
+            String(hoy.getMonth() + 1).padStart(2, '0') + '-' +
+            String(hoy.getDate()).padStart(2, '0');
+
         this.calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'timeGridWeek',
             locale: 'es',
+            firstDay: 1,
+            slotLabelFormat: {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                meridiem: 'short'
+            },
+            eventTimeFormat: {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                meridiem: 'short'
+            },
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
@@ -25,6 +45,15 @@ window.fullCalendarInterop = {
                 daysOfWeek: [1, 2, 3, 4, 5, 6],
                 startTime: '08:00',
                 endTime: '18:00'
+            },
+            // No se puede seleccionar ni navegar fechas pasadas: el rango válido empieza hoy.
+            validRange: { start: hoyStr },
+            // Solo permite seleccionar dentro de businessHours (lun-sáb 08:00-18:00);
+            // así los domingos y las horas fuera de jornada quedan bloqueados.
+            selectConstraint: 'businessHours',
+            // Refuerza lo anterior: bloquea también las horas ya pasadas del día de hoy.
+            selectAllow: function (selectInfo) {
+                return selectInfo.start >= new Date();
             },
             events: function (info, successCallback, failureCallback) {
                 dotNetRef.invokeMethodAsync('GetCalendarEvents', info.startStr, info.endStr)

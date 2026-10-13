@@ -141,35 +141,8 @@
                                     }
                                 }
                             </select>
-                            <button class="btn @(showNewVehicleForm ? "btn-secondary" : "btn-outline-primary")" 
-                                    @onclick="ToggleNewVehicle">
-                                @(showNewVehicleForm ? "Cancelar Nuevo" : "Agregar Vehículo")
-                            </button>
                         </div>
                     </div>
-
-                    @if (showNewVehicleForm)
-                    {
-                        <div class="card mb-3 border-primary">
-                            <div class="card-body">
-                                <h6>Nuevo Vehículo</h6>
-                                <div class="row">
-                                    <div class="col-md-3 mb-2">
-                                        <input type="text" class="form-control" placeholder="Placa" @bind="nuevoVehiculo.Placa" />
-                                    </div>
-                                    <div class="col-md-3 mb-2">
-                                        <input type="text" class="form-control" placeholder="Marca" @bind="nuevoVehiculo.Marca" />
-                                    </div>
-                                    <div class="col-md-3 mb-2">
-                                        <input type="text" class="form-control" placeholder="Modelo" @bind="nuevoVehiculo.Modelo" />
-                                    </div>
-                                    <div class="col-md-3 mb-2">
-                                        <input type="number" class="form-control" placeholder="Año" @bind="nuevoVehiculo.Anio" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
 
                     <div class="mb-3">
                         <label class="form-label">Servicio</label>
@@ -387,15 +360,6 @@
             selectedServicio = null;
             mecanicosDisponibles = null;
             citaDto.ServicioId = 0;
-        }
-    }
-
-    private void ToggleNewVehicle()
-    {
-        showNewVehicleForm = !showNewVehicleForm;
-        if (showNewVehicleForm)
-        {
-            citaDto.VehiculoId = null;
         }
     }
 
