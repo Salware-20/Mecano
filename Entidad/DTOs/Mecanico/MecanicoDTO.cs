@@ -10,6 +10,7 @@ namespace Mecano.Entidad.DTOs.Mecanico
         public string Nombre { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string? Cedula { get; set; }
+        public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
         public string? Telefono { get; set; }
         public int EspecialidadId { get; set; }
         public string? EspecialidadNombre { get; set; }

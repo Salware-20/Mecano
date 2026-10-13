@@ -44,5 +44,6 @@ namespace Mecano.Entidad.Clases
         // Navigation properties
         public ICollection<Cita> Citas { get; } = new List<Cita>();
         public ICollection<Vehiculo> Vehiculos { get; } = new List<Vehiculo>();
+        public ICollection<Comentario> Comentarios { get; } = new List<Comentario>();
     }
 }

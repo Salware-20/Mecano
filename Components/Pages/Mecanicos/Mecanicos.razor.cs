@@ -1,3 +1,4 @@
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Categoria;
 using Mecano.Entidad.DTOs.Mecanico;
 using Microsoft.AspNetCore.Components;
@@ -18,7 +19,7 @@ public partial class Mecanicos : ComponentBase
     private List<CategoriaDTO> especialidades = new();
     private bool cargando = true;
     private bool guardando;
-    private bool mostrarInactivos;
+    private FiltroActivo filtro = FiltroActivo.Activos;
 
     private bool mostrarModal;
     private bool esEdicion;
@@ -44,7 +45,7 @@ public partial class Mecanicos : ComponentBase
         cargando = true;
         try
         {
-            mecanicos = await MecanicoService.ObtenerTodosAsync(soloActivos: !mostrarInactivos);
+            mecanicos = await MecanicoService.ObtenerTodosAsync(filtro);
         }
         finally
         {
@@ -69,11 +70,29 @@ public partial class Mecanicos : ComponentBase
             mensajeErrorPagina = "No se pudieron cargar las especialidades. Recarga la página.";
     }
 
-    private async Task CambiarMostrarInactivos(bool valor)
+    private async Task CambiarFiltro(ChangeEventArgs e)
     {
-        mostrarInactivos = valor;
-        await CargarMecanicos();
+        if (Enum.TryParse<FiltroActivo>(e.Value?.ToString(), out var valor))
+        {
+            filtro = valor;
+            await CargarMecanicos();
+        }
     }
+
+    // Etiqueta del contador según el filtro activo.
+    private string TextoEtiquetaFiltro() => filtro switch
+    {
+        FiltroActivo.Inactivos => "inactivo(s)",
+        FiltroActivo.Todos => "registrado(s)",
+        _ => "activo(s)"
+    };
+
+    private string TextoVacio() => filtro switch
+    {
+        FiltroActivo.Todos => "No hay mecánicos registrados todavía.",
+        FiltroActivo.Inactivos => "No hay mecánicos inactivos.",
+        _ => "No hay mecánicos activos."
+    };
 
     // ~~~ MODAL CREAR / EDITAR ~~~
     private void AbrirCrear()
@@ -109,12 +128,13 @@ public partial class Mecanicos : ComponentBase
         esEdicion = true;
         modelo = new ActualizarMecanicoDTO
         {
-            Id = detalle.Id,
-            Nombre = detalle.Nombre,
-            Email = detalle.Email,
-            Cedula = detalle.Cedula,
-            Telefono = detalle.Telefono,
-            EspecialidadId = detalle.EspecialidadId
+            Id                 = detalle.Id,
+            Nombre             = detalle.Nombre,
+            Email              = detalle.Email,
+            Cedula             = detalle.Cedula,
+            TipoIdentificacion = detalle.TipoIdentificacion,
+            Telefono           = detalle.Telefono,
+            EspecialidadId     = detalle.EspecialidadId
         };
         mensajeError = null;
         mostrarModal = true;
@@ -176,13 +196,14 @@ public partial class Mecanicos : ComponentBase
             await MecanicoService.CrearAsync(new CrearMecanicoDTO
             {
                 // modelo.Id queda en 0: CrearMecanicoDTO no tiene campo Id.
-                Nombre           = modelo.Nombre,
-                Email            = modelo.Email,
-                Cedula           = modelo.Cedula,
-                Telefono         = modelo.Telefono,
-                EspecialidadId   = modelo.EspecialidadId!.Value,
-                Password         = modelo.Password,
-                ConfirmarPassword = modelo.ConfirmarPassword
+                Nombre             = modelo.Nombre,
+                Email              = modelo.Email,
+                Cedula             = modelo.Cedula,
+                TipoIdentificacion = modelo.TipoIdentificacion,
+                Telefono           = modelo.Telefono,
+                EspecialidadId     = modelo.EspecialidadId!.Value,
+                Password           = modelo.Password,
+                ConfirmarPassword  = modelo.ConfirmarPassword
             });
             mensajeExito = $"Mecánico “{modelo.Nombre}” creado correctamente.";
             CerrarModal();

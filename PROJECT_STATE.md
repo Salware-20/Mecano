@@ -8,9 +8,9 @@
 | **Propósito** | Aplicación de taller mecánico para agendar citas, gestionar clientes, vehículos, servicios y mecánicos. |
 | **Stack principal** | .NET 10.0 (SDK Web), Blazor Server (Interactive Server), Entity Framework Core 9.0, MySQL 8.0 (Pomelo EF Provider) |
 | **Estado general** | Prototipo / MVP — gestión operativa de citas, clientes, vehículos, categorías y servicios, con autenticación por cookies y autorización por roles implementadas. |
-| **Páginas Blazor** | 12 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Layout (MainLayout, NavMenu, ReconnectModal). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). |
-| **Entidades de dominio** | 8 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, NotificacionLog |
-| **Invariante de datos** | `Cliente.CedulaIdentidad` (9 dígitos), `Cliente.Telefono` (8 dígitos, opcional) y `Vehiculo.Placa` (6 caracteres alfanuméricos, **mayúsculas y sin guiones**, ej. `ABC123`) se persisten **solo con la forma canónica**. El formato legible se aplica en la capa de presentación vía `Entidad/Utilidades/Formatos.cs`. Ver Sección 5.1. Los precios (`Servicio.Precio`) se presentan como colones vía `Formatos.Moneda` (cultura es-CR fija). |
+| **Páginas Blazor** | 12 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Layout (MainLayout, LoginLayout, NavMenu, ReconnectModal); Login y AccesoDenegado usan LoginLayout (sin menú lateral). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). `wwwroot/js/auth.js` alberga además `window.mecanoRedirectFeedback` (oscurece/anima el menú al redirigir a login; lo invocan `MainLayout` y `RedirectToLogin`). |
+| **Entidades de dominio** | 8 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, NotificacionLog. `Cliente`, `Mecanico` y `Administrador` llevan `TipoIdentificacion` (enum `Nacional=1, Dimex=2, Pasaporte=3`; commit `8ec693b`). |
+| **Invariante de datos** | La identificación se normaliza **por tipo** vía `Formatos.NormalizarIdentificacion` y se presenta vía `Formatos.FormatearIdentificacion`: `Nacional` = 9 dígitos (`101110111` ↔ `1-0111-0111`); `DIMEX` = 11–12 dígitos, display crudo; `Pasaporte` = alfanumérico ≤20 (solo `Trim`, preserva mayúsculas), display crudo. `Cliente.Telefono` (8 dígitos, opcional) y `Vehiculo.Placa` (6 caracteres, mayúsculas sin guiones, ej. `ABC123`) mantienen su invariante. El formato legible se aplica en presentación vía `Entidad/Utilidades/Formatos.cs`. Ver Sección 5.1. Los precios (`Servicio.Precio`) se presentan como colones vía `Formatos.Moneda` (cultura es-CR fija). |
 | ** Keep “YAGNI” and “KISS” in mind ** | I don't want a project with a super-complex backend
 ---
 
@@ -40,40 +40,45 @@ Mecano/
 │  ├─ DTOs/                  # Objetos de transferencia de datos
 │  │  ├─ AuthenticatedUser.cs
 │  │  ├─ LoginDTO.cs
-│  │  ├─ RegistroAdminDTO.cs
-│  │  ├─ AgendarCitaDTO.cs
+│  │  ├─ RegistroAdminDTO.cs  # Incluye Cedula (opcional) + TipoIdentificacion (default Nacional)
+│  │  ├─ AgendarCitaDTO.cs      # Write model de agendado: ClienteId, VehiculoId, ServicioId, MecanicoId, Fecha, HoraInicio (ya NO incluye NuevoVehiculo)
 │  │  ├─ HorarioDisponibleDTO.cs
 │  │  ├─ CalendarEventDTO.cs
-│  │  ├─ CitaDTO.cs            # Proyección de Cita (servicio, mecánico, placa)
+│  │  ├─ CitaDTO.cs            # Proyección de lectura de Cita (cliente, servicio, mecánico, placa) + ids de cada relación
+│  │  ├─ CitaDetalleDTO.cs      # Proyección de lectura completa para /citas/{id} (cliente/vehículo/servicio/mecánico + notas + MecanicoEspecialidadId para filtrar servicios al editar)
+│  │  ├─ FiltroCitasDTO.cs      # Filtros del listado /citas (desde/hasta, mecánico, estado, término cliente/placa)
+│  │  ├─ EditarCitaDTO.cs       # Write model de edición no-agenda: Id, VehiculoId, ServicioId, NotasAdmin (fecha/hora/mecánico = Fase 3)
+│  │  ├─ ReprogramarCitaDTO.cs  # Write model de reprogramación (Fase 3): Id, MecanicoId, Fecha, HoraInicio
 │  │  ├─ NuevoVehiculoDTO.cs    # Incluye ClienteId; DataAnnotations (placa laxo a propósito, regla estricta en el servicio)
 │  │  ├─ ActualizarVehiculoDTO.cs # Write model con DataAnnotations, plano (misma convención que los DTOs de Servicio)
 │  │  ├─ ServicioDTO.cs        # Read model de Servicio
 │  │  ├─ CrearServicioDTO.cs    # Write model con DataAnnotations
 │  │  ├─ ActualizarServicioDTO.cs
 │  │  ├─ Cliente/
-│  │  │  ├─ ClienteDTO.cs        # Read model; TipoIdentificacion solo lectura
-│  │  │  ├─ CrearClienteDTO.cs   # Sin campo de tipo: el servicio asigna Nacional
-│  │  │  └─ ActualizarClienteDTO.cs
+│  │  │  ├─ ClienteDTO.cs        # Read model; incluye TipoIdentificacion
+│  │  │  ├─ CrearClienteDTO.cs   # Incluye TipoIdentificacion (default Nacional); la validación por tipo vive en el servicio
+│  │  │  └─ ActualizarClienteDTO.cs # Incluye Id + TipoIdentificacion
 │  │  ├─ Categoria/
 │  │     ├─ CategoriaDTO.cs
 │  │     ├─ CrearCategoriaDTO.cs
 │  │     └─ ActualizarCategoriaDTO.cs
 │  │  └─ Mecanico/             # Namespace que colisiona con la clase Mecanico (ver Sección 11)
-│  │     ├─ MecanicoDTO.cs       # Read model; EspecialidadNombre resuelto desde Categoria
-│  │     ├─ CrearMecanicoDTO.cs  # Write model (Password + ConfirmarPassword con [Compare])
-│  │     └─ ActualizarMecanicoDTO.cs # Password opcional (vacío = conservar hash)
+│  │     ├─ MecanicoDTO.cs       # Read model; EspecialidadNombre resuelto desde Categoria; incluye TipoIdentificacion
+│  │     ├─ CrearMecanicoDTO.cs  # Write model (Password + ConfirmarPassword con [Compare]); Cedula opcional + TipoIdentificacion (default Nacional)
+│  │     └─ ActualizarMecanicoDTO.cs # Password opcional (vacío = conservar hash); incluye TipoIdentificacion
 │  ├─ Excepciones/
 │  │  ├─ InactiveMechanicException.cs
 │  │  └─ AppointmentOverlapException.cs
 │  ├─ Utilidades/
-│  │  └─ Formatos.cs        # Normalización y formateo de cédula/teléfono/placa/moneda
+│  │  └─ Formatos.cs        # Normalización y formateo por tipo de identificación + teléfono/placa/moneda
 │  └─ Constantes/
 │     ├─ Roles.cs            # Strings centralizados: "Administrador", "Mecanico"
-│     └─ TipoIdentificacion.cs # Enum: Nacional=1, Dimex=2, Pasaporte=3 (Fase 1 solo Nacional)
+│     ├─ TipoIdentificacion.cs # Enum: Nacional=1, Dimex=2, Pasaporte=3 (los 3 tipos ya expuestos en UI; el comentario "Fase 1" del archivo quedó obsoleto, ver Sección 11)
+│     └─ FiltroActivo.cs     # Enum de filtro de estado para listados admin: Activos=1, Inactivos=2, Todos=3
 ├─ Data/
 │  ├─ MySQLDBContext.cs     # DbContext con DbSet<>
 │  ├─ DbSeeder.cs           # Seed de datos iniciales (categorías, servicios, mecánicos, etc.)
-│  └─ Migrations/           # 20261003033206_Inicial + 20261005232947_AgregarTipoIdentificacionCliente + 20261006160916_Vehiculo-Activo-bool
+│  └─ Migrations/           # 20261003033206_Inicial + 20261005232947_AgregarTipoIdentificacionCliente + 20261006160916_Vehiculo-Activo-bool + 20261011040945_TipoIdentificacion-mecanico-adminitrador + 20261011150853_AgregarTipoIdentificacionMecanico (las dos últimas se pisan; ver Sección 11)
 ├─ Endpoints/
 │  └─ AuthEndpoints.cs      # Minimal API: POST /api/auth/login, POST /api/auth/logout
 ├─ Logica/
@@ -94,24 +99,26 @@ Mecano/
 ├─ wwwroot/
 │  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark) + estilos globales
 │  └─ js/
-│     ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin)
-│     ├─ fullcalendar-interop.js
+│     ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin) + window.mecanoRedirectFeedback (init/setAuthenticated/assignRedirectClass: oscurece el menú al redirigir a login)
 │     └─ theme.js              # window.mecanoTheme: toggle light/dark + persistencia en localStorage
 ├─ Components/
 │  ├─ _Imports.razor          # Directivas using compartidas
 │  ├─ Routes.razor           # Configuración del enrutador
 │  ├─ App.razor              # Raíz HTML con script de framework Blazor
 │  ├─ Layout/
-│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + sidebar + @Body (canvas px-4 py-3)
+│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + dropdown de usuario + sidebar + @Body (canvas px-4 py-3). @code: ToggleTheme, ToggleUserMenu/CloseUserMenu, HandleLogout; OnAfterRenderAsync(firstRender) inicializa window.mecanoRedirectFeedback y le pasa el estado de autenticación
 │  │  ├─ MainLayout.razor.css # Sidebar con var(--bg-sidebar); header con var(--bg-header) y var(--border-color)
-│  │  ├─ NavMenu.razor       # Brand MECANO; Inicio, Agendar Cita; sección "Gestión" (AuthorizeView Administrador): Clientes y Vehículos, Categorías y Servicios, Mecánicos; TEST al final
+│  │  ├─ LoginLayout.razor   # Layout anónimo sin sidebar: header con marca MECANO + toggle de tema + @Body; lo usan Login.razor y AccesoDenegado.razor
+│  │  ├─ LoginLayout.razor.css # Header y contenedor (.page min-height 100vh); duplica #blazor-error-ui
+│  │  ├─ NavMenu.razor       # Brand MECANO; Inicio, Agendar Cita, Citas; header literal "Gestión" (SIN AuthorizeView: visible para todos los roles — ver Sección 11): Clientes y Vehículos, Categorías y Servicios, Mecánicos; TEST al final
 │  │  ├─ NavMenu.razor.css    # Links con tokens (--text-sidebar, --nav-active-bg, --nav-hover-bg, --primary-accent)
 │  │  └─ ReconnectModal.razor
 │  ├─ Pages/
 │     ├─ Home.razor          # @page "/", [Authorize]
-│     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer
-│     ├─ Login.razor         # @page "/login", [AllowAnonymous], InteractiveServer
-│     ├─ AccesoDenegado.razor # @page "/acceso-denegado", [AllowAnonymous]
+│     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer. Tablero propio de mecánicos (filas) x días lun-sáb (columnas), sin FullCalendar: cada celda muestra las citas del mecánico ese día y al hacer clic abre el modal de agendado (permite agendar a otro mecánico aunque ya haya una cita en la misma hora). Modal "mecánico primero": el mecánico de la fila llega preseleccionado y el select de servicios solo ofrece los de su especialidad (Servicio.CategoriaId == Mecanico.EspecialidadId); los horarios ya ocupados por ese mecánico se deshabilitan usando las citas de la semana cargada. Un clic en el chip de una cita navega a su detalle (`/citas/{id}`) y detiene la propagación para no disparar el modal de agendado de la celda. Estilos en AgendarCita.razor.css.
+│     ├─ AgendarCita.razor.css # Estilos del tablero (grid mecánicos×días, chips por estado, resumen del modal) con tokens Industrial Clean, `color-mix()` y ajuste para dark mode.
+│     ├─ Login.razor         # @page "/login", @layout LoginLayout, [AllowAnonymous], InteractiveServer
+│     ├─ AccesoDenegado.razor # @page "/acceso-denegado", @layout LoginLayout, [AllowAnonymous]
 │     ├─ NotFound.razor      # @page "/not-found"
 │     ├─ Error.razor         # @page "/Error"
 │     ├─ ConnectionTest.razor # @page "/connectiontest", [Authorize(Roles=Administrador)], InteractiveServer
@@ -121,13 +128,18 @@ Mecano/
 │     │  ├─ CategoriaDetalle.razor # @page "/categorias/{Id:int}", servicios con CRUD embebido
 │     │  └─ CategoriaDetalle.razor.cs
 │     ├─ Clientes/               # Namespace plural: 'Cliente' colisiona con la entidad
-│     │  ├─ Clientes.razor        # @page "/clientes", [Authorize] lectura; escritura vía AuthorizeView
-│     │  ├─ Clientes.razor.cs     # búsqueda con debounce + paginación numerada
-│     │  ├─ ClienteDetalle.razor  # @page "/clientes/{Id:int}", [Authorize], CRUD de vehículos embebido (modal para Administrador)
+│     │  ├─ Clientes.razor        # @page "/clientes", [Authorize] lectura; escritura vía AuthorizeView. Modal crear/editar con InputSelect de TipoIdentificacion (Nacional/DIMEX/Pasaporte); tabla muestra identificación formateada + tipo (columna solo para Administrador); fila expandible (clic) con panel de vehículos + citas, placa destacada
+│     │  ├─ Clientes.razor.cs     # búsqueda con debounce + paginación numerada; panel expandible (acordeón, carga diferida + caché por cliente); round-trip de TipoIdentificacion en AbrirEditar/Guardar
+│     │  ├─ ClienteDetalle.razor  # @page "/clientes/{Id:int}", [Authorize], CRUD de vehículos embebido (modal para Administrador). Datos con FormatearIdentificacion + campo de tipo (ambos solo para Administrador); modal editar con InputSelect de tipo
 │     │  └─ ClienteDetalle.razor.cs
-│     └─ Mecanicos/              # Namespace plural por la misma razón (colisión con la clase Mecanico)
-│        ├─ Mecanicos.razor      # @page "/mecanicos", [Authorize(Roles=Administrador)], lista + modal crear/editar + desactivar/reactivar
-│        └─ Mecanicos.razor.cs
+│     ├─ Mecanicos/              # Namespace plural por la misma razón (colisión con la clase Mecanico)
+│     │  ├─ Mecanicos.razor      # @page "/mecanicos", [Authorize(Roles=Administrador)], lista + modal crear/editar (credenciales + InputSelect de TipoIdentificacion + especialidad) + desactivar/reactivar; tabla muestra identificación formateada + tipo
+│     │  └─ Mecanicos.razor.cs
+│     └─ Citas/                  # Namespace plural (mismo criterio que Clientes/Mecanicos: la carpeta singular colisionaría con la clase Cita)
+│        ├─ Citas.razor           # @page "/citas", [Authorize(Roles=Administrador)], InteractiveServer. Listado paginado con filtros (desde/hasta, mecánico, estado, cliente/placa); enlaza al detalle
+│        ├─ Citas.razor.cs        # filtros + paginación numerada; comparte FiltroCitasDTO entre conteo y consulta
+│        ├─ CitaDetalle.razor     # @page "/citas/{Id:int}", [Authorize(Roles=Administrador)]. Detalle + modal de edición (vehículo/servicio/notas) y modal de reprogramación (fecha/hora/mecánico), ambos cuando la cita no está cancelada ni finalizada
+│        └─ CitaDetalle.razor.cs  # carga el detalle; AbrirEditar/GuardarEdicion; AbrirReprogramar/GuardarReprogramacion; vehículos activos del cliente, servicios de la especialidad del mecánico (conserva los actuales si están inactivos) y horarios ocupados por mecánico desde ObtenerPorRangoAsync
 │  └─ Shared/
 │     └─ RedirectToLogin.razor # Redirige a /login cuando no hay auth state
 ```
@@ -429,20 +441,21 @@ namespace Mecano.Data
 2. `Vehiculo.Placa` — Unique index.
 
 ### Estado de migraciones
-- **Carpeta `Data/Migrations/`**: Tres migraciones — `20261003033206_Inicial.cs`, `20261005232947_AgregarTipoIdentificacionCliente.cs` y `20261006160916_Vehiculo-Activo-bool.cs` (cada una con su `.Designer.cs`, más `MySQLDBContextModelSnapshot.cs`).
+- **Carpeta `Data/Migrations/`**: Cinco migraciones — `20261003033206_Inicial.cs`, `20261005232947_AgregarTipoIdentificacionCliente.cs`, `20261006160916_Vehiculo-Activo-bool.cs`, `20261011040945_TipoIdentificacion-mecanico-adminitrador.cs` y `20261011150853_AgregarTipoIdentificacionMecanico.cs` (cada una con su `.Designer.cs`, más `MySQLDBContextModelSnapshot.cs`).
 - **¿Migraciones aplicadas a la BD?**: El seeder usa `Database.EnsureCreatedAsync()` en lugar de `MigrateAsync()`, por lo que el esquema se crea directamente desde el modelo; las migraciones existen como historial pero no se aplican en runtime. `EnsureCreatedAsync` es no-op sobre una BD ya existente, así que **agregar una columna requiere borrar la BD local** (`DROP DATABASE mecano;`) y dejar que el seeder la reconstruya.
 - **`TipoIdentificacion` en Cliente**: Columna `int NOT NULL DEFAULT 1`. EF no puede deducir el default porque el enum arranca en `Nacional = 1` (sin miembro `0`), por lo que el `defaultValue` está fijado a mano en la migración; sin él las filas existentes quedarían en `0`, un valor inválido.
+- **`TipoIdentificacion` en Mecanico y Administrador** (commit `8ec693b`): dos migraciones encadenadas — `20261011040945` agrega `TipoIdentificacion int NOT NULL DEFAULT 0` a `Mecanico` y `Administradors`, y `20261011150853` vuelve a agregar `TipoIdentificacion int NOT NULL DEFAULT 1` solo a `Mecanico`. Las entidades declaran default `Nacional` en código. Ver Sección 11 (historial duplicado, inofensivo bajo `EnsureCreatedAsync`).
 - **Índice único de Cliente**: Compuesto `(CedulaIdentidad, TipoIdentificacion)`. El índice único de `CedulaIdentidad` por sí solo se eliminó para permitir que DIMEX y Pasaporte convivan con un Nacional en la Fase 2.
 - **`Vehiculo.Activo`**: Columna `bool` agregada por `20261006160916` **sin `defaultValue`** (el modelo EF no define `HasDefaultValue`). La entidad no lleva inicializador `= true`; cada punto de creación asigna explícito `Activo = true`: `VehiculoService.CrearAsync`, `CitaService.AgendarCitaAsync` y `DbSeeder`. No existe `ReactivarAsync` de vehículo — un vehículo desactivado desaparece de listas y selects, y se restaura por caminos laterales con UI: **transferirlo** (siempre guarda `Activo = true`) o **reactivar su cliente** (cascada). Ver Sección 11.
 - **`Vehiculo.Placa`**: única (índice), almacenada normalizada (`ABC123`). El chequeo de duplicado debe mirar **todas** las filas, incluidas las inactivas (el índice único no filtra por `Activo`): si no, la colisión estallaría como `DbUpdateException` cruda. Ver Sección 5.1.
 - **Estrategia de acceso a BD**: `IDbContextFactory<MySQLDBContext>` — los servicios crean contexto bajo demanda con `_factory.CreateDbContextAsync()`. No se inyecta `DbContext` directamente.
 - **Normalización y formato de cédula/teléfono/placa**: ver Sección 5.1.
 
-### 5.1 Normalización y formato de identificadores de Cliente y Vehiculo, y formato de moneda
+### 5.1 Normalización y formato de identificadores (Cliente, Mecanico, Administrador) y de Vehiculo, y formato de moneda
 
-**El problema.** `Cliente.CedulaIdentidad` estaba indexada como cadena cruda. Un usuario que escribía `101110111` y otro que escribía `1-0111-0111` generaban dos filas para la misma persona, porque `"101110111" != "1-0111-0111"` para el índice único `(CedulaIdentidad, TipoIdentificacion)`. En paralelo, el DTO solo validaba `[StringLength(20)]`, así que entradas como `120adsa91028fmask` se aceptaban y guardaban tal cual.
+**El problema original.** `Cliente.CedulaIdentidad` estaba indexada como cadena cruda. Un usuario que escribía `101110111` y otro que escribía `1-0111-0111` generaban dos filas para la misma persona, porque `"101110111" != "1-0111-0111"` para el índice único `(CedulaIdentidad, TipoIdentificacion)`. En paralelo, el DTO solo validaba `[StringLength(20)]`, así que entradas como `120adsa91028fmask` se aceptaban y guardaban tal cual.
 
-**El invariante.** `CedulaIdentidad` y `Telefono` se guardan únicamente con dígitos, sin guiones ni espacios. `Vehiculo.Placa` se guarda en mayúsculas ASCII y solo alfanuméricos, sin guiones (`ABC123`). El formato con guiones es exclusivamente de presentación.
+**El invariante (multi-tipo desde el commit `8ec693b`).** La identificación se guarda únicamente en forma canónica **según su tipo**: `Nacional` y `DIMEX` solo con dígitos (9 y 11–12 respectivamente); `Pasaporte` con `Trim()` (alfanumérico ≤20, preserva mayúsculas). `Telefono` se guarda solo con dígitos (8, opcional). `Vehiculo.Placa` se guarda en mayúsculas ASCII y solo alfanuméricos, sin guiones (`ABC123`). El formato con guiones es exclusivamente de presentación.
 
 **`Entidad/Utilidades/Formatos.cs`** — helper estático, namespace `Mecano.Entidad.Utilidades`:
 
@@ -450,30 +463,36 @@ namespace Mecano.Data
 |---|---|
 | `SoloDigitos(raw)` | Descarta todo carácter que no sea ASCII `0-9`. Usa `c is >= '0' and <= '9'` en vez de `char.IsDigit` a propósito: `char.IsDigit` acepta dígitos Unicode (ej. `١٢٣` en arábigo-indic) que no corresponden a una cédula costarricense. Devuelve `string.Empty` ante null. |
 | `CedulaNacional(raw)` | `101110111` → `1-0111-0111` (1-4-4). Solo formatea si hay exactamente 9 dígitos; ante cualquier otro largo devuelve el input **sin modificar**, para no imprimir guiones en posiciones que no corresponden. |
+| `NormalizarIdentificacion(raw, tipo)` | Forma de almacenamiento por tipo; lanza `InvalidOperationException` en español si no cumple: `Nacional` → `SoloDigitos`, exige 9 (`"La cédula nacional debe tener exactamente 9 dígitos."`); `Dimex` → `SoloDigitos`, exige 11–12 (`"El DIMEX debe tener entre 11 y 12 dígitos."`); `Pasaporte` → `Trim()`, no vacío y ≤20; `null`/blanco → `"El número de identificación es obligatorio."`. |
+| `FormatearIdentificacion(raw, tipo)` | Forma de presentación por tipo: `Nacional` → `CedulaNacional(raw)`; `Dimex`/`Pasaporte` → `raw.Trim()` crudo, sin guiones. |
 | `Telefono(raw)` | `88888888` → `8888-8888` (4-4). Misma regla de largo. |
-| `NormalizarPlaca(raw)` | `"abc-123"` → `"ABC123"`: mayúsculas ASCII, descarta todo lo que no sea `0-9`/`A-Z`/`a-z`. Es la forma de almacenamiento de `Vehiculo.Placa`; pasa antes del chequeo de duplicado y del guardado (invariante de `VehiculoService` y de la creación rápida de `CitaService`). |
+| `NormalizarPlaca(raw)` | `"abc-123"` → `"ABC123"`: mayúsculas ASCII, descarta todo lo que no sea `0-9`/`A-Z`/`a-z`. Es la forma de almacenamiento de `Vehiculo.Placa`; pasa antes del chequeo de duplicado y del guardado (invariante de `VehiculoService`). En `CitaService.AplicarFiltro` se usa para buscar placas escritas con o sin guiones (ver Búsqueda). |
 | `Placa(raw)` | `"ABC123"` → `"ABC-123"` (3-3). Solo formatea si el normalizado tiene exactamente 6 caracteres; ante otro largo devuelve el input sin modificar. Misma regla que `CedulaNacional` ante entradas inesperadas. |
 | `Moneda(monto)` | `35000` → `₡35 000,00`. Formato de colón con **cultura `es-CR` fija** (campo `static readonly CultureInfo EsCr`, no depende de la cultura del circuito/servidor): símbolo `₡` U+20A1, coma decimal, espacio no-cortable U+00A0 como separador de miles, siempre 2 decimales (`C2`). Solo presentación — nunca para parsear ni persistir. |
 
-Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, para que el formateo y la validación no puedan divergir. Los 9 dígitos de una cédula nunca pueden interpretarse como teléfono, y una placa alfanumérica nunca colisiona con ninguno de los dos formateadores, así que las tres reglas no entran en conflicto.
+Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`, `LargoTelefono = 8` y `LargoPlaca = 6`, para que el formateo y la validación no puedan divergir. Los 9 dígitos de una cédula nunca pueden interpretarse como teléfono, y una placa alfanumérica nunca colisiona con ninguno de los dos formateadores, así que las tres reglas no entran en conflicto.
 
-**Orden de operaciones en `ClienteService`.** `CrearAsync` y `ActualizarAsync` ejecutan `NormalizarYValidar` (privado, estático) **antes** de `ExisteIdentificacionAsync`. El orden importa: la comprobación de duplicado y el guardado deben operar sobre la misma forma del valor que realmente se persiste. Antes de este cambio el chequeo de duplicado corría sobre el string crudo mientras se guardaba el `.Trim()`, sin normalizar.
+**Orden de operaciones en `ClienteService`.** `CrearAsync` y `ActualizarAsync` ejecutan `NormalizarYValidar(cedula, telefono, tipo)` (privado, estático; delega en `NormalizarIdentificacion`) **antes** del chequeo de duplicado. El orden importa: la comprobación de duplicado y el guardado deben operar sobre la misma forma del valor que realmente se persiste.
 
-`NormalizarYValidar` lanza `InvalidOperationException` en Spanish al violar el largo. El teléfono es opcional: si queda vacío o es solo basura se guarda `null` y no se valida; si viene con dígitos, deben ser exactamente 8. `VehiculoService` tiene su propio `NormalizarYValidar` privado (placa normalizada de exactamente `LargoPlaca` y `Anio` en 1900–2100) que corre antes del chequeo de duplicado y del guardado; el chequeo debe ver **todas** las filas —incluidas las desactivadas— porque el índice único de `Vehiculo.Placa` es global. La creación rápida de vehículo en `CitaService.AgendarCitaAsync` normaliza la placa (y asigna `Activo = true`) pero **no** chequea duplicados: deuda aceptada (ver Sección 11).
+`NormalizarYValidar` lanza `InvalidOperationException` en Spanish al violar el largo. El teléfono es opcional: si queda vacío o es solo basura se guarda `null` y no se valida; si viene con dígitos, deben ser exactamente 8. `VehiculoService` tiene su propio `NormalizarYValidar` privado (placa normalizada de exactamente `LargoPlaca` y `Anio` en 1900–2100) que corre antes del chequeo de duplicado y del guardado; el chequeo debe ver **todas** las filas —incluidas las desactivadas— porque el índice único de `Vehiculo.Placa` es global. El agendado de citas ya **no** crea vehículos al vuelo: `AgendarCitaAsync` exige un `VehiculoId` existente (`InvalidOperationException("Seleccione un vehículo para la cita.")` si es null), por lo que la creación de vehículos pasa siempre por `VehiculoService` (con su chequeo de duplicado).
 
-**DTOs laxos, servicio estricto (misma decisión para placa y cédula).** `NuevoVehiculoDTO`/`ActualizarVehiculoDTO` aceptan placas de hasta 20 caracteres a propósito (`"ABC-123"` ocupa 7); la regla estricta de 6 viven solo en `VehiculoService.NormalizarYValidar`, de modo que el error llegue a la UI por el `catch (InvalidOperationException)` que la página ya maneja. Si se agrega `[RegularExpression]` al DTO, el error pasaría a `ValidationMessage` y habría que duplicar la lógica en dos lugares.
+**Chequeo de duplicado con tipos.** `CrearAsync`/`ActualizarAsync` buscan por cadena normalizada (`c.CedulaIdentidad == cedula`, sin filtrar tipo) y luego ramifican el mensaje: mismo tipo → `"Ya existe un cliente con la identificación {formateada} ({tipo})."`; distinto tipo → `"La identificación {formateada} ya está registrada para otro cliente con el tipo '{tipo}'.“` (donde `formateada = FormatearIdentificacion(cedula, tipoDelDuplicado)`). Nótese que el índice DB es compuesto `(Cedula, Tipo)`, así que un mismo número con distinto tipo pasaría la BD pero el servicio lo rechaza igual (decisión: número globalmente único).
 
-**`ExisteIdentificacionAsync`** normaliza su propia entrada con `SoloDigitos` aunque ya reciba un valor normalizado (operación idempotente). El método es público y podría llamarse con un valor crudo, en cuyo caso compararía mal contra lo almacenado. Con la normalización aplicada, `101110111` y `1-0111-0111` colisionan correctamente y el segundo intento falla por cédula duplicada en vez de crear un registro nuevo. `RegistrarAsync` hereta todo el comportamiento por delegation a `CrearAsync`.
+**DTOs laxos, servicio estricto (misma decisión para placa y cédula).** `NuevoVehiculoDTO`/`ActualizarVehiculoDTO` aceptan placas de hasta 20 caracteres a propósito (`"ABC-123"` ocupa 7); la regla estricta de 6 viven solo en `VehiculoService.NormalizarYValidar`, de modo que el error llegue a la UI por el `catch (InvalidOperationException)` que la página ya maneja. Igual para identificación: `CrearClienteDTO`/`ActualizarClienteDTO`/`CrearMecanicoDTO` aceptan hasta 20 caracteres y traen `TipoIdentificacion = Nacional` por defecto; la regla estricta por tipo vive solo en `NormalizarIdentificacion`. Si se agrega `[RegularExpression]` al DTO, el error pasaría a `ValidationMessage` y habría que duplicar la lógica en dos lugares.
 
-**Búsqueda.** `AplicarFiltro` compara el término de búsqueda de dos formas para la cédula: tal como lo escribió el usuario, y normalizado a dígitos (`1-0111` encuentra `101110111`). La placa funciona igual: se compara tal cual y normalizada (`ABC-123`, `abc123` y `ABC123` encuentran la fila `ABC123`). El nombre no se normaliza porque no es un campo alfanumérico canónico. Sin esto, una fila mostrada como `1-0111-0111` / `ABC-123` no sería buscable con ese mismo texto.
+**`ExisteIdentificacionAsync(cedula, excluirId, tipo?)`** — con `tipo` normaliza per-tipo y comprueba `(cedula == normalizada && tipo == tipo)`; sin `tipo` (legado) compara contra `Trim()` crudo o `SoloDigitos`. `RegistrarAsync(cedula, nombre, telefono, correo)` hereda todo por delegación a `CrearAsync` pero **siempre con `Nacional`** (no expone tipo: contrato legado intacto).
 
-**Presentación.** `@using Mecano.Entidad.Utilidades` se agregó a `Components/_Imports.razor`, y el formateo se aplica en el markup de `Clientes.razor` (tabla y confirmación de borrado), `ClienteDetalle.razor` (datos y confirmación, más la tabla/modal de vehículos) y `AgendarCita.razor` (selector de cliente y de vehículo). Se prefirió llamar al helper desde el `.razor` antes que agregar getters computados a `ClienteDTO`: el DTO se puebla con `Select(Proyeccion)` en EF, y cualquier propiedad calculada quedaría sin valor porque EF solo asigna las propiedades mapeadas.
+**`MecanicoService` normaliza igual.** `CrearAsync`/`ActualizarAsync` aplican `Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)`; la cédula del mecánico es **opcional** (blanco → `null`) y el tipo se persiste en `Mecanico.TipoIdentificacion` (default `Nacional` en entidad y DTO). `MecanicoDTO` expone `Cedula` + `TipoIdentificacion`. El teléfono del mecánico sigue siendo solo `Trim()` sin validación de largo. `AuthServices.RegisterAdminAsync` ganó overload `(email, nombre, password, cedula?, tipo)` que normaliza igual y persiste `Cedula` + `TipoIdentificacion` en `Administrador`; el overload viejo delega con `(null, Nacional)`.
 
-**Presentación de precios (colones).** `Formatos.Moneda` es el único punto de formato de moneda de la app (decisión: moneda fija CRC, cultura fija es-CR, sin configuración en `Program.cs` ni middleware de localización). Se aplica en los 3 sitios donde se muestra `Servicio.Precio`: la tabla de servicios de `CategoriaDetalle.razor:89`, el hint en vivo bajo el `InputNumber` de precio (`CategoriaDetalle.razor`, "Se mostrará como ₡35 000,00"), y las opciones del select de servicio de `AgendarCita.razor:181`. Antes mostraban `$35000` crudo con `$` hardcodeado. Verificado en runtime: `Formatos.Moneda(35000)` devuelve `₡35 000,00` incluso con `CurrentCulture = en-US`.
+**Búsqueda.** `AplicarFiltro` compara el término de búsqueda de dos formas para la cédula: tal como lo escribió el usuario, y normalizado a dígitos (`1-0111` encuentra `101110111`). La placa funciona igual: se compara tal cual y normalizada (`ABC-123`, `abc123` y `ABC123` encuentran la fila `ABC123`). El nombre no se normaliza porque no es un campo alfanumérico canónico. Sin esto, una fila mostrada como `1-0111-0111` / `ABC-123` no sería buscable con ese mismo texto. No hay faceta de filtro por tipo: un pasaporte alfanumérico solo matchea por término crudo.
 
-**Datos existentes.** No se agregó migración de normalización. La decisión fue tirar la base: el seeder ya usa `EnsureCreatedAsync`, que es no-op sobre una base existente, así que la reconstrucción era necesaria de todas formas. `DbSeeder` fue actualizado para insertar los tres clientes con dígitos (`101010101`/`88881111`, `202020202`/`88882222`, `303030303`/`88883333`) y los vehículos con placas normalizadas y `Activo = true` (`ABC123`, `DEF456`, `GHI789`, `JKL012`, `MNO345`), respetando el invariante desde el arranque.
+**Presentación.** `@using Mecano.Entidad.Utilidades` se agregó a `Components/_Imports.razor`, y el formateo por tipo (`FormatearIdentificacion(cedula, tipo)` + texto del enum) se aplica en `Clientes.razor` (tabla), `ClienteDetalle.razor` (tarjeta de datos) y `Mecanicos.razor` (tabla). Los modales crear/editar de las tres páginas llevan `InputSelect` con las 3 opciones (Nacional/DIMEX/Pasaporte). Se prefirió llamar al helper desde el `.razor` antes que agregar getters computados a `ClienteDTO`: el DTO se puebla con `Select(Proyeccion)` en EF, y cualquier propiedad calculada quedaría sin valor porque EF solo asigna las propiedades mapeadas. **Deuda**: `AgendarCita.razor:67,83` y los modales de eliminar de `Clientes` / eliminar-transferir de `ClienteDetalle` siguen usando `CedulaNacional` hardcodeado (ignoran el tipo). Para DIMEX el fallback devuelve los dígitos crudos (largo ≠ 9, sin guiones erróneos); un pasaporte cuyos dígitos extraídos sumen exactamente 9 se mostraría con guiones `1-XXXX-XXXX` en esos sitios (ver Sección 11).
 
-**Fuera de alcance.** `Mecanico.Cedula` sigue almacenando guiones (`"3-3333-3333"`). Es otra entidad, sin capa de normalización ni formateo asociado; quitarle los guiones lo volvería ilegible en crudo. `Mecano.Entidad.Utilidades.Formatos` puede reutilizarse para ese fin si más adelante se define la regla.
+**Presentación de precios (colones).** `Formatos.Moneda` es el único punto de formato de moneda de la app (decisión: moneda fija CRC, cultura fija es-CR, sin configuración en `Program.cs` ni middleware de localización). Se aplica en los 3 sitios donde se muestra `Servicio.Precio`: la tabla de servicios de `CategoriaDetalle.razor:89`, el hint en vivo bajo el `InputNumber` de precio (`CategoriaDetalle.razor`, "Se mostrará como ₡35 000,00"), y las opciones del select de servicio de `AgendarCita.razor:236` (filtrado por la especialidad del mecánico elegido). Antes mostraban `$35000` crudo con `$` hardcodeado. Verificado en runtime: `Formatos.Moneda(35000)` devuelve `₡35 000,00` incluso con `CurrentCulture = en-US`.
+
+**Datos existentes.** No se agregó migración de normalización. La decisión fue tirar la base: el seeder ya usa `EnsureCreatedAsync`, que es no-op sobre una base existente, así que la reconstrucción era necesaria de todas formas. `DbSeeder` siembra tres clientes, todos `TipoIdentificacion.Nacional` con dígitos (`101010101`/`88881111`, `202020202`/`88882222`, `303030303`/`88883333`) — sin seeds DIMEX/Pasaporte — y los vehículos con placas normalizadas y `Activo = true` (`ABC123`, `DEF456`, `GHI789`, `JKL012`, `MNO345`), respetando el invariante desde el arranque.
+
+**Alcance del invariante por entidad.** `Cliente.CedulaIdentidad` (requerida) y `Mecanico.Cedula`/`Administrador.Cedula` (opcionales, `null` si blanco) comparten `NormalizarIdentificacion`/`FormatearIdentificacion`. Solo `Cliente` tiene índice único compuesto `(Cedula, Tipo)`; `Mecanico`/`Administrador` no tienen índice de identificación (la unicidad real entre usuarios es por email vía `ExisteEmailAsync`).
 - **Patrón de conexión**: MySQL a través de `Pomelo.EntityFrameworkCore.MySql`. `Server=localhost;User=root;Database=mecano` — sin autenticación de usuario con password (root local sin password).
 
 ---
@@ -484,15 +503,15 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 
 | Interfaz | Implementación | Firme de métodos | DI Life |
 |---|---|---|---|
-| `IClienteService` | `ClienteService` | **Legado:** `BuscarClientesAsync(termino, pagina, tamanioPagina)` (devuelve `Cliente`, sin filtro de Activo)<br>`ObtenerPorIdAsync(clienteId)` (devuelve `Cliente`)<br>`RegistrarAsync(...)` (envoltura de `CrearAsync`, devuelve `int`)<br>**CRUD:** `BuscarClientesPaginadoAsync(termino, pagina, tamanioPagina, incluirInactivos)`<br>`ObtenerTodosAsync(soloActivos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)`<br>**Estado:** `DesactivarAsync(id)` (soft delete **en cascada**: los vehículos activos del cliente pasan a inactivos; una sola `SaveChangesAsync`)<br>`ReactivarAsync(id)` (**en cascada**: TODOS los vehículos del cliente vuelven a activos, sin flag `DesactivadoPorCascade`)<br>`EliminarDefinitivoAsync(id)` (hard delete, exige 0 vehículos y 0 citas)<br>**Helpers:** `ContarBusquedaAsync(termino, incluirInactivos)`<br>`ExisteIdentificacionAsync(cedula, excluirId)` | Scoped |
+| `IClienteService` | `ClienteService` | **Legado:** `BuscarClientesAsync(termino, pagina, tamanioPagina)` (devuelve `Cliente`, sin filtro de Activo)<br>`ObtenerPorIdAsync(clienteId)` (devuelve `Cliente`)<br>`RegistrarAsync(...)` (envoltura de `CrearAsync` **siempre con `TipoIdentificacion.Nacional`**, devuelve `int`)<br>**CRUD:** `BuscarClientesPaginadoAsync(termino, pagina, tamanioPagina, FiltroActivo filtro, bool incluirIdentificacion)`<br>`ObtenerTodosAsync(soloActivos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int` (normaliza por `dto.TipoIdentificacion`; duplicado con mensajes mismo-tipo vs cross-tipo)<br>`ActualizarAsync(dto)` (igual, excluye self)<br>**Estado:** `DesactivarAsync(id)` (soft delete **en cascada**: los vehículos activos del cliente pasan a inactivos; una sola `SaveChangesAsync`)<br>`ReactivarAsync(id)` (**en cascada**: TODOS los vehículos del cliente vuelven a activos, sin flag `DesactivadoPorCascade`)<br>`EliminarDefinitivoAsync(id)` (hard delete, exige 0 vehículos y 0 citas)<br>**Helpers:** `ContarBusquedaAsync(termino, FiltroActivo filtro, bool incluirIdentificacion)`<br>`ExisteIdentificacionAsync(cedula, excluirId, tipo?)` (con tipo: normaliza per-tipo y compara `(cedula, tipo)`; sin tipo: match legado crudo/dígitos) | Scoped |
 | `IVehiculoService` | `VehiculoService` | `ObtenerPorClienteAsync(clienteId, incluirInactivos = false)` — solo activos por defecto (el parámetro opcional protege al llamador legado de `AgendarCita`)<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`EliminarAsync(id)` → `bool` (soft delete: `Activo = false`; sin `ReactivarAsync`)<br>`TransferirAsync(vehiculoId, nuevoClienteId)` → `bool` — reasigna dueño, **reactiva** el vehículo y bloquea si tiene citas futuras | Scoped |
 | `IServicioService` | `ServicioService` | `ObtenerTodosActivosAsync()`<br>`ObtenerPorIdAsync(servicioId)`<br>`CalcularHoraFin(horaInicio, duracionMinutos)`<br>`ObtenerTodosAsync(soloActivos = true)`<br>`ObtenerDetallePorIdAsync(id)`<br>`ObtenerPorCategoriaAsync(categoriaId, soloActivos = true)`<br>`CrearAsync(dto)`<br>`ActualizarAsync(dto)`<br>`EliminarAsync(id)` (soft delete)<br>`ReactivarAsync(id)`<br>`ExisteNombreEnCategoriaAsync(nombre, categoriaId, excluirId)` | Scoped |
 | `ICategoriaService` | `CategoriaService` | `ObtenerTodasAsync()`<br>`ObtenerPorIdAsync(id)`<br>`CrearAsync(dto)`<br>`ActualizarAsync(dto)`<br>`EliminarAsync(id)`<br>`ExisteNombreAsync(nombre, excluirId)` | Scoped |
-| `IMecanicoService` | `MecanicoService` | **Legado (consumido por AgendarCita):** `ObtenerPorEspecialidadAsync(categoriaId)`<br>`ObtenerDisponiblesAsync(categoriaId, fecha, horaInicio, horaFin)`<br>**CRUD admin (consumido por `Components/Pages/Mecanicos/Mecanicos.razor`):** `ObtenerTodosAsync(soloActivos = true)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`DesactivarAsync(id)`<br>`ReactivarAsync(id)`<br>`ExisteEmailAsync(email, excluirId)` | Scoped |
-| `ICitaService` | `CitaService` | `AgendarCitaAsync(dto)`<br>`CancelarCitaAsync(citaId)`<br>`ObtenerPorRangoAsync(inicio, fin)`<br>`ObtenerPorClienteAsync(clienteId)` → `List<CitaDTO>` | Scoped |
+| `IMecanicoService` | `MecanicoService` | **Sin uso (heredado de la etapa FullCalendar; candidatos a eliminar):** `ObtenerPorEspecialidadAsync(categoriaId)`<br>`ObtenerDisponiblesAsync(categoriaId, fecha, horaInicio, horaFin)`<br>**Consumido por `AgendarCita` (filas del tablero) y CRUD admin (`Components/Pages/Mecanicos/Mecanicos.razor`):** `ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`DesactivarAsync(id)`<br>`ReactivarAsync(id)`<br>`ExisteEmailAsync(email, excluirId)` | Scoped |
+| `ICitaService` | `CitaService` | `AgendarCitaAsync(dto)` — guards de agenda (defensa en profundidad, la UI ya los restringe): mecánico existe y activo (`InactiveMechanicException`), servicio existe, **vehículo obligatorio** (`InvalidOperationException` si `VehiculoId` es null), fecha ≥ hoy, no domingo, inicio dentro de 08:00–18:00, fin (inicio + duración del servicio) ≤ 18:00, y sin hora ya pasada si es hoy; solape **por mecánico** excluyendo `Cancelada`/`Finalizada` (`AppointmentOverlapException`); inserción dentro de una transacción<br>`CancelarCitaAsync(citaId)`<br>`ObtenerPorRangoAsync(inicio, fin)`<br>`ObtenerPorClienteAsync(clienteId)` → `List<CitaDTO>`<br>**Listado/detalle:** `BuscarPaginadoAsync(filtro, pagina, tamanioPagina)` → `List<CitaDTO>`<br>`ContarAsync(filtro)` → `int` (comparte `AplicarFiltro` con el listado, para que el total coincida)<br>`ObtenerDetallePorIdAsync(citaId)` → `CitaDetalleDTO?`<br>**Edición no-agenda:** `ActualizarCitaAsync(dto)` → `bool` (false si no existe; exige cita no cancelada/finalizada; valida servicio/vehículo existen, activos o los actuales (se permite conservar los inactivos actuales), vehículo del mismo cliente; recalcula `HoraFin` desde la duración del nuevo servicio, valida fin ≤ 18:00 y solape **por mecánico** excluyendo `Cancelada`/`Finalizada`)<br>**Reprogramación:** `ReprogramarCitaAsync(dto)` → `bool` (false si no existe; exige cita no cancelada/finalizada; valida mecánico activo; conserva el servicio y recalcula `HoraFin` con su duración; fecha ≥ hoy, no domingo, inicio 08:00–18:00, fin ≤ 18:00, sin hora pasada si es hoy; solape **por mecánico** excluyendo la propia cita y `Cancelada`/`Finalizada`) | Scoped |
 | `ICalendarQueryService` | `CalendarQueryService` | `ObtenerEventosAsync(inicio, fin)` | Scoped |
 | `INotificationService` | `NotificationService` | `NotificarCitaAgendadaAsync(cita)` | Scoped |
-| `IAuthServices` | `AuthServices` | `LoginAsync(email, password)`<br>`RegisterAdminAsync(email, nombre, password)`<br>`EmailExisteAsync(email)` | Scoped |
+| `IAuthServices` | `AuthServices` | `LoginAsync(email, password)`<br>`RegisterAdminAsync(email, nombre, password)` (delega con `(null, Nacional)`)<br>`RegisterAdminAsync(email, nombre, password, cedula?, tipoIdentificacion)` (normaliza per-tipo, persiste `Cedula` + `TipoIdentificacion`)<br>`EmailExisteAsync(email)` | Scoped |
 | `AuthenticationStateProvider` | `CustomAuthenticationStateProvider` | Revalida el estado de auth contra BD cada 10 min (hereda de `RevalidatingServerAuthenticationStateProvider`) | Scoped |
 | — | `DbSeeder` | `SeedAsync()` — siembra categorías, servicios, mecánicos, clientes, vehículos, citas, admin global | Scoped |
 
@@ -503,7 +522,8 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 - El botón Eliminar de vehículo vive en el footer del modal de edición (no hay botones de acción por encima de lo heredado en la tabla); el confirm de borrado reemplaza al formulario sin apilar modales, e igual hace el botón **Transferir** (cierra el formulario y abre el modal de transferencia en su lugar). `VehiculoService` usa `NormalizarYValidar` + duplicado sobre todas las filas, patrón espejo de `ClienteService`.
 - La advertencia de citas futuras al desactivar se cuenta **client-side**: `ClienteDetalle` usa la lista `citas` ya cargada; `Clientes` hace un `CitaService.ObtenerPorClienteAsync` al abrir el modal (con `catch` que silencia la advertencia si el conteo falla).
 - **`PasswordHasher` estático** (`Logica/Utilidades/PasswordHasher.cs`): PBKDF2-SHA256, 310k iteraciones, salt 16B, hash 32B, formato `{saltBase64}${hashBase64}`. Fuente única de verdad: `AuthServices.HashPassword` y `VerifyPassword` delegan en él (la extracción usa el método estático `Rfc2898DeriveBytes.Pbkdf2`, por lo que las 3 advertencias SYSLIB0060 del código anterior desaparecieron). `DbSeeder` sigue usando `AuthServices.HashPassword`. `VerifyPassword` conserva la compat legado: un hash sin `$` se trata como texto plano y loggea warning.
-- **CRUD de mecánicos (backend)**: `MecanicoService.CrearAsync`/`ActualizarAsync` normalizan email (trim + `ToLowerInvariant`, invariante: siempre minúsculas), verifican unicidad **manual** contra `Administradors` y `Mecanico` (`ExisteEmailAsync`; no hay índice único en la tabla), exigen que la especialidad exista, exigen `Password` mín. 6 + `[Compare]` en Crear, y en Actualizar `Password` vacío = conservar hash / parcialmente lleno = `InvalidOperationException`. `Cedula`/`Telefono` solo reciben Trim (los guiones se conservan — invariante intencional distinto a `Cliente`). `DesactivarAsync` **no revisa citas futuras** (ver Sección 11).
+- **CRUD de mecánicos (backend)**: `MecanicoService.CrearAsync`/`ActualizarAsync` normalizan email (trim + `ToLowerInvariant`, invariante: siempre minúsculas), verifican unicidad **manual** contra `Administradors` y `Mecanico` (`ExisteEmailAsync`; no hay índice único en la tabla), normalizan la cédula per-tipo vía `Formatos.NormalizarIdentificacion` (**opcional**: blanco → `null`) y persisten `TipoIdentificacion` (default `Nacional` en entidad y DTOs). Exigen que la especialidad exista, exigen `Password` mín. 6 + `[Compare]` en Crear, y en Actualizar `Password` vacío = conservar hash / parcialmente lleno = `InvalidOperationException`. `Telefono` solo recibe `Trim()` (sin validación de largo — invariante intencional distinto a `Cliente`). `DesactivarAsync` **no revisa citas futuras** (ver Sección 11).
+- **Reglas de agenda compartidas UI + servicio (`/agendar`)**: semana visible lun–sáb (domingo cerrado), ventana 08:00–18:00 en pasos de 30 min, display 12 h (`h:mm tt` con `InvariantCulture`), UI en español (cultura `es-CR`), sin pasado. La UI las aplica en el tablero/modal (celdas pasadas no clicables, slots ocupados **por mecánico** deshabilitados desde `citasSemana` con `Cita.EstaActiva()`/`OverlapsWith()`, hora inicial por defecto que salta los tramos ocupados del mecánico); `CitaService.AgendarCitaAsync` las revalida como última barrera (ver fila `ICitaService`). La concurrencia es por mecánico: la misma hora queda libre para otro mecánico.
 
 ### Servicios relacionados con usuarios/auth
 
@@ -512,7 +532,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 - **Formato de salida**: `{saltBase64}${hashBase64}` (separado por `$`).
 - **Verificación**: `PasswordHasher.Verify` con `CryptographicOperations.FixedTimeEquals`; el caso legado de contraseña en texto plano (sin `$`) lo sigue manejando `VerifyPassword` con warning.
 - **Login**: Intenta primero en `Administrador`, si no encuentra o contraseña inválida, intenta en `Mecanico` con filtro `m.Activo`.
-- **RegisterAdmin**: Crea nuevo `Administrador` con `Activo = true` y hash de password.
+- **RegisterAdmin**: overload viejo `(email, nombre, password)` delega en el nuevo `(email, nombre, password, cedula?, tipo)` con `(null, Nacional)`. Crea `Administrador` con `Activo = true`, `Cedula` normalizada per-tipo (o `null`) + `TipoIdentificacion`, y hash de password. Retorna `false` si el email ya existe en `Administradors` o `Mecanico`.
 - **EmailExiste**: Verifica si el email ya existe en tablas `Administradors` o `Mecanico` (email normalizado con `ToLowerInvariant`; compara `Mecanico.Email` directo porque es invariante minúsculas).
 - **Inyección DI**: `AddScoped<IAuthServices, AuthServices>` en Program.cs.
 
@@ -563,8 +583,6 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
-    <script src='js/fullcalendar-interop.js'></script>
     <script src="js/auth.js"></script>
     <script src="js/theme.js"></script>
 </body>
@@ -656,7 +674,11 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 </div>
 ```
 
-`@code`: `ToggleTheme` invoca `window.mecanoTheme.toggle`; `OnAfterRenderAsync(firstRender)` llama `window.mecanoTheme.syncIcons` para pintar el ícono del toggle (luna/sol) según el tema inicial. `HandleLogout` conserva el flujo JS original (`window.authFetch.logout` a `/api/auth/logout` + `NavigateTo("/login", forceLoad: true)`).
+`@code`: `ToggleTheme` invoca `window.mecanoTheme.toggle`; `ToggleUserMenu`/`CloseUserMenu` controlan el dropdown de usuario (nombre, email, rol, logout); `OnAfterRenderAsync(firstRender)` inicializa `window.mecanoRedirectFeedback` (definido en `auth.js`: oscurece el menú cuando hay redirect pendiente a login) y le pasa el estado de autenticación vía `setAuthenticated`. Ya **no** se llama a `window.mecanoTheme.syncIcons` desde el layout. `HandleLogout` conserva el flujo JS original (`window.authFetch.logout` a `/api/auth/logout` + `NavigateTo("/login", forceLoad: true)`). `RedirectToLogin.razor` invoca `window.mecanoRedirectFeedback.assignRedirectClass` antes de navegar a `/login`.
+
+#### `LoginLayout.razor`
+
+Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDenegado.razor` vía `@layout LoginLayout`. Conserva el encabezado con la marca MECANO y el toggle de tema, y el bloque `#blazor-error-ui`, pero omite el menú lateral y el dropdown de usuario. Su `@code` expone únicamente `ToggleTheme` (`window.mecanoTheme.toggle`); no inicializa `mecanoRedirectFeedback` porque en estas pantallas no hay menú que oscurecer.
 
 #### `NavMenu.razor`
 ```razor
@@ -684,24 +706,22 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
             </NavLink>
         </div>
 
-        <AuthorizeView Roles="Administrador">
-            <div class="section-header">Gestión</div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="clientes">
-                    <i class="bi bi-people" aria-hidden="true"></i> Clientes y Vehículos
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="categorias">
-                    <i class="bi bi-tags" aria-hidden="true"></i> Categorías y Servicios
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="mecanicos">
-                    <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
-                </NavLink>
-            </div>
-        </AuthorizeView>
+        <div class="section-header">Gestión</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="clientes">
+                <i class="bi bi-people" aria-hidden="true"></i> Clientes y Vehículos
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="categorias">
+                <i class="bi bi-tags" aria-hidden="true"></i> Categorías y Servicios
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="mecanicos">
+                <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
+            </NavLink>
+        </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="connectiontest">
@@ -711,6 +731,8 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
     </nav>
 </div>
 ```
+
+> El header `Gestión` es un `<div>` literal **sin `<AuthorizeView>`**: los 3 enlaces los ve cualquier usuario autenticado (incluido `Mecanico`). La defensa queda en los atributos `[Authorize(Roles = ...)]` de cada página. Ver Sección 11.
 
 ### Tema "Industrial Clean" (variables CSS + light/dark)
 
@@ -727,12 +749,14 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 | Ruta (`@page`) | Autorización | Propósito |
 |---|---|---|
 | `/` | `[Authorize]` | Página principal / home |
-| `/agendar` | `[Authorize(Roles = "Administrador")]` | Formulario para agendar cita (InteractiveServer) |
+| `/agendar` | `[Authorize(Roles = "Administrador")]` | Tablero mecánicos×días lun–sáb + modal "mecánico primero" (InteractiveServer) |
+| `/citas` | `[Authorize(Roles = "Administrador")]` | Listado paginado de citas con filtros (rango de fechas, mecánico, estado, cliente/placa) y paginación numerada. Enlaza al detalle (InteractiveServer) |
+| `/citas/{Id:int}` | `[Authorize(Roles = "Administrador")]` | Detalle de cita: programación (fecha/horario/duración/estado), cliente, vehículo, servicio, mecánico y notas. Botón **Editar** (modal: vehículo, servicio y notas; oculto si la cita está cancelada o finalizada); la fecha/hora/mecánico se reprograman aparte (fase posterior) (InteractiveServer) |
 | `/categorias` | `[Authorize(Roles = "Administrador")]` | Lista de categorías con CRUD modal |
 | `/categorias/{Id:int}` | `[Authorize(Roles = "Administrador")]` | Detalle de categoría con CRUD de servicios embebido |
-| `/mecanicos` | `[Authorize(Roles = "Administrador")]` | Lista de mecánicos: modal crear/editar (credenciales + especialidad), desactivar con confirmación, reactivar directo, toggle "Mostrar inactivos" |
-| `/clientes` | `[Authorize]` | Lista de clientes con búsqueda y paginación. Lectura para ambos roles; escritura tras `AuthorizeView Roles="Administrador"`. Desactivar muestra warning de citas futuras (fetch al abrir el modal); **Reactivar ahora tiene modal de confirmación** con warning de vehículos en cascada |
-| `/clientes/{Id:int}` | `[Authorize]` | Detalle de cliente: datos, vehículos (fila inactiva con badge `Inactivo`) y citas. CRUD de vehículos + **Transferir a otro cliente** (footer del modal de edición, dos vistas buscar↔confirmar en un solo modal con debounce 400 ms, top-10, solo activos). Desactivar con warning de citas futuras; **Reactivar con modal de confirmación** y warning de cascada. Escritura solo tras `AuthorizeView Roles="Administrador"` |
+| `/mecanicos` | `[Authorize(Roles = "Administrador")]` | Lista de mecánicos: modal crear/editar (credenciales + selector de TipoIdentificacion + especialidad), desactivar con confirmación, reactivar directo, selector de estado **Activos/Inactivos/Todos** (`FiltroActivo`). Tabla con identificación formateada por tipo |
+| `/clientes` | `[Authorize]` | Lista de clientes con búsqueda, paginación y selector de estado **Activos/Inactivos/Todos** (`FiltroActivo`, sin faceta por tipo). Lectura para ambos roles; escritura tras `AuthorizeView Roles="Administrador"`. La búsqueda por cédula es solo para Administrador (el Mecánico busca por nombre o placa; ver Sección 11). Modal crear/editar con selector de TipoIdentificacion; tabla con identificación formateada + tipo. Desactivar muestra warning de citas futuras (fetch al abrir el modal); **Reactivar ahora tiene modal de confirmación** con warning de vehículos en cascada. Cada fila es expandible (clic en la fila o en el chevron) y despliega un panel con los vehículos y citas del cliente, con la placa destacada (acordeón de una fila, carga diferida; ver Sección 11) |
+| `/clientes/{Id:int}` | `[Authorize]` | Detalle de cliente: datos (identificación formateada por tipo + campo de tipo), vehículos (fila inactiva con badge `Inactivo`) y citas. Modal editar con selector de TipoIdentificacion. CRUD de vehículos + **Transferir a otro cliente** (footer del modal de edición, dos vistas buscar↔confirmar en un solo modal con debounce 400 ms, top-10, solo activos). Desactivar con warning de citas futuras; **Reactivar con modal de confirmación** y warning de cascada. Escritura solo tras `AuthorizeView Roles="Administrador"` |
 | `/login` | `[AllowAnonymous]` | Login con EditForm + `window.authFetch` (InteractiveServer) |
 | `/acceso-denegado` | `[AllowAnonymous]` | Página de acceso denegado |
 | `/not-found` | Ninguna | Página de error 404 |
@@ -775,9 +799,9 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 
 ### Atributos `[Authorize]` en el código
 - `[Authorize]` en `Home.razor`, `Clientes.razor` y `ClienteDetalle.razor`.
-- `[Authorize(Roles = "Administrador")]` en `AgendarCita.razor`, `ConnectionTest.razor`, `Categorias.razor` y `CategoriaDetalle.razor` (usando `Roles.Administrador` en AgendarCita y `"Administrador"` literal en las demás).
+- `[Authorize(Roles = ...)]` con la constante `Mecano.Entidad.Constantes.Roles.Administrador` en `AgendarCita.razor:2` y `ConnectionTest.razor:2`; literal `"Administrador"` en `Categorias.razor` y `CategoriaDetalle.razor`.
 - `[AllowAnonymous]` en `Login.razor` y `AccesoDenegado.razor`.
-- **Autorización granular en las páginas de Clientes**: ambas usan `[Authorize]` simple, así que un `Mecanico` puede consultar clientes. Los controles de escritura (crear, editar, desactivar, reactivar, eliminar, transferir vehículos y sus modales) están envueltos en `<AuthorizeView Roles="Administrador">` dentro del `.razor`.
+- **Autorización granular en las páginas de Clientes**: ambas usan `[Authorize]` simple, así que un `Mecanico` puede consultar clientes. Los controles de escritura (crear, editar, desactivar, reactivar, eliminar, transferir vehículos y sus modales) están envueltos en `<AuthorizeView Roles="Administrador">` dentro del `.razor`. Además, la identificación del cliente (cédula + tipo) se muestra solo tras `<AuthorizeView Roles="Administrador">` en la tabla de `Clientes.razor` y en la tarjeta de datos de `ClienteDetalle.razor`; un `Mecanico` no la ve (ver Sección 11).
 
 ### `AuthorizeView` / `AuthorizeRouteView` en uso
 - `Routes.razor` usa `<AuthorizeRouteView>` con plantilla `NotAuthorized`: si el usuario es anónimo, muestra `<RedirectToLogin />`; si está autenticado pero sin permisos, muestra alerta "No tienes permisos".
@@ -795,13 +819,12 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 | **Cliente** | ❌ No es Required (es `Correo`, opcional) | ❌ No tiene HashPassword | ✅ default true | N/A | Según resumen: "Clients do NOT have login accounts" |
 
 ### Algoritmo de hash utilizado
-- **PBKDF2** (Password-Based Key Derivation Function 2), identificable en `AuthServices.cs:38`: `new Rfc2898DeriveBytes(password, salt, Iterations, HashAlgorithmName.SHA256)`.
+- **PBKDF2** (Password-Based Key Derivation Function 2), vía `PasswordHasher` (`Logica/Utilidades/PasswordHasher.cs`, método estático `Rfc2898DeriveBytes.Pbkdf2` con SHA-256). `AuthServices.HashPassword`/`VerifyPassword` delegan en él.
 - **Parámetros**: 310,000 iteraciones, salt de 16 bytes, hash de 32 bytes, SHA-256.
 - **Formato de stored password**: `{saltBase64}${hashBase64}` (ej. `odU4QXZ3W2l0aWQ9...`).
 
 ### Constantes de roles definidas
-- **Constante `SALTSIZE = 16`** y **`HASHSIZE = 32`** en `AuthServices.cs:13-14`.
-- **Constante `Iterations = 310000`** en `AuthServices.cs:15`.
+- **Constantes `SALTSIZE = 16`, `HASHSIZE = 32`, `Iterations = 310000`** en `PasswordHasher.cs` (antes en `AuthServices.cs`; la extracción eliminó las 3 advertencias SYSLIB0060).
 - **Clase estática `Roles`** en `Entidad/Constantes/Roles.cs` con `Administrador` y `Mecanico`, usada en `Program.cs` (políticas) y en atributos `[Authorize(Roles = ...)]`.
 
 ### Tabla de "qué hace cada rol" (deducción del código)
@@ -819,9 +842,10 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 
 | Convención | Observación |
 |---|---|
-| **Espaciado de nombres** | `Mecano` (raíz), `Mecano.Entidad.Clases`, `Mecano.Entidad.DTOs`, `Mecano.Entidad.DTOs.Categoria`, `Mecano.Entidad.Constantes`, `Mecano.Data`, `Mecano.Logica.Interfaces`, `Mecano.Logica.Servicios`, `Mecano.Components`, `Mecano.Components.Layout`, `Mecano.Components.Pages.Categoria` |
+| **Espaciado de nombres** | `Mecano` (raíz), `Mecano.Entidad.Clases`, `Mecano.Entidad.DTOs`, `Mecano.Entidad.DTOs.Categoria`, `Mecano.Entidad.Constantes`, `Mecano.Data`, `Mecano.Logica.Interfaces`, `Mecano.Logica.Servicios`, `Mecano.Components`, `Mecano.Components.Layout`, `Mecano.Components.Pages.Categoria`, `Mecano.Components.Pages.Citas` |
 | **Idioma de identificadores** | Mixto: nombres de clase y propiedades en **inglés** (Email, Password, Nombre, Categoria, Service, etc.), pero comentarios y mensajes de usuario en **español** (errores, placeholders, alerts). |
 | **Idioma de comentarios** | Principalmente **español** (resumen de clases, comentarios XML), con algunos bloques de código en inglés (`using System.ComponentModel.DataAnnotations`). |
+| **Nombres de personas capitalizados** | Todo nombre de cliente o mecánico que se muestra en pantalla lleva `style="text-transform:capitalize;"` inline, para que un nombre guardado en minúsculas se vea "Juan Pérez" sin alterar el dato persistido. Aplica a tablas, tarjetas, chips, modales, `<option>` y encabezados; **no** a `title`/`aria-label`/`<PageTitle>` (no renderizan estilos). Sitios cubiertos: `Clientes.razor`, `ClienteDetalle.razor` (incluye autores de comentarios), `Mecanicos.razor`, `AgendarCita.razor`, `Citas.razor`, `CitaDetalle.razor`. |
 | **Patrón de nombres para archivos `.razor`** | `PascalCase` para nombres de archivo (Home.razor, AgendarCita.razor, CategoriaDetalle.razor) con code-behind `.razor.cs` en los CRUD (Categorias, CategoriaDetalle). Las rutas `@page` usan minúsculas con guiones/segmentos (`/agendar`, `/connectiontest`, `/categorias/{Id:int}`). |
 | **Nullable reference types** | `<Nullable>enable</Nullable>` en csproj — habilitado globalmente. Las entidades usan `string?` y `int?` donde es apropiado. |
 | **Uso de `ImplicitUsings`** | `<ImplicitUsings>enable</ImplicitUsings>` — las directivas `global using` se generan automáticamente por el SDK. Los using explícitos en `_Imports.razor` y archivos individuales son redundantes pero presentes por costumbre. |
@@ -832,23 +856,23 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 
 | Riesgo/Observación | Detalle |
 |---|---|
-| **Archivos muy grandes** | `ClienteDetalle.razor` tiene **659 líneas** y su code-behind **498** (tras el modal de transferencia y el de reactivación embebidos) — sigue siendo el archivo más grande del proyecto. `AgendarCita.razor` (463) es el segundo. **Deuda aceptada y deferida**: el ticket evaluó un split a `VehiculoFormModal.razor` + `TransferirVehiculoModal.razor` y se pospuso por YAGNI/KISS (cada modal supera ~100 líneas pero comparten solo 4 callbacks); reevaluar si se añade un quinto flujo a esa zona. |
+| **Archivos muy grandes** | `AgendarCita.razor` (**732 líneas**, archivo único + `AgendarCita.razor.css` de 289 aparte) es ahora el más grande; le sigue `ClienteDetalle.razor` con **641 líneas** y su code-behind **440**. **Deuda aceptada y deferida**: el ticket evaluó un split a `VehiculoFormModal.razor` + `TransferirVehiculoModal.razor` y se pospuso por YAGNI/KISS (cada modal supera ~100 líneas pero comparten solo 4 callbacks); reevaluar si se añade un quinto flujo a esa zona. |
 | **TODOs explícitos en el código** | Los DTOs `ActualizarServicioDTO.cs` y `ActualizarCategoriaDTO.cs` llevan `// TODO: remove (no-op on value types)` en la propiedad `Id`. |
 | **`CategoriaDTO.CantidadServicios` cuenta servicios inactivos** | Suma todos los `Servicio` asociados (sin filtrar `Activo`). La vista de detalle usa `servicios.Count` del listado filtrado para mostrar el total visible. |
 | **Colisión de namespace `Categoria`** | `Mecano.Entidad.DTOs.Categoria` (namespace) se cruza con `Mecano.Entidad.Clases.Categoria` (clase). Los DTOs de Servicio se mantienen planos en `Mecano.Entidad.DTOs` para evitar la misma colisión con la clase `Servicio`. |
 | **Colisión de namespace `Cliente`** | `Mecano.Entidad.DTOs.Cliente` (namespace) frente a `Mecano.Entidad.Clases.Cliente` (clase). Compila porque los nombres de tipo difieren (`ClienteDTO` vs `Cliente`) y ambos `using` coexisten. |
-| **Namespace de las páginas de Clientes es plural** | `Components/Pages/Cliente/` con `namespace ...Pages.Cliente` **rompía la compilación**: dentro de `Mecano.Components.Pages`, la referencia `Cliente` en `AgendarCita.razor:239,240,302` (`private Cliente? selectedCliente`) pasaba a resolverse contra el namespace hermano y lanzaba `CS0118: 'Cliente' es espacio de nombres pero se usa como tipo`. Se renombró la carpeta y el namespace a `Clientes`. Las rutas `/clientes` y `/clientes/{Id:int}` no cambian. La misma trampa aplica a `Categoria`, que ya usa `Pages/Categoria` — hoy no muerde porque ninguna página de `Pages/` declara una variable de tipo `Categoria`. |
+| **Namespace de las páginas de Clientes es plural** | `Components/Pages/Cliente/` con `namespace ...Pages.Cliente` **rompía la compilación**: dentro de `Mecano.Components.Pages`, la referencia `Cliente` en `AgendarCita.razor:325` (`private Cliente? selectedCliente`) pasaba a resolverse contra el namespace hermano y lanzaba `CS0118: 'Cliente' es espacio de nombres pero se usa como tipo`. Se renombró la carpeta y el namespace a `Clientes`. Las rutas `/clientes` y `/clientes/{Id:int}` no cambian. La misma trampa aplica a `Categoria`, que ya usa `Pages/Categoria` — hoy no muerde porque ninguna página de `Pages/` declara una variable de tipo `Categoria`. |
 | **`AuthorizeView` anidado dentro de `EditForm`** | Ambos componentes usan un parámetro de contenido llamado `context`, así que un `<AuthorizeView><EditForm>` directo produce `RZ9999` por ambigüedad. Todas las páginas nuevas llevan `Context="authCtx"` en el `AuthorizeView`. |
 | **`IDisposable` en componentes Blazor** | `Clientes.razor.cs` y `ClienteDetalle.razor.cs` declaran `public partial class ... : ComponentBase, IDisposable` (ambas solo para CTS de debounce); no debe añadirse además `@implements IDisposable` en el `.razor`, o el `Dispose` queda ambiguo (RZ9999). |
 | **Cascade delete desde Cliente** | `MySQLDBContext` declara `Cascade` hacia `Cita` y `Vehiculo`. Por eso `ClienteService` expone `DesactivarAsync` (soft) como operación normal de borrado, y `EliminarDefinitivoAsync` (hard) rechaza la operación si hay vehículos o citas asociadas. |
-| **Firmas legadas de `IClienteService`** | `BuscarClientesAsync` y `ObtenerPorIdAsync` devuelven la entidad `Cliente`, no un DTO, porque `AgendarCita.razor:239,297,302` las consume. Las lecturas por DTO son `ObtenerTodosAsync` y `ObtenerDetallePorIdAsync`. `RegistrarAsync` es una envoltura de `CrearAsync` y devuelve `int`. |
+| **Firmas legadas de `IClienteService`** | `BuscarClientesAsync` y `ObtenerPorIdAsync` devuelven la entidad `Cliente`, no un DTO (legado: hoy solo `BuscarClientesAsync` se consume en UI, en `AgendarCita.razor:401`; `ObtenerPorIdAsync` y `RegistrarAsync` ya no los llama ninguna página). Las lecturas por DTO son `ObtenerTodosAsync` y `ObtenerDetallePorIdAsync`. `RegistrarAsync` es una envoltura de `CrearAsync` y devuelve `int`. |
 | **Filtro de búsqueda no trivial** | `ClienteService.AplicarFiltro` usa `EF.Functions.Like` con comodines `%termino%`; así un término con `%` o `_` se interpreta como comodón. `ContarBusquedaAsync` reutiliza el mismo helper para que el conteo coincida con el listado paginado. |
-| **`Mecanico.Cedula` conserva guiones** | A diferencia de `Cliente`, la cédula del mecánico se sigue guardando con guiones y sin capa de normalización ni formateo. No es un bug: es una entidad sin el invariante aplicado. Ver Sección 5.1. |
-| **`StringLength` del DTO más laxo que el invariante** | `CrearClienteDTO.CedulaIdentidad` y `ActualizarClienteDTO` aceptan hasta 20 caracteres a propósito: una cédula válida con guiones ocupa 10 antes de normalizar. La regla estricta de 9 dígitos vive solo en `ClienteService.NormalizarYValidar`, de modo que el error llegue a la UI por el `catch (InvalidOperationException)` que ambas páginas ya manejan. Si se agrega `[RegularExpression]` al DTO, el error pasaría a `ValidationMessage` y habría que duplicar la lógica de largo en dos lugares. |
+| **`Mecanico.Cedula` ahora normalizada por tipo** | Desde el commit `8ec693b`, `Mecanico.Cedula` (y `Administrador.Cedula`) pasan por `NormalizarIdentificacion`: Nacional/DIMEX se guardan solo-dígitos, Pasaporte con `Trim()`. La cédula del mecánico es opcional (`null` si blanco). Solo `Cliente` tiene índice único de identificación; en mecánicos/admins la unicidad real es por email. El `Telefono` del mecánico sigue siendo solo `Trim()`, sin validación de largo. |
+| **`StringLength` del DTO más laxo que el invariante** | `CrearClienteDTO`/`ActualizarClienteDTO.CedulaIdentidad` y `CrearMecanicoDTO`/`ActualizarMecanicoDTO.Cedula` aceptan hasta 20 caracteres a propósito: una cédula válida con guiones ocupa 10+ antes de normalizar y un DIMEX hasta 12. La regla estricta por tipo vive solo en `NormalizarIdentificacion`, de modo que el error llegue a la UI por el `catch (InvalidOperationException)` que las páginas ya manejan. Los 4 DTOs traen `TipoIdentificacion = Nacional` por defecto. Si se agrega `[RegularExpression]` al DTO, el error pasaría a `ValidationMessage` y habría que duplicar la lógica en dos lugares. |
 | **Código duplicado evidente** | El patrón de `using var context = await _factory.CreateDbContextAsync();` y `VerifyPassword`/`HashPassword` repetitivo en `AuthServices`. Los métodos de servicio siguen patrón similar (crear contexto, consultar, guardar). |
 | **`catch` genérico** | `AuthServices.VerifyPassword` retorna `false` ante cualquier excepción (línea ~72-78) — patrón riesgoso pero intencional para no filtrar detalles. |
-| **`Vehiculo.Activo` sin inicializador de entidad** | La entidad declara `public bool Activo { get; set; }` (default `false`) y la migración `20261006160916` no fija `defaultValue`. Hoy es correcto porque los tres puntos de creación (`VehiculoService.CrearAsync`, `CitaService`, `DbSeeder`) asignan `Activo = true` explícito; un futuro `new Vehiculo { ... }` que lo olvide quedaría invisible en listas y selects. |
-| **Creación rápida de vehículo sin chequeo de duplicado** | `CitaService.AgendarCitaAsync` normaliza la placa pero no la compara contra el índice único: un duplicado ahí lanza `DbUpdateException` cruda en vez de `InvalidOperationException` con mensaje accionable. **Deuda aceptada** (la normalización reduce el problema pero no lo elimina). |
+| **`Vehiculo.Activo` sin inicializador de entidad** | La entidad declara `public bool Activo { get; set; }` (default `false`) y la migración `20261006160916` no fija `defaultValue`. Hoy es correcto porque los dos puntos de creación (`VehiculoService.CrearAsync` y `DbSeeder`) asignan `Activo = true` explícito; un futuro `new Vehiculo { ... }` que lo olvide quedaría invisible en listas y selects. |
+| **Creación rápida de vehículo al agendar (eliminada)** | `AgendarCitaDTO` ya no expone `NuevoVehiculo` y `CitaService.AgendarCitaAsync` ya no crea vehículos: exige un `VehiculoId` existente. Esto elimina la deuda de placa duplicada sin chequeo (antes `DbUpdateException` cruda) y hace que toda creación de vehículos pase por `VehiculoService` (normalización + duplicado). La UI de `AgendarCita` ya sólo permitía elegir vehículos del cliente. |
 | **Soft delete de vehículo es invisible (sin reactivar directa)** | No hay `ReactivarAsync` ni toggle de "ver inactivos" (YAGNI): el vehículo desaparece de la lista y del select de agendar. **Excepción**: en el detalle de un cliente inactivo se listan los vehículos inactivos (fila con badge). Un vehículo inactivo puede volver a activo por dos caminos laterales: transferirlo (siempre guarda `Activo = true`) o reactivar su cliente (cascada). Su placa sigue ocupada (índice global) mientras exista. |
 | **Reactivación en cascada sin flag `DesactivadoPorCascade`** | `ReactivarAsync` activa TODOS los vehículos del cliente, incluidos los que se habían desactivado **individualmente** antes de desactivar el cliente. Es el comportamiento aprobado en el ticket; el coste es que un vehículo desactivado a propósito "revive" al reactivar el cliente. |
 | **`SinHistoria` vs guard de eliminación definitiva** | `ClienteDTO.CantidadVehiculos` es condicional (activo → solo vehículos activos; inactivo → todos), pero `EliminarDefinitivoAsync` exige 0 vehículos **en total**. El caso que queda: un cliente **activo** con todos sus vehículos desactivados muestra el botón Eliminar (conteo visible 0) y el servicio lo rechaza con mensaje claro. Para clientes inactivos el conteo visible ya es el total, así que el botón ni siquiera aparece. Dirección segura. |
@@ -857,11 +881,18 @@ Constantes `LargoCedulaNacional = 9`, `LargoTelefono = 8` y `LargoPlaca = 6`, pa
 | **Proyección condicional verificada contra BD** | `CantidadVehiculos = c.Activo ? c.Vehiculos.Count(v => v.Activo) : c.Vehiculos.Count()` se ejecutó contra MySQL real (checker temporal con servicios reales, datos de prueba eliminados al final): EF Core 9 la traduce sin errores y los conteos coinciden con las listas visibles. |
 | **Parseo del `InputNumber` de precio depende de la cultura del circuito** | El display de precios es es-CR fijo vía `Formatos.Moneda`, pero `InputNumber` parsea con `CultureInfo.CurrentCulture` del circuito (hoy = cultura del SO/servidor; no hay `AddLocalization`/`UseRequestLocalization` en `Program.cs`). En un servidor con cultura `en-US`, escribir `35000,50` fallaría el parseo (`35000.50` sí funcionaría). **Fuera de alcance del ticket de formato de display** (decisión explícita); si algún día se necesita, agregar localización de requests en `Program.cs`. |
 | **Colisión de namespace `Mecanico`** | El nuevo namespace `Mecano.Entidad.DTOs.Mecanico` (los 3 DTOs nuevos) se cruza con la clase `Mecano.Entidad.Clases.Mecanico` — misma trampa documentada con `Categoria` y `Cliente` en Sección 11. `HorarioDisponibleDTO.cs` lo resuelve con un alias explícito: `using MecanicoClase = Mecano.Entidad.Clases.Mecanico;`. Toda página/servicio que importe ambos namespaces debe usar el mismo alias para no romper la compilación (`CS0118`/ambigüedad). |
-| **CRUD de mecánicos: backend + UI** | Resuelto: `Mecanicos.razor(.cs)` (`/mecanicos`, página completa administrativa con `[Authorize(Roles = "Administrador")]`) consume el CRUD; enlace en `NavMenu`. Quedan como deuda: el guard de citas futuras en `DesactivarAsync` (más abajo) y el smoke test manual de la UI. |
+| **CRUD de mecánicos: backend + UI + tipos de identificación** | Resuelto y extendido en `8ec693b`: `Mecanicos.razor(.cs)` (`/mecanicos`, `[Authorize(Roles = "Administrador")]`) con selector de `TipoIdentificacion` (Nacional/DIMEX/Pasaporte) en crear/editar y columna de identificación formateada por tipo; `MecanicoDTO` expone `Cedula` + `TipoIdentificacion`. Quedan como deuda: el guard de citas futuras en `DesactivarAsync` (más abajo) y el smoke test manual de la UI con los 3 tipos. |
 | **`MecanicoService.DesactivarAsync` no verifica citas futuras** | A diferencia del comportamiento esperado para clientes (warning de citas futuras), el desactivado de mecánico solo baja `Activo` (las citas existentes conservan su `MecanicoId`). Deuda conocida del ticket: decidir si agregar warning/conteo como en cliente. |
 | **SYSLIB0060 eliminado** | La extracción a `PasswordHasher` (método estático `Rfc2898DeriveBytes.Pbkdf2`) eliminó las 3 advertencias SYSLIB0060 que tenía `AuthServices.cs`; hoy la build queda solo con las 3 preexistentes de `CategoriaService`. |
+| **Migraciones duplicadas de `TipoIdentificacion` (Mecanico/Admin)** | `20261011040945` agrega `TipoIdentificacion DEFAULT 0` a `Mecanico` + `Administradors`, y `20261011150853` agrega **otra vez** `TipoIdentificacion DEFAULT 1` solo a `Mecanico`. Inofensivo hoy porque el runtime usa `EnsureCreatedAsync` (las migraciones nunca se aplican); pero un `dotnet ef database update` fallaría en la segunda por columna duplicada, y el `DEFAULT 0` de la primera no corresponde a ningún miembro del enum (rango válido 1–3). Si algún día se migra a `MigrateAsync`, hay que colapsar/squash el historial. |
+| **Comentarios "Fase 1 solo Nacional" obsoletos** | `TipoIdentificacion.cs:5-6`, `ClienteDTO.cs:6-7` y `MySQLDBContext.cs:80` todavía dicen que solo Nacional está expuesto o que los demás tipos son "Fase 2". Falso desde `8ec693b`: los 3 tipos están en UI, servicios y `Formatos`. Solo comentarios — actualizar al tocar esos archivos. |
+| **`CedulaNacional` hardcodeado en 5 sitios (ignora el tipo)** | `AgendarCita.razor:67,83`, modal eliminar de `Clientes.razor:398`, y eliminar (`ClienteDetalle.razor:461`) + destinos (`:609`) y confirmación (`:624`) de transferencia usan `CedulaNacional` en vez de `FormatearIdentificacion`. Para DIMEX el fallback devuelve dígitos crudos (sin guiones erróneos); el caso borde es un pasaporte cuyos dígitos extraídos sumen exactamente 9 (ej. `AB123456789`), que se mostraría como `1-2345-6789` en esos sitios. Deuda menor: centralizar en `FormatearIdentificacion`. |
+| **`RegistrarAsync` siempre crea Nacional** | El contrato legado `RegistrarAsync(cedula, nombre, telefono, correo)` delega en `CrearAsync` sin exponer tipo. Correcto por compatibilidad con `AgendarCita`, pero un cliente DIMEX/Pasaporte creado por esa vía caería en validación de 9 dígitos. Nadie lo llama hoy con otros tipos; documentado para no romperlo por accidente. |
+| **`syncIcons` huérfano en `theme.js`** | `window.mecanoTheme.syncIcons` sigue definido pero `MainLayout` ya no lo invoca (el `OnAfterRenderAsync` hoy inicializa `mecanoRedirectFeedback`). El ícono luna/sol se rige por los atributos `data-on`/`data-off`. O eliminarlo o re-engancharlo; hoy es código muerto inofensivo. |
 | **Refactor de layout "Industrial Clean" (CSS variables + tema light/dark)** | `app.css` declara los tokens `:root` (light) y `[data-bs-theme="dark"], body.dark-mode` (dark). `wwwroot/js/theme.js` (`window.mecanoTheme`) aplica/toggle/persiste en `localStorage` (clave `mecano-theme`); script inline en `<head>` de `App.razor` evita el flash al cargar. El toggle vive en el header (`MainLayout`, botón `.theme-toggle-btn` con ícono `bi-moon-stars`/`bi-sun`). `.badge-status-*` son opt-in (no sobre-escriben `bg-*` de Bootstrap). El sidebar es oscuro en ambos temas. Ver Sección 7. |
-| **`NavMenu` ahora secciona por rol** | Los enlaces `Clientes y Vehículos`, `Categorías y Servicios` y `Mecánicos` quedaron bajo `<AuthorizeView Roles="Administrador">` con header `Gestión`. Cambio semántico deliberado: antes los veía cualquier usuario autenticado (incluido un `Mecanico`). `Inicio`, `Agendar Cita` y `TEST` quedan fuera de la sección. El `AuthorizeView` no necesita `Context="authCtx"` (la trampa RZ9999 solo aplica anidado dentro de `EditForm`). |
+| **`NavMenu` perdió el seccionado por rol** | El `<AuthorizeView Roles="Administrador">` que envolvía la sección `Gestión` **fue eliminado** (el header es hoy un `<div>` literal): `Clientes y Vehículos`, `Categorías y Servicios` y `Mecánicos` los ve cualquier usuario autenticado, incluido `Mecanico`. La defensa restante son los atributos `[Authorize(Roles = ...)]` de cada página (un mecánico que navegue manualmente a `/clientes` ve la lista en modo lectura; a `/categorias` o `/mecanicos` le sale "No tienes permisos"). Si el ocultamiento del menú era intencional, restaurar el `AuthorizeView` (no necesita `Context="authCtx"`: la trampa RZ9999 solo aplica anidado dentro de `EditForm`). |
+| **Identificación del cliente oculta al Mecánico (vista + búsqueda)** | Por privacidad, cédula + tipo del cliente se renderizan tras `<AuthorizeView Roles="Administrador">` en `Clientes.razor` (header y celda de la columna "Identificación") y en la tarjeta de datos de `ClienteDetalle.razor`; para un `Mecanico` esa rama no se renderiza, así que el valor no viaja al cliente (Blazor Server). Además, `Clientes.razor.cs` resuelve el rol en `OnInitializedAsync` (`FindFirst(ClaimTypes.Role) == Roles.Administrador`) y pasa `incluirIdentificacion=false` a `BuscarClientesPaginadoAsync`/`ContarBusquedaAsync`; `ClienteService.AplicarFiltro` omite las cláusulas `CedulaIdentidad` para ese rol (busca solo nombre y placa) y el placeholder cambia a "Buscar por nombre o placa...". Así un Mecánico no puede confirmar una cédula adivinada por la búsqueda. Los modales admin-only (crear/editar/eliminar/transferir) siguen mostrando la cédula y están fuera del alcance del mecánico. |
+| **Panel expandible de cliente (vehículos + citas)** | En `/clientes`, cada fila abre un panel embebido bajo la fila con los **vehículos** y las **citas** del cliente. Clic en cualquier parte de la fila lo alterna; el botón chevron de la primera columna es el control accesible (`aria-expanded`/`aria-controls`, header con `visually-hidden`). La **placa** se destaca como badge monoespaciado, tanto en la lista de vehículos como en cada cita (`VehiculoPlaca`). Es un **acordeón**: una sola fila abierta (`filaExpandidaId`), **carga diferida** al abrir y **caché por cliente** (`vehiculosPorCliente`/`citasPorCliente`) para no repetir consultas; se invalida tras desactivar/reactivar/eliminar (los cambios de estado en cascada afectan los vehículos) y se colapsa en cada `CargarAsync` (búsqueda/filtro/página/mutación). Los controles de la fila (link Ver + botones admin) llevan `@onclick:stopPropagation` para no alternar el panel. Carga con `VehiculoService.ObtenerPorClienteAsync(id, incluirInactivos: !cliente.Activo)` + `CitaService.ObtenerPorClienteAsync(id)` (mismo criterio que `ClienteDetalle`). CSS en `Clientes.razor.css` (animación con respeto a `prefers-reduced-motion`). |
 | **Clase `.content` eliminada del canvas** | El canvas pasó de `article.content px-4` (padding-top 1.1rem) a `article.px-4.py-3`; la regla `.content` ya no existe en `app.css`. Ritmo vertical de todas las páginas cambió levemente (aprobado, Q3-a). |
 | **Comentarios que contradicen el código actual** | El comentario en `Cliente.cs:7` dice "Clients do NOT have login accounts" — lo cual es coherente con que `Cliente` no tenga `HashPassword`. Sin embargo, `AuthServices.LoginAsync` intenta login en `Mecanico` y `Administrador` solo, lo cual es consistente. |
 | **Dependencias circulares entre proyectos** | No hay múltiples proyectos — riesgo de circulares no aplica en la actualidad. |
@@ -911,12 +942,17 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Entidad/DTOs/Cliente/` (3 DTOs) | Sección 2 y 6 |
 | `Mecano/Logica/Servicios/ClienteService.cs` | Sección 6 |
 | `Mecano/Data/Migrations/20261005232947_AgregarTipoIdentificacionCliente.cs` | Sección 4 |
+| `Mecano/Data/Migrations/20261011040945_TipoIdentificacion-mecanico-adminitrador.cs` | Sección 5 (agrega `TipoIdentificacion` DEFAULT 0 a `Mecanico` + `Administradors`) |
+| `Mecano/Data/Migrations/20261011150853_AgregarTipoIdentificacionMecanico.cs` | Sección 5 y 11 (re-agrega la columna a `Mecanico` con DEFAULT 1; historial duplicado) |
 | `Mecano/Components/Pages/Clientes/Clientes.razor(.cs)` | Sección 7 |
 | `Mecano/Components/Pages/Clientes/ClienteDetalle.razor(.cs)` | Sección 7 |
 | `Mecano/Components/Pages/Mecanicos/Mecanicos.razor(.cs)` | Sección 7 |
 | `Mecano/Entidad/DTOs/Mecanico/` (3 DTOs) | Sección 2 y 6 |
 | `Mecano/Logica/Utilidades/PasswordHasher.cs` | Sección 6 |
 | `Mecano/Entidad/DTOs/CitaDTO.cs` | Sección 2 y 6 |
+| `Mecano/Entidad/DTOs/CitaDetalleDTO.cs` · `FiltroCitasDTO.cs` · `EditarCitaDTO.cs` | Sección 2 y 6 |
+| `Mecano/Components/Pages/Citas/Citas.razor(.cs)` | Sección 7 (`/citas`) |
+| `Mecano/Components/Pages/Citas/CitaDetalle.razor(.cs)` | Sección 7 (`/citas/{id}`) |
 | `Mecano/Entidad/Utilidades/Formatos.cs` | Sección 5.1 |
 | `Mecano/Entidad/DTOs/NuevoVehiculoDTO.cs` · `ActualizarVehiculoDTO.cs` | Sección 2 y 6 |
 | `Mecano/Logica/Interfaces/IVehiculoService.cs` · `VehiculoService.cs` | Sección 6 |
@@ -925,6 +961,9 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/wwwroot/js/theme.js` | Sección 7 |
 | `Mecano/Components/Layout/MainLayout.razor(.css)` | Sección 7 |
 | `Mecano/Components/Layout/NavMenu.razor(.css)` | Sección 7 |
+| `Mecano/Components/Pages/AgendarCita.razor` | Secciones 2, 6 (reglas de agenda), 7 (`/agendar`) y 11 |
+| `Mecano/Components/Pages/AgendarCita.razor.css` | Secciones 2 y 7 (estilos del tablero) |
+| `Mecano/Logica/Servicios/CitaService.cs` | Sección 6 (guards de `AgendarCitaAsync`) |
 
 ---
 
@@ -952,4 +991,8 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 
 11. **¿Cómo se persiste el estado `AuthenticatedUser` entre requests?** — Resuelto: ya no se usa el record en memoria para auth; la sesión vive en la cookie y el estado Blazor se reconstruye vía `CustomAuthenticationStateProvider` (claims del `ClaimsPrincipal`).
 
-12. **CRUD de mecánicos** — Resuelto: backend (DTOs en `Entidad/DTOs/Mecanico/`, `IMecanicoService`/`MecanicoService` extendidos, hashing en `Logica/Utilidades/PasswordHasher.cs` delegado desde `AuthServices`) + UI `Components/Pages/Mecanicos/Mecanicos.razor(.cs)` con enlace en `NavMenu`. Pendiente: smoke test manual y decidir el comportamiento de `DesactivarAsync` frente a citas futuras (ver Sección 11).
+12. **CRUD de mecánicos** — Resuelto y extendido: backend (DTOs en `Entidad/DTOs/Mecanico/` con `TipoIdentificacion`, `IMecanicoService`/`MecanicoService` con normalización per-tipo, hashing en `Logica/Utilidades/PasswordHasher.cs` delegado desde `AuthServices`) + UI `Components/Pages/Mecanicos/Mecanicos.razor(.cs)` con selector de tipo y enlace en `NavMenu`. Pendiente: smoke test manual con los 3 tipos y decidir el comportamiento de `DesactivarAsync` frente a citas futuras (ver Sección 11).
+
+13. **Tipos de identificación (Nacional/DIMEX/Pasaporte)** — Resuelto en commit `8ec693b`: `TipoIdentificacion` en `Cliente`, `Mecanico` y `Administrador`; `Formatos.NormalizarIdentificacion`/`FormatearIdentificacion`; UI con `InputSelect` de 3 opciones en Clientes/Detalle/Mecánicos; `RegisterAdminAsync` con overload de cédula+tipo. Pendiente menor: 5 sitios con `CedulaNacional` hardcodeado, comentarios "Fase 1" obsoletos, e historial de migraciones duplicado (ver Sección 11).
+
+14. **CRUD de citas (por fases)** — Plan acordado: **Fase 1** listado + detalle; **Fase 2** edición (datos no-agenda: vehículo, servicio, notas); **Fase 3** reprogramación (fecha/hora/mecánico); **Fase 4** transiciones de estado (flujo lineal `Pendiente → Confirmada → EnProceso → Finalizada`, cancelable en cualquier punto); **Fase 5** cancelar desde la UI; **Fase 6** vista del mecánico. Resueltas Fase 1 (`/citas` + `/citas/{id}`, admin-only), **Fase 2** (`EditarCitaDTO` + `CitaService.ActualizarCitaAsync` + modal de edición en `CitaDetalle`, restringido a la especialidad del mecánico y bloqueado si la cita está cancelada/finalizada) y **Fase 3** (`ReprogramarCitaDTO` + `CitaService.ReprogramarCitaAsync` + modal de reprogramación en `CitaDetalle`: fecha, hora y mecánico, con horarios ocupados por mecánico deshabilitados y la propia cita excluida del cálculo de solape). Además, desde el tablero de `/agendar` un clic en el chip de una cita navega a su detalle. La reprogramación y los cambios de estado son operaciones separadas de la edición.

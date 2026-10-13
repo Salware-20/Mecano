@@ -149,7 +149,7 @@
                         <div class="mb-3">
                             <label class="form-label" for="servNombre">Nombre *</label>
                             <InputText id="servNombre" class="form-control" @bind-Value="modelo.Nombre"
-                                       placeholder="Ej. Cambio de pastillas de freno" />
+                                       autocomplete="off" style="text-transform:capitalize;" placeholder="Descripción breve del servicio (ej. Cambio de pastillas de freno)" />
                             <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                         </div>
 

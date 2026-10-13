@@ -1,5 +1,6 @@
 @page "/login"
 @rendermode InteractiveServer
+@layout LoginLayout
 @attribute [AllowAnonymous]
 
 <PageTitle>Iniciar Sesión - Mecano</PageTitle>
@@ -24,7 +25,7 @@
 
             <div class="mb-3">
                 <label for="email" class="form-label">Correo Electrónico</label>
-                <InputText id="email" class="form-control" @bind-Value="loginModel.Email" placeholder="ejemplo@mecano.cr" />
+                <InputText id="email" class="form-control" @bind-Value="loginModel.Email" placeholder="ejemplo@mecano.cr" autocomplete="off"/>
                 <ValidationMessage For="@(() => loginModel.Email)" class="text-danger small" />
             </div>
 

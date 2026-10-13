@@ -1,21 +1,25 @@
+@using Mecano.Entidad.Constantes
+@using System.Globalization
 @page "/clientes/{Id:int}"
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inject IClienteService ClienteService
 @inject IVehiculoService VehiculoService
 @inject ICitaService CitaService
+@inject IComentarioService ComentarioService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>@(cliente?.NombreCompleto ?? "Cliente") - Mecano</PageTitle>
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a href="clientes">Clientes</a></li>
-        <li class="breadcrumb-item active" aria-current="page">@(cliente?.NombreCompleto ?? "Cliente")</li>
+        <li class="breadcrumb-item active" style="text-transform:capitalize;" aria-current="page">@(cliente?.NombreCompleto ?? "Cliente")</li>
     </ol>
 </nav>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="mb-0"><i class="bi bi-person"></i> @(cliente?.NombreCompleto ?? "Cliente")</h1>
+    <h1 class="mb-0" style="text-transform:capitalize;"><i class="bi bi-person"></i> @(cliente?.NombreCompleto ?? "Cliente")</h1>
     <a class="btn btn-outline-secondary" href="clientes">
         <i class="bi bi-arrow-left"></i> Volver
     </a>
@@ -91,17 +95,17 @@ else
         </div>
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-sm-6 col-lg-3">
-                    <label class="form-label text-muted small mb-0">Cédula</label>
-                    <div>@Formatos.CedulaNacional(cliente.CedulaIdentidad)</div>
-                </div>
-                <div class="col-sm-6 col-lg-3">
-                    <label class="form-label text-muted small mb-0">Tipo de identificación</label>
-                    <div>
-                        Nacional
-                        <small class="text-muted">(único tipo disponible por ahora)</small>
+                @* La identificación del cliente solo es visible para el Administrador. *@
+                <AuthorizeView Roles="Administrador">
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label text-muted small mb-0">Identificación</label>
+                        <div>@Formatos.FormatearIdentificacion(cliente.CedulaIdentidad, cliente.TipoIdentificacion)</div>
                     </div>
-                </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label class="form-label text-muted small mb-0">Tipo de identificación</label>
+                        <div>@cliente.TipoIdentificacion</div>
+                    </div>
+                </AuthorizeView>
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Teléfono</label>
                     <div>@(string.IsNullOrWhiteSpace(cliente.Telefono) ? "-" : Formatos.Telefono(cliente.Telefono))</div>
@@ -195,7 +199,7 @@ else
     </div>
 
     @* ---------- Citas ---------- *@
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong><i class="bi bi-calendar-event"></i> Citas (@citas.Count)</strong>
             <button class="btn btn-sm btn-primary" disabled
@@ -226,9 +230,9 @@ else
                             {
                                 <tr>
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
-                                    <td>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                    <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>@(cita.ServicioNombre ?? "-")</td>
-                                    <td>@(cita.MecanicoNombre ?? "-")</td>
+                                    <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
                                         <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
                                     </td>
@@ -240,6 +244,191 @@ else
             }
         </div>
     </div>
+
+    @* ---------- Comentarios (Administrador y Mecánico) ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-chat-left-text" aria-hidden="true"></i> Comentarios (@comentarios.Count)</strong>
+            <button class="btn btn-sm btn-primary" @onclick="AbrirCrearComentario">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i> Nuevo comentario
+            </button>
+        </div>
+        <div class="card-body">
+            @if (cargandoComentarios)
+            {
+                <div class="text-center py-3">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="ms-2 text-secondary small">Cargando comentarios…</span>
+                </div>
+            }
+            else if (!comentarios.Any())
+            {
+                <div class="text-center py-4">
+                    <i class="bi bi-chat-left-text display-6 text-secondary" aria-hidden="true"></i>
+                    <h2 class="h6 mt-2 mb-1">Sin comentarios</h2>
+                    <p class="text-secondary small mb-3">
+                        @(errorCargaComentarios
+                            ? "No se pudieron cargar los comentarios. Intentá de nuevo."
+                            : "Todavía no hay notas sobre este cliente.")
+                    </p>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="AbrirCrearComentario">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Escribir el primero
+                    </button>
+                </div>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush comentarios-lista">
+                    @foreach (var c in comentarios)
+                    {
+                        <li class="list-group-item px-0">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <span class="fw-semibold" style="text-transform:capitalize;">@c.AutorNombre</span>
+                                    <span class="badge text-bg-@(c.AutorTipo == TipoAutorComentario.Administrador ? "info" : "secondary") ms-1">
+                                        @c.AutorTipo
+                                    </span>
+                                    <div class="small text-secondary">
+                                        <i class="bi bi-clock" aria-hidden="true"></i>
+                                        <time datetime="@c.FechaHora.ToString("yyyy-MM-ddTHH:mm")">
+                                            @c.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
+                                        </time>
+                                    </div>
+                                </div>
+                                @* Solo el autor ve el botón de eliminar *@
+                                @if (EsAutor(c))
+                                {
+                                    <button class="btn btn-sm btn-outline-danger comentario-btn-eliminar flex-shrink-0"
+                                            title="Eliminar comentario"
+                                            aria-label="Eliminar comentario"
+                                            @onclick="() => ConfirmarEliminarComentario(c)">
+                                        <i class="bi bi-trash" aria-hidden="true"></i>
+                                    </button>
+                                }
+                            </div>
+                            <p class="mb-0 mt-1 comentario-texto">@c.Texto</p>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+
+    @* ---------- Modal: nuevo comentario ---------- *@
+    @if (mostrarModalComentario)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="tituloNuevoComentario" style="background:rgba(0,0,0,.5);"
+             @onkeydown="OnKeyDownModalComentario">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <EditForm Model="modeloComentario" OnValidSubmit="GuardarComentario" FormName="ComentarioCliente">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="tituloNuevoComentario">
+                                <i class="bi bi-chat-left-text" aria-hidden="true"></i> Nuevo comentario
+                            </h5>
+                            <button type="button" class="btn-close" aria-label="Cerrar"
+                                    @onclick="CerrarCrearComentario"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-secondary small">
+                                Comentario para <strong style="text-transform:capitalize;">@(cliente?.NombreCompleto ?? "-")</strong>.
+                                Quedará con tu nombre y la fecha de hoy.
+                            </p>
+
+                            <div class="mb-2">
+                                <label class="form-label" for="nuevoComentarioTexto">Comentario *</label>
+                                <InputTextArea id="nuevoComentarioTexto" class="form-control" rows="4"
+                                               @bind-Value="modeloComentario.Texto"
+                                               placeholder="Escribí una nota sobre este cliente…"
+                                               maxlength="1000" autocapitalize="sentences"
+                                               aria-describedby="ayudaComentario" />
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <ValidationMessage For="() => modeloComentario.Texto"
+                                                       class="text-danger small mb-0" />
+                                    <small id="ayudaComentario" class="text-secondary ms-auto">
+                                        @(modeloComentario.Texto?.Length ?? 0)/1000
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CerrarCrearComentario">Cancelar</button>
+                            <button type="button" class="btn btn-primary" disabled="@guardando" @onclick="GuardarComentario">
+                                @if (guardando)
+                                {
+                                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-send" aria-hidden="true"></i>
+                                }
+                                Publicar comentario 
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ---------- Modal: eliminar comentario ---------- *@
+    @if (comentarioAEliminar is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="tituloEliminarComentario" style="background:rgba(0,0,0,.5);"
+             @onkeydown="OnKeyDownModalComentario">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title text-danger" id="tituloEliminarComentario">
+                            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Eliminar comentario
+                        </h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar"
+                                @onclick="CancelarEliminarComentario"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrEmpty(mensajeError))
+                        {
+                            <div class="alert alert-danger" role="alert">@mensajeError</div>
+                        }
+                        else
+                        {
+                            <p>¿Eliminar este comentario de <strong style="text-transform:capitalize;">@comentarioAEliminar.AutorNombre</strong>?</p>
+
+                            <figure class="bg-body-tertiary border rounded p-3 mb-3">
+                                <blockquote class="mb-1">@PrevioComentario(comentarioAEliminar.Texto)</blockquote>
+                                <figcaption class="small text-secondary">
+                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
+                                </figcaption>
+                            </figure>
+
+                            <p class="text-secondary small mb-0">
+                                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                Esta acción no se puede deshacer. Si querés corregir el texto,
+                                cancelá y publicá un comentario nuevo.
+                            </p>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelarEliminarComentario">Cancelar</button>
+                        <button class="btn btn-danger" @onclick="EliminarComentarioConfirmado" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-trash" aria-hidden="true"></i>
+                            }
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     @* ---------- Modales (solo Administrador) ---------- *@
     <AuthorizeView Roles="Administrador" Context="authCtx">
@@ -261,15 +450,24 @@ else
                                 }
 
                                 <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="detCedula">Cédula *</label>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label" for="detTipoId">Tipo Identificación *</label>
+                                        <InputSelect id="detTipoId" class="form-select" @bind-Value="modelo.TipoIdentificacion">
+                                            <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Nacional">Nacional</option>
+                                            <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Dimex">DIMEX</option>
+                                            <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Pasaporte">Pasaporte</option>
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label" for="detCedula">Identificación *</label>
                                         <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
-                                                   placeholder="Ej. 1-0101-0101" />
+                                                   placeholder="Número de documento" />
                                         <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
                                     </div>
-                                    <div class="col-md-6 mb-3">
+                                    <div class="col-md-4 mb-3">
                                         <label class="form-label" for="detNombre">Nombre completo *</label>
                                         <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto"
+                                               autocapitalize="words" style="text-transform:capitalize;"
                                                    placeholder="Nombre y apellidos" />
                                         <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
                                     </div>
@@ -412,7 +610,7 @@ else
                             }
                             else
                             {
-                                <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
+                                <p>¿Desactivar al cliente <strong style="text-transform:capitalize;">@clienteADesactivar.NombreCompleto</strong>?</p>
                                 <p class="text-muted small">
                                     El cliente dejará de aparecer en las listas, pero se conserva su historial.
                                 </p>
@@ -452,7 +650,7 @@ else
                             else
                             {
                                 <p>
-                                    ¿Eliminar permanentemente a <strong>@clienteAEliminar.NombreCompleto</strong>
+                                    ¿Eliminar permanentemente a <strong style="text-transform:capitalize;">@clienteAEliminar.NombreCompleto</strong>
                                     (@Formatos.CedulaNacional(clienteAEliminar.CedulaIdentidad))?
                                 </p>
                                 <p class="text-muted small mb-0">
@@ -524,7 +722,7 @@ else
                             }
                             else
                             {
-                                <p>¿Reactivar al cliente <strong>@clienteAReactivar.NombreCompleto</strong>?</p>
+                                <p>¿Reactivar al cliente <strong style="text-transform:capitalize;">@clienteAReactivar.NombreCompleto</strong>?</p>
                                 @if (vehiculos.Count > 0)
                                 {
                                     <p class="text-warning small mb-0">
@@ -565,7 +763,7 @@ else
                             @if (clienteDestino is null)
                             {
                                 <p class="text-muted small">
-                                    Cliente actual: <strong>@(cliente?.NombreCompleto ?? "-")</strong>.
+                                    Cliente actual: <strong style="text-transform:capitalize;">@(cliente?.NombreCompleto ?? "-")</strong>.
                                     Busque el nuevo cliente por nombre o cédula (solo activos).
                                 </p>
 
@@ -599,7 +797,7 @@ else
                                                     @onclick="() => SeleccionarDestino(d)">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
-                                                        <strong>@d.NombreCompleto</strong>
+                                                        <strong style="text-transform:capitalize;">@d.NombreCompleto</strong>
                                                         <small class="text-muted d-block">
                                                             @Formatos.CedulaNacional(d.CedulaIdentidad)
                                                         </small>
@@ -615,7 +813,7 @@ else
                             {
                                 <p>
                                     ¿Transferir el vehículo <strong>@Formatos.Placa(vehiculoATransferir.Placa)</strong>
-                                    a <strong>@clienteDestino.NombreCompleto</strong>
+                                    a <strong style="text-transform:capitalize;">@clienteDestino.NombreCompleto</strong>
                                     (@Formatos.CedulaNacional(clienteDestino.CedulaIdentidad))?
                                 </p>
                                 <p class="text-muted small mb-0">

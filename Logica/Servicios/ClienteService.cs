@@ -22,16 +22,32 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ FILTRO COMPARTIDO ~~~
-    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, bool incluirInactivos)
+    private static IQueryable<Cliente> AplicarFiltro(IQueryable<Cliente> query, string? termino, FiltroActivo filtro, bool incluirIdentificacion)
     {
-        if (!incluirInactivos)
-            query = query.Where(c => c.Activo);
+        query = filtro switch
+        {
+            FiltroActivo.Activos => query.Where(c => c.Activo),
+            FiltroActivo.Inactivos => query.Where(c => !c.Activo),
+            _ => query
+        };
 
         if (string.IsNullOrWhiteSpace(termino))
             return query;
 
-        var digitos = Formatos.SoloDigitos(termino);
         var placaNormalizada = Formatos.NormalizarPlaca(termino);
+
+        // Nombre y placa se buscan siempre. La cédula solo cuando el rol puede verla
+        // (Administrador): para el Mecánico, permitir buscarla dejaría confirmar una
+        // identificación adivinada aunque la columna esté oculta en la vista.
+        if (!incluirIdentificacion)
+        {
+            return query.Where(c =>
+                EF.Functions.Like(c.NombreCompleto, $"%{termino}%")
+                || c.Vehiculos.Any(v => EF.Functions.Like(v.Placa, $"%{termino}%")
+                    || (placaNormalizada.Length > 0 && EF.Functions.Like(v.Placa, $"%{placaNormalizada}%"))));
+        }
+
+        var digitos = Formatos.SoloDigitos(termino);
 
         // La cédula se almacena solo con dígitos y la placa en mayúsculas sin guiones,
         // pero el usuario las ve formateadas ("1-0111-0111", "ABC-123"). Por eso ambos
@@ -47,21 +63,13 @@ public class ClienteService : IClienteService
     }
 
     /// <summary>
-    /// Normaliza y valida los campos numéricos de un cliente antes de persistirlos.
-    /// Se ejecuta antes de la comprobación de unicidad: el índice único
-    /// (CedulaIdentidad, TipoIdentificacion) compara cadenas crudas, así que sin
-    /// normalizar "1-0111-0111" y "101110111" entrarían como dos personas distintas.
+    /// Normaliza y valida los campos de identificación y teléfono de un cliente antes de persistirlos.
+    /// Se ejecuta antes de la comprobación de unicidad.
     /// </summary>
-    private static (string Cedula, string? Telefono) NormalizarYValidar(string cedulaIdentidad, string? telefono)
+    private static (string Cedula, string? Telefono) NormalizarYValidar(string cedulaIdentidad, string? telefono, TipoIdentificacion tipo)
     {
-        var cedula = Formatos.SoloDigitos(cedulaIdentidad);
+        var cedula = Formatos.NormalizarIdentificacion(cedulaIdentidad, tipo);
         var tel = Formatos.SoloDigitos(telefono);
-
-        if (cedula.Length != Formatos.LargoCedulaNacional)
-        {
-            throw new InvalidOperationException(
-                $"La cédula debe tener exactamente {Formatos.LargoCedulaNacional} dígitos.");
-        }
 
         // El teléfono es opcional: si viene vacío se guarda null y no se valida.
         if (tel.Length > 0 && tel.Length != Formatos.LargoTelefono)
@@ -102,7 +110,7 @@ public class ClienteService : IClienteService
         await using var context = await _factory.CreateDbContextAsync();
 
         // El contrato legado nunca filtró por Activo; no lo alteramos para no romper a AgendarCita.razor.
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos: true);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, FiltroActivo.Todos, incluirIdentificacion: true);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -112,11 +120,11 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ READ (lista paginada) ~~~
-    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, bool incluirInactivos = false)
+    public async Task<List<ClienteDTO>> BuscarClientesPaginadoAsync(string? termino, int pagina, int tamanioPagina, FiltroActivo filtro = FiltroActivo.Activos, bool incluirIdentificacion = true)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos);
+        var query = AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro, incluirIdentificacion);
 
         return await query
             .OrderBy(c => c.NombreCompleto)
@@ -184,19 +192,30 @@ public class ClienteService : IClienteService
 
         // Normalizar y validar ANTES de tocar la base: el chequeo de duplicado y el guardado
         // deben operar sobre la misma forma del valor que realmente se persiste.
-        var (cedula, telefono) = NormalizarYValidar(dto.CedulaIdentidad, dto.Telefono);
+        var (cedula, telefono) = NormalizarYValidar(dto.CedulaIdentidad, dto.Telefono, dto.TipoIdentificacion);
 
-        if (await ExisteIdentificacionAsync(cedula))
+        var clienteDuplicado = await context.Cliente
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CedulaIdentidad == cedula);
+
+        if (clienteDuplicado != null)
         {
-            _logger.LogWarning("Cédula duplicada al crear cliente: {Cedula}", cedula);
-            throw new InvalidOperationException($"Ya existe un cliente con la cédula {Formatos.CedulaNacional(cedula)}");
+            _logger.LogWarning("Identificación duplicada al crear cliente: {Cedula} ({Tipo})", cedula, dto.TipoIdentificacion);
+            var formateada = Formatos.FormatearIdentificacion(cedula, clienteDuplicado.TipoIdentificacion);
+            if (clienteDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+            {
+                throw new InvalidOperationException($"Ya existe un cliente con la identificación {formateada} ({clienteDuplicado.TipoIdentificacion}).");
+            }
+            else
+            {
+                throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro cliente con el tipo '{clienteDuplicado.TipoIdentificacion}'.");
+            }
         }
 
         var nuevo = new Cliente
         {
             CedulaIdentidad = cedula,
-            // Fase 1: el tipo lo decide el servicio. La Fase 2 lo elige el usuario en la UI.
-            TipoIdentificacion = TipoIdentificacion.Nacional,
+            TipoIdentificacion = dto.TipoIdentificacion,
             NombreCompleto = dto.NombreCompleto.Trim(),
             Telefono = telefono,
             Correo = dto.Correo?.Trim(),
@@ -218,15 +237,28 @@ public class ClienteService : IClienteService
         var cliente = await context.Cliente.FindAsync(dto.Id);
         if (cliente is null) return false;
 
-        var (cedula, telefono) = NormalizarYValidar(dto.CedulaIdentidad, dto.Telefono);
+        var (cedula, telefono) = NormalizarYValidar(dto.CedulaIdentidad, dto.Telefono, dto.TipoIdentificacion);
 
-        if (await ExisteIdentificacionAsync(cedula, excluirId: dto.Id))
+        var clienteDuplicado = await context.Cliente
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CedulaIdentidad == cedula && c.ClienteId != dto.Id);
+
+        if (clienteDuplicado != null)
         {
-            _logger.LogWarning("Cédula duplicada al actualizar cliente {Id}: {Cedula}", dto.Id, cedula);
-            throw new InvalidOperationException($"Ya existe otro cliente con la cédula {Formatos.CedulaNacional(cedula)}");
+            _logger.LogWarning("Identificación duplicada al actualizar cliente {Id}: {Cedula} ({Tipo})", dto.Id, cedula, dto.TipoIdentificacion);
+            var formateada = Formatos.FormatearIdentificacion(cedula, clienteDuplicado.TipoIdentificacion);
+            if (clienteDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+            {
+                throw new InvalidOperationException($"Ya existe otro cliente con la identificación {formateada} ({clienteDuplicado.TipoIdentificacion}).");
+            }
+            else
+            {
+                throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro cliente con el tipo '{clienteDuplicado.TipoIdentificacion}'.");
+            }
         }
 
         cliente.CedulaIdentidad = cedula;
+        cliente.TipoIdentificacion = dto.TipoIdentificacion;
         cliente.NombreCompleto = dto.NombreCompleto.Trim();
         cliente.Telefono = telefono;
         cliente.Correo = dto.Correo?.Trim();
@@ -303,33 +335,36 @@ public class ClienteService : IClienteService
     }
 
     // ~~~ HELPER ~~~
-    public async Task<bool> ExisteIdentificacionAsync(string cedulaIdentidad, int? excluirId = null)
+    public async Task<bool> ExisteIdentificacionAsync(string cedulaIdentidad, int? excluirId = null, TipoIdentificacion? tipo = null)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        // Normalizamos también acá: el método es público y puede llamarse con un valor
-        // crudo, en cuyo caso compararía mal contra lo que hay guardado (solo dígitos).
-        var normalizada = Formatos.SoloDigitos(cedulaIdentidad);
+        var query = context.Cliente.AsNoTracking();
 
-        if (normalizada.Length == 0)
-            return false;
+        if (excluirId.HasValue)
+            query = query.Where(c => c.ClienteId != excluirId.Value);
 
-        // Fase 1: el índice único es (CedulaIdentidad, TipoIdentificacion) pero solo
-        // se consulta Nacional. La Fase 2 amplía este predicado, no el índice.
-        return await context.Cliente.AnyAsync(c =>
-            c.CedulaIdentidad == normalizada
-            && c.TipoIdentificacion == TipoIdentificacion.Nacional
-            && (excluirId == null || c.ClienteId != excluirId));
+        if (tipo.HasValue)
+        {
+            var normalizada = Formatos.NormalizarIdentificacion(cedulaIdentidad, tipo.Value);
+            return await query.AnyAsync(c => c.CedulaIdentidad == normalizada && c.TipoIdentificacion == tipo.Value);
+        }
+
+        // Si no se especifica tipo, busca por la cadena normalizada o por dígitos
+        var soloDigitos = Formatos.SoloDigitos(cedulaIdentidad);
+        var rawTrim = cedulaIdentidad.Trim();
+
+        return await query.AnyAsync(c => c.CedulaIdentidad == rawTrim || (soloDigitos.Length > 0 && c.CedulaIdentidad == soloDigitos));
     }
 
     // ~~~ COUNT (para paginación) ~~~
     // Comparte AplicarFiltro con BuscarClientesPaginadoAsync para que el total coincida
     // exactamente con el conjunto paginado.
-    public async Task<int> ContarBusquedaAsync(string? termino, bool incluirInactivos = false)
+    public async Task<int> ContarBusquedaAsync(string? termino, FiltroActivo filtro = FiltroActivo.Activos, bool incluirIdentificacion = true)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, incluirInactivos)
+        return await AplicarFiltro(context.Cliente.AsNoTracking(), termino, filtro, incluirIdentificacion)
             .CountAsync();
     }
 }

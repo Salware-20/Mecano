@@ -10,6 +10,5 @@ namespace Mecano.Entidad.DTOs
         public int MecanicoId { get; set; }
         public DateTime Fecha { get; set; }
         public TimeOnly HoraInicio { get; set; }
-        public NuevoVehiculoDTO? NuevoVehiculo { get; set; }
     }
 }

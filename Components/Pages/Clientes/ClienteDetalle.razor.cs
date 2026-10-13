@@ -1,8 +1,12 @@
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs;
 using Mecano.Entidad.DTOs.Cliente;
+using Mecano.Entidad.DTOs.Comentario;
 using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using System.Security.Claims;
 using System.Threading;
 
 namespace Mecano.Components.Pages.Clientes;
@@ -18,6 +22,18 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
 
     private bool cargando = true;
     private bool guardando;
+
+    // ~~~ COMENTARIOS ~~~
+    private List<ComentarioDTO> comentarios = new();
+    private bool cargandoComentarios;
+    private bool errorCargaComentarios;
+    private bool mostrarModalComentario;
+    private CrearComentarioDTO modeloComentario = new();
+    private ComentarioDTO? comentarioAEliminar;
+
+    // Usuario logueado: es el autor de los comentarios que publique
+    private string autorNombreActual = string.Empty;
+    private TipoAutorComentario autorTipoActual = TipoAutorComentario.Administrador;
 
     private bool mostrarModal;
     private string? mensajeError;
@@ -50,6 +66,23 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         await CargarAsync();
     }
 
+    /// <summary>El autor se resuelve una sola vez, basado en la sesión actual.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAutorAsync();
+    }
+
+    // ~~~ CARGA AUTOR (usuario logueado) ~~~
+    private async Task CargarAutorAsync()
+    {
+        var auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        autorNombreActual = auth.User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
+        autorTipoActual = auth.User.FindFirst(ClaimTypes.Role)?.Value == Roles.Administrador
+            ? TipoAutorComentario.Administrador
+            : TipoAutorComentario.Mecanico;
+    }
+
     // ~~~ CARGA ~~~
     private async Task CargarAsync()
     {
@@ -62,6 +95,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             {
                 vehiculos = new();
                 citas = new();
+                comentarios = new();
                 return;
             }
 
@@ -76,6 +110,8 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
 
             vehiculos = tareaVehiculos.Result;
             citas = tareaCitas.Result;
+
+            await CargarComentariosAsync();
         }
         finally
         {
@@ -91,6 +127,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         modelo = new CrearClienteDTO
         {
             CedulaIdentidad = cliente.CedulaIdentidad,
+            TipoIdentificacion = cliente.TipoIdentificacion,
             NombreCompleto = cliente.NombreCompleto,
             Telefono = cliente.Telefono,
             Correo = cliente.Correo,
@@ -116,6 +153,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             {
                 Id = Id,
                 CedulaIdentidad = modelo.CedulaIdentidad,
+                TipoIdentificacion = modelo.TipoIdentificacion,
                 NombreCompleto = modelo.NombreCompleto,
                 Telefono = modelo.Telefono,
                 Correo = modelo.Correo,
@@ -295,7 +333,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
                 try
                 {
                     // Solo clientes activos; el dueño actual se filtra client-side
-                    destinos = await ClienteService.BuscarClientesPaginadoAsync(terminoDestino, 1, 10, incluirInactivos: false);
+                    destinos = await ClienteService.BuscarClientesPaginadoAsync(terminoDestino, 1, 10, FiltroActivo.Activos);
                     // Excluir dueño actual
                     if (vehiculoATransferir is not null)
                     {
@@ -474,10 +512,136 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         }
     }
 
+    // ~~~ COMENTARIOS ~~~
+
+    /// <summary>
+    /// Si la carga falla se deja la lista vacía y la vista muestra "Sin comentarios",
+    /// para que un fallo aquí no rompa el resto de la página.
+    /// </summary>
+    private async Task CargarComentariosAsync()
+    {
+        cargandoComentarios = true;
+        errorCargaComentarios = false;
+        try
+        {
+            comentarios = await ComentarioService.ObtenerPorClienteAsync(Id);
+        }
+        catch
+        {
+            errorCargaComentarios = true;
+            comentarios = new();
+        }
+        finally
+        {
+            cargandoComentarios = false;
+        }
+    }
+
+    private void AbrirCrearComentario()
+    {
+        modeloComentario = new CrearComentarioDTO { ClienteId = Id };
+        mensajeError = null;
+        mostrarModalComentario = true;
+    }
+
+    private void CerrarCrearComentario()
+    {
+        mostrarModalComentario = false;
+        mensajeError = null;
+    }
+
+    private async Task GuardarComentario()
+    {
+        guardando = true;
+        mensajeError = null;
+        try
+        {
+            // El autor siempre es el usuario logueado: nunca se elige a mano
+            modeloComentario.ClienteId = Id;
+            modeloComentario.AutorNombre = autorNombreActual;
+            modeloComentario.AutorTipo = autorTipoActual;
+
+            await ComentarioService.CrearAsync(modeloComentario);
+
+            mensajeExito = "Comentario publicado.";
+            mostrarModalComentario = false;
+            await CargarComentariosAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            mensajeError = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            mensajeError = ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void ConfirmarEliminarComentario(ComentarioDTO comentario)
+    {
+        comentarioAEliminar = comentario;
+        mensajeError = null;
+    }
+
+    private void CancelarEliminarComentario()
+    {
+        comentarioAEliminar = null;
+        mensajeError = null;
+    }
+
+    private async Task EliminarComentarioConfirmado()
+    {
+        if (comentarioAEliminar is null) return;
+
+        guardando = true;
+        mensajeError = null;
+        try
+        {
+            await ComentarioService.EliminarAsync(
+                comentarioAEliminar.Id, autorNombreActual, autorTipoActual);
+
+            mensajeExito = "Comentario eliminado.";
+            comentarioAEliminar = null;
+            await CargarComentariosAsync();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            mensajeError = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            mensajeError = ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    // El botón de eliminar solo se muestra al autor del comentario.
+    private bool EsAutor(ComentarioDTO c) =>
+        c.AutorTipo == autorTipoActual
+        && string.Equals(c.AutorNombre?.Trim(), autorNombreActual, StringComparison.OrdinalIgnoreCase);
+
+    private static string PrevioComentario(string texto) =>
+        texto.Length <= 140 ? texto : texto[..140].TrimEnd() + "…";
+
+    // Los modales de esta página son sin JS: Escape se maneja desde Blazor.
+    private void OnKeyDownModalComentario(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape" || guardando) return;
+
+        if (comentarioAEliminar is not null) CancelarEliminarComentario();
+        else if (mostrarModalComentario) CerrarCrearComentario();
+    }
+
     private bool SinHistoria => cliente is not null
         && cliente.CantidadVehiculos == 0
         && cliente.CantidadCitas == 0;
-
     private static string BadgeEstado(EstadoCita estado) => estado switch
     {
         EstadoCita.Pendiente => "bg-secondary",
