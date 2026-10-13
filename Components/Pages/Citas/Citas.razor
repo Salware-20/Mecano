@@ -32,7 +32,7 @@
                     <option value="">Todos</option>
                     @foreach (var m in mecanicos)
                     {
-                        <option value="@m.Id">@m.Nombre</option>
+                        <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre</option>
                     }
                 </select>
             </div>
@@ -105,13 +105,13 @@
                                 <td>
                                     @if (cita.ClienteId > 0 && !string.IsNullOrWhiteSpace(cita.ClienteNombre))
                                     {
-                                        <a href="clientes/@cita.ClienteId" class="text-decoration-none">
+                                        <a href="clientes/@cita.ClienteId" class="text-decoration-none" style="text-transform:capitalize;">
                                             @cita.ClienteNombre
                                         </a>
                                     }
                                     else
                                     {
-                                        <span>@(cita.ClienteNombre ?? "-")</span>
+                                        <span style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</span>
                                     }
                                 </td>
                                 <td>
@@ -125,7 +125,7 @@
                                     }
                                 </td>
                                 <td>@(cita.ServicioNombre ?? "-")</td>
-                                <td>@(cita.MecanicoNombre ?? "-")</td>
+                                <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                 <td class="text-center">
                                     <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
                                 </td>

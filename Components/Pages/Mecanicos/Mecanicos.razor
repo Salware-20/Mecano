@@ -88,7 +88,7 @@ else
                             <span>—</span>
                         }
                     </td>
-                    <td><strong>@mec.Nombre</strong></td>
+                    <td style="text-transform:capitalize;"><strong>@mec.Nombre</strong></td>
                     <td>@mec.Email</td>
                     <td>@(mec.Telefono ?? "—")</td>
                     <td>@(mec.EspecialidadNombre ?? "—")</td>
@@ -243,7 +243,7 @@ else
                     }
                     else
                     {
-                        <p>¿Desactivar al mecánico <strong>@mecanicoADesactivar.Nombre</strong>?</p>
+                        <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
                         <p class="text-muted small mb-0">
                             Se marcará como inactivo. Las citas existentes no se modifican y
                             podrás reactivarlo en cualquier momento.

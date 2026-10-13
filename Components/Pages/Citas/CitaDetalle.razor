@@ -88,13 +88,13 @@ else
                         <dd class="col-sm-8">
                             @if (cita.ClienteId > 0)
                             {
-                                <a href="clientes/@cita.ClienteId" class="text-decoration-none">
+                                <a href="clientes/@cita.ClienteId" class="text-decoration-none" style="text-transform:capitalize;">
                                     @cita.ClienteNombre
                                 </a>
                             }
                             else
                             {
-                                <span>@(cita.ClienteNombre ?? "-")</span>
+                                <span style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</span>
                             }
                         </dd>
 
@@ -174,7 +174,7 @@ else
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
-                        <dd class="col-sm-8">@(cita.MecanicoNombre ?? "-")</dd>
+                        <dd class="col-sm-8" style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</dd>
 
                         <dt class="col-sm-4 text-muted fw-normal small">Especialidad</dt>
                         <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.MecanicoEspecialidadNombre) ? "-" : cita.MecanicoEspecialidadNombre)</dd>

@@ -287,7 +287,7 @@
                                                                                     }
                                                                                 </td>
                                                                                 <td>@(cita.ServicioNombre ?? "-")</td>
-                                                                                <td>@(cita.MecanicoNombre ?? "-")</td>
+                                                                                <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                                                                 <td class="text-center">
                                                                                     <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
                                                                                 </td>
@@ -460,7 +460,7 @@
                         }
                         else
                         {
-                            <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
+                            <p>¿Desactivar al cliente <strong style="text-transform:capitalize;">@clienteADesactivar.NombreCompleto</strong>?</p>
                             <p class="text-muted small">
                                 El cliente dejará de aparecer en las listas, pero se conserva su historial.
                                 Puedes reactivarlo en cualquier momento.
@@ -501,7 +501,7 @@
                         }
                         else
                         {
-                            <p>¿Reactivar al cliente <strong>@clienteAReactivar.NombreCompleto</strong>?</p>
+                            <p>¿Reactivar al cliente <strong style="text-transform:capitalize;">@clienteAReactivar.NombreCompleto</strong>?</p>
                             @if (clienteAReactivar.CantidadVehiculos > 0)
                             {
                                 <p class="text-warning small mb-0">
@@ -539,7 +539,7 @@
                         else
                         {
                             <p>
-                                ¿Eliminar permanentemente a <strong>@clienteAEliminar.NombreCompleto</strong>
+                                ¿Eliminar permanentemente a <strong style="text-transform:capitalize;">@clienteAEliminar.NombreCompleto</strong>
                                 (@Formatos.CedulaNacional(clienteAEliminar.CedulaIdentidad))?
                             </p>
                             <p class="text-muted small mb-0">
