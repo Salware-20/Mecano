@@ -1,23 +1,23 @@
 @page "/agendar"
 @attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @rendermode InteractiveServer
-@implements IAsyncDisposable
+@implements IDisposable
 @using System.Globalization
+@using Mecano.Entidad.Constantes
+@using MecanicoDTO = Mecano.Entidad.DTOs.Mecanico.MecanicoDTO
 @inject IClienteService ClienteService
 @inject IVehiculoService VehiculoService
 @inject IServicioService ServicioService
 @inject IMecanicoService MecanicoService
 @inject ICitaService CitaService
-@inject ICalendarQueryService CalendarQueryService
 @inject INotificationService NotificationService
-@inject IJSRuntime JS
 
 <PageTitle>Agendar Cita</PageTitle>
 
 <div class="container-fluid">
     <div class="row mb-3">
         <div class="col">
-            <h2><i class="bi bi-calendar-plus"></i> Agendar Cita</h2>
+            <h2 class="mb-0"><i class="bi bi-calendar-plus"></i> Agendar Cita</h2>
         </div>
     </div>
 
@@ -36,7 +36,7 @@
         </div>
     }
 
-    <!-- Search Section -->
+    <!-- Búsqueda de cliente -->
     <div class="row mb-4">
         <div class="col-md-6">
             @if (selectedCliente == null)
@@ -46,7 +46,7 @@
                         <h5 class="card-title">Buscar Cliente</h5>
                         <div class="input-group mb-3">
                             <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" class="form-control" placeholder="Cédula, nombre o correo..." 
+                            <input type="text" class="form-control" placeholder="Cédula, nombre o correo..."
                                    @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" />
                         </div>
 
@@ -80,7 +80,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title text-success"><i class="bi bi-person-check"></i> Cliente Seleccionado</h5>
-                                <strong>@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br/>
+                                <strong>@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br />
                                 <small>@Formatos.Telefono(selectedCliente.Telefono) | @selectedCliente.Correo</small>
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="DeselectCliente">Cambiar</button>
@@ -91,18 +91,109 @@
         </div>
     </div>
 
-    <!-- Calendar Section -->
-    <div class="row">
-        <div class="col-12 position-relative">
-            @if (selectedCliente == null)
-            {
-                <div class="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" 
-                     style="background: rgba(255,255,255,0.8); z-index: 10;">
-                    <h4 class="text-muted">Seleccione un cliente primero</h4>
-                </div>
-            }
-            <div id="mecano-calendar" style="min-height: 600px;"></div>
+    <!-- Tablero de mecánicos (una fila por mecánico, una columna por día) -->
+    <div class="tablero-card card shadow-sm">
+        <div class="tablero-toolbar">
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SemanaAnterior"
+                        disabled="@(!PuedeRetroceder)" title="Semana anterior" aria-label="Semana anterior">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="IrHoy" disabled="@EsSemanaActual">
+                    Hoy
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="SemanaSiguiente"
+                        title="Semana siguiente" aria-label="Semana siguiente">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <span class="tablero-rango">@EtiquetaSemana</span>
+            </div>
+            <div class="text-secondary small d-none d-sm-block">
+                <i class="bi bi-clock"></i> Lun–Sáb · 8:00 a. m. – 6:00 p. m.
+            </div>
         </div>
+
+        @if (selectedCliente == null)
+        {
+            <div class="tablero-aviso">
+                <i class="bi bi-person-badge"></i> Seleccione un cliente para agendar una cita.
+            </div>
+        }
+
+        @if (cargando)
+        {
+            <div class="tablero-cargando">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+        }
+        else if (!mecanicos.Any())
+        {
+            <div class="tablero-vacio">
+                <i class="bi bi-wrench-adjustable"></i>
+                <p class="mb-0">No hay mecánicos activos registrados.</p>
+            </div>
+        }
+        else
+        {
+            <div class="tablero-scroll @(selectedCliente == null ? "tablero-bloqueado" : "")">
+                <table class="tablero">
+                    <thead>
+                        <tr>
+                            <th class="col-mecanico tablero-esquina">Mecánico</th>
+                            @foreach (var dia in DiasSemana)
+                            {
+                                <th class="@ClaseCabeceraDia(dia)">
+                                    <span class="dia-nombre">@dia.ToString("ddd", EsCr)</span>
+                                    <span class="dia-numero">@dia.Day</span>
+                                    @if (dia.Date == hoy)
+                                    {
+                                        <span class="dia-hoy-badge">Hoy</span>
+                                    }
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in mecanicos)
+                        {
+                            <tr>
+                                <th class="col-mecanico tablero-mecanico">
+                                    <span class="mecanico-nombre">@m.Nombre</span>
+                                    @if (!string.IsNullOrWhiteSpace(m.EspecialidadNombre))
+                                    {
+                                        <span class="mecanico-especialidad">@m.EspecialidadNombre</span>
+                                    }
+                                </th>
+                                @foreach (var dia in DiasSemana)
+                                {
+                                    <td class="@ClaseCelda(dia)" @onclick="() => AbrirModal(m, dia)">
+                                        @foreach (var c in CitasDe(m.Id, dia))
+                                        {
+                                            <div class="chip chip-@CssEstado(c.Estado)"
+                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto">
+                                                <span class="chip-hora">@c.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
+                                                <span class="chip-cuerpo">
+                                                    <span class="chip-cliente">@c.Cliente?.NombreCompleto</span>
+                                                    <span class="chip-servicio">@c.Servicio?.Nombre</span>
+                                                </span>
+                                            </div>
+                                        }
+                                        @if (PuedeAgendar(dia))
+                                        {
+                                            <span class="celda-agregar">
+                                                <i class="bi bi-plus-lg"></i> Agendar
+                                            </span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </div>
 </div>
 
@@ -117,25 +208,73 @@
                     <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <strong>Fecha:</strong> @selectedFecha.ToString("dd/MM/yyyy") <br/>
-                        <strong>Hora:</strong> @selectedHoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
-                    </div>
-                    
-                    <div class="card mb-3 bg-light">
-                        <div class="card-body py-2">
-                            <strong>Cliente:</strong> @selectedCliente?.NombreCompleto
-                        </div>
+                    <div class="resumen-cita mb-3">
+                        <div><i class="bi bi-person-check"></i> <strong>@selectedCliente?.NombreCompleto</strong></div>
+                        <div class="text-secondary"><i class="bi bi-calendar-event"></i> @selectedFecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
+                        <div class="text-secondary"><i class="bi bi-wrench-adjustable"></i> @(MecanicoSeleccionado?.Nombre ?? "Seleccione un mecánico")</div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Vehículo</label>
-                        <div class="input-group">
-                            <select class="form-select" @bind="citaDto.VehiculoId" disabled="@showNewVehicleForm">
-                                <option value="">Seleccione un vehículo...</option>
-                                @if(vehiculosCliente != null)
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="mecanico">Mecánico</label>
+                            <select id="mecanico" class="form-select" value="@selMecanicoId" @onchange="OnMecanicoChanged">
+                                <option value="">Seleccione un mecánico...</option>
+                                @foreach (var m in mecanicos)
                                 {
-                                    @foreach(var v in vehiculosCliente)
+                                    <option value="@m.Id">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="servicio">Servicio</label>
+                            <select id="servicio" class="form-select" value="@citaDto.ServicioId" @onchange="OnServiceChanged"
+                                    disabled="@(selMecanicoId == null || !serviciosDelMecanico.Any())">
+                                <option value="0">Seleccione un servicio...</option>
+                                @foreach (var s in serviciosDelMecanico)
+                                {
+                                    <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
+                                }
+                            </select>
+                            @if (selMecanicoId != null && !serviciosDelMecanico.Any())
+                            {
+                                <div class="form-text text-danger">Este mecánico no tiene servicios asociados a su especialidad.</div>
+                            }
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="hora-inicio">Hora de inicio</label>
+                            <select id="hora-inicio" class="form-select" value="@selHora.ToString("HH:mm")" @onchange="OnHoraChanged">
+                                @foreach (var h in HorasDelDia)
+                                {
+                                    <option value="@h.ToString("HH:mm")" disabled="@(!HoraHabilitada(h))">
+                                        @h.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Fin estimado</label>
+                            <div class="form-control-plaintext">
+                                @if (selectedServicio != null)
+                                {
+                                    <span>@selectedHoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
+                                    <span class="text-secondary"> · @selectedServicio.DuracionMinutos min</span>
+                                }
+                                else
+                                {
+                                    <span class="text-secondary">Seleccione un servicio</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label" for="vehiculo">Vehículo</label>
+                            <select id="vehiculo" class="form-select" value="@citaDto.VehiculoId" @onchange="OnVehiculoChanged">
+                                <option value="">Seleccione un vehículo...</option>
+                                @if (vehiculosCliente != null)
+                                {
+                                    @foreach (var v in vehiculosCliente)
                                     {
                                         <option value="@v.VehiculoId">@Formatos.Placa(v.Placa) - @v.Marca @v.Modelo</option>
                                     }
@@ -144,44 +283,12 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Servicio</label>
-                        <select class="form-select" @onchange="OnServiceChanged">
-                            <option value="">Seleccione un servicio...</option>
-                            @if(serviciosActivos != null)
-                            {
-                                @foreach(var s in serviciosActivos)
-                                {
-                                    <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
-                                }
-                            }
-                        </select>
-                        @if (selectedServicio != null)
-                        {
-                            <div class="form-text mt-2">
-                                Duración: @selectedServicio.DuracionMinutos min | Fin estimado: @selectedHoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
-                            </div>
-                        }
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Mecánico</label>
-                        <select class="form-select" @bind="citaDto.MecanicoId" disabled="@(selectedServicio == null)">
-                            <option value="">Seleccione un mecánico...</option>
-                            @if(mecanicosDisponibles != null)
-                            {
-                                @foreach(var m in mecanicosDisponibles)
-                                {
-                                    <option value="@m.MecanicoId">@m.Nombre</option>
-                                }
-                            }
-                        </select>
-                        @if (selectedServicio != null && (mecanicosDisponibles == null || !mecanicosDisponibles.Any()))
-                        {
-                            <div class="form-text text-danger">No hay mecánicos disponibles para este horario y especialidad.</div>
-                        }
-                    </div>
-
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0 py-2" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> @modalError
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancelar</button>
@@ -203,54 +310,77 @@
 }
 
 @code {
-    private DotNetObjectReference<AgendarCita>? dotNetRef;
-    private System.Timers.Timer? debounceTimer;
-    private bool calendarInitialized = false;
+    // Cierres del taller: el tablero y el modal solo permiten agendar dentro de esta ventana.
+    private static readonly TimeOnly Apertura = new(8, 0);
+    private static readonly TimeOnly Cierre = new(18, 0);
+    private const int PasoMinutos = 30;
+    private static readonly CultureInfo EsCr = new("es-CR");
 
-    // Search state
+    private System.Timers.Timer? debounceTimer;
+
+    // Búsqueda de cliente
     private string searchTerm = "";
     private bool isSearching = false;
     private List<Cliente>? clientesEncontrados;
     private Cliente? selectedCliente;
 
-    // Form state
-    private List<Vehiculo>? vehiculosCliente;
-    private List<Servicio>? serviciosActivos;
-    private List<Mecanico>? mecanicosDisponibles;
-    
-    private bool showModal = false;
-    private bool showNewVehicleForm = false;
-    private bool isSubmitting = false;
+    // Tablero
+    private bool cargando = true;
+    private readonly DateTime hoy = DateTime.Today;
+    private DateTime semanaInicio;
+    private List<MecanicoDTO> mecanicos = new();
+    private List<Cita> citasSemana = new();
+
+    // Modal
+    private bool showModal;
+    private bool isSubmitting;
+    private string? modalError;
     private string? successMessage;
     private string? errorMessage;
 
     private DateTime selectedFecha;
-    private TimeOnly selectedHoraInicio;
+    private int? selMecanicoId;
+    private TimeOnly selHora = Apertura;
     private TimeOnly selectedHoraFin;
     private Servicio? selectedServicio;
 
-    private AgendarCitaDTO citaDto = new() { NuevoVehiculo = new NuevoVehiculoDTO() };
-    private NuevoVehiculoDTO nuevoVehiculo = new();
+    private List<Vehiculo>? vehiculosCliente;
+    private List<Servicio>? serviciosActivos;
+    private List<Servicio> serviciosDelMecanico = new();
 
+    private AgendarCitaDTO citaDto = new();
+
+    // ~~~ Ciclo de vida ~~~
     protected override async Task OnInitializedAsync()
     {
         debounceTimer = new System.Timers.Timer(300);
         debounceTimer.AutoReset = false;
         debounceTimer.Elapsed += async (s, e) => await InvokeAsync(PerformSearch);
 
+        semanaInicio = LunesDe(hoy);
         serviciosActivos = await ServicioService.ObtenerTodosActivosAsync();
+        await CargarTablero();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    public void Dispose() => debounceTimer?.Dispose();
+
+    private async Task CargarTablero()
     {
-        if (firstRender)
+        cargando = true;
+        try
         {
-            dotNetRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("fullCalendarInterop.init", "mecano-calendar", dotNetRef);
-            calendarInitialized = true;
+            mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
+            // La semana visible va de lunes a sábado (el domingo el taller está cerrado).
+            var citas = await CitaService.ObtenerPorRangoAsync(semanaInicio, semanaInicio.AddDays(5));
+            citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelada).ToList();
+        }
+        finally
+        {
+            cargando = false;
         }
     }
 
+    // ~~~ Búsqueda de cliente ~~~
     private void HandleSearch()
     {
         isSearching = true;
@@ -273,10 +403,9 @@
         StateHasChanged();
     }
 
-    private async Task SelectCliente(Cliente cliente)
+    private void SelectCliente(Cliente cliente)
     {
         selectedCliente = cliente;
-        vehiculosCliente = await VehiculoService.ObtenerPorClienteAsync(cliente.ClienteId);
         searchTerm = "";
         clientesEncontrados = null;
     }
@@ -287,142 +416,317 @@
         vehiculosCliente = null;
     }
 
-    [JSInvokable]
-    public async Task<List<CalendarEventDTO>> GetCalendarEvents(string startStr, string endStr)
+    // ~~~ Navegación de semana ~~~
+    private static DateTime LunesDe(DateTime fecha)
     {
-        if (DateTime.TryParse(startStr, out DateTime start) && DateTime.TryParse(endStr, out DateTime end))
-        {
-            return await CalendarQueryService.ObtenerEventosAsync(start, end);
-        }
-        return new List<CalendarEventDTO>();
+        int delta = ((int)fecha.DayOfWeek + 6) % 7; // lunes = 0, ... domingo = 6
+        return fecha.Date.AddDays(-delta);
     }
 
-    [JSInvokable]
-    public void OnSlotSelected(string startStr, string endStr)
+    private DateTime LunesActual => LunesDe(hoy);
+    private bool EsSemanaActual => semanaInicio.Date == LunesActual;
+    private bool PuedeRetroceder => semanaInicio.Date > LunesActual;
+
+    private List<DateTime> DiasSemana => Enumerable.Range(0, 6).Select(i => semanaInicio.AddDays(i)).ToList();
+
+    private string EtiquetaSemana
     {
-        if (selectedCliente == null) return;
-
-        if (DateTime.TryParse(startStr, out DateTime start))
+        get
         {
-            selectedFecha = start.Date;
-            selectedHoraInicio = TimeOnly.FromDateTime(start);
-            
-            // Reset modal state
-            showNewVehicleForm = false;
-            nuevoVehiculo = new NuevoVehiculoDTO();
-            citaDto = new AgendarCitaDTO
-            {
-                ClienteId = selectedCliente.ClienteId,
-                Fecha = selectedFecha,
-                HoraInicio = selectedHoraInicio
-            };
-            selectedServicio = null;
-            mecanicosDisponibles = null;
-            errorMessage = null;
-
-            showModal = true;
-            StateHasChanged();
+            var fin = semanaInicio.AddDays(5);
+            return semanaInicio.Month == fin.Month
+                ? $"{semanaInicio.Day} – {fin.Day} {fin.ToString("MMM yyyy", EsCr)}"
+                : $"{semanaInicio.ToString("d MMM", EsCr)} – {fin.ToString("d MMM yyyy", EsCr)}";
         }
     }
 
-    [JSInvokable]
-    public void OnEventClicked(int eventId)
+    private async Task SemanaAnterior()
     {
-        // Reserved for future details logic
+        if (!PuedeRetroceder) return;
+        semanaInicio = semanaInicio.AddDays(-7);
+        await CargarTablero();
     }
 
-    private async Task OnServiceChanged(ChangeEventArgs e)
+    private async Task SemanaSiguiente()
     {
-        if (int.TryParse(e.Value?.ToString(), out int servicioId))
-        {
-            selectedServicio = await ServicioService.ObtenerPorIdAsync(servicioId);
-            if (selectedServicio != null)
-            {
-                citaDto.ServicioId = selectedServicio.ServicioId;
-                selectedHoraFin = ServicioService.CalcularHoraFin(selectedHoraInicio, selectedServicio.DuracionMinutos);
+        semanaInicio = semanaInicio.AddDays(7);
+        await CargarTablero();
+    }
 
-                if (selectedServicio.CategoriaId.HasValue)
-                {
-                    mecanicosDisponibles = await MecanicoService.ObtenerDisponiblesAsync(
-                        selectedServicio.CategoriaId.Value, 
-                        selectedFecha, 
-                        selectedHoraInicio, 
-                        selectedHoraFin);
-                }
-                else
-                {
-                    mecanicosDisponibles = new List<Mecanico>();
-                }
+    private async Task IrHoy()
+    {
+        semanaInicio = LunesActual;
+        await CargarTablero();
+    }
+
+    // ~~~ Render del tablero ~~~
+    private List<Cita> CitasDe(int mecanicoId, DateTime dia) =>
+        citasSemana
+            .Where(c => c.MecanicoId == mecanicoId && c.Fecha.Date == dia.Date)
+            .OrderBy(c => c.HoraInicio)
+            .ToList();
+
+    private bool PuedeAgendar(DateTime dia) => selectedCliente != null && dia.Date >= hoy;
+
+    private string ClaseCabeceraDia(DateTime dia)
+    {
+        var clases = "col-dia";
+        if (dia.Date == hoy) clases += " es-hoy";
+        if (dia.Date < hoy) clases += " es-pasado";
+        return clases;
+    }
+
+    private string ClaseCelda(DateTime dia)
+    {
+        var clases = "celda-dia";
+        if (dia.Date == hoy) clases += " es-hoy";
+        if (dia.Date < hoy) clases += " es-pasado";
+        if (PuedeAgendar(dia)) clases += " es-clicable";
+        return clases;
+    }
+
+    private static string CssEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Pendiente => "pendiente",
+        EstadoCita.Confirmada => "confirmada",
+        EstadoCita.EnProceso => "proceso",
+        EstadoCita.Finalizada => "finalizada",
+        _ => "cancelada"
+    };
+
+    // ~~~ Modal ~~~ 
+    private IEnumerable<TimeOnly> HorasDelDia
+    {
+        get
+        {
+            for (var t = Apertura; t < Cierre; t = t.AddMinutes(PasoMinutos))
+            {
+                yield return t;
             }
         }
-        else
+    }
+
+    private bool HoraHabilitada(TimeOnly h)
+    {
+        if (selectedFecha.Date == hoy && h.ToTimeSpan() <= DateTime.Now.TimeOfDay)
         {
-            selectedServicio = null;
-            mecanicosDisponibles = null;
-            citaDto.ServicioId = 0;
+            return false;
         }
+
+        var duracion = selectedServicio?.DuracionMinutos ?? PasoMinutos;
+        var fin = ServicioService.CalcularHoraFin(h, duracion);
+
+        if (selectedServicio != null && fin > Cierre)
+        {
+            return false;
+        }
+
+        // El horario se ocupa por mecánico: otro mecánico libre puede usar la misma hora.
+        if (MecanicoOcupado(h, fin))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private TimeOnly HoraInicialPorDefecto(DateTime dia)
+    {
+        var t = Apertura;
+        if (dia.Date == hoy)
+        {
+            var ahora = TimeOnly.FromDateTime(DateTime.Now);
+            while (t < ahora && t < Cierre)
+            {
+                t = t.AddMinutes(PasoMinutos);
+            }
+        }
+
+        // Salta los tramos donde el mecánico ya tiene una cita activa (referencia de 30 min).
+        while (t < Cierre && MecanicoOcupado(t, ServicioService.CalcularHoraFin(t, PasoMinutos)))
+        {
+            t = t.AddMinutes(PasoMinutos);
+        }
+
+        return t >= Cierre ? new TimeOnly(17, 30) : t;
+    }
+
+    private async Task AbrirModal(MecanicoDTO mecanico, DateTime dia)
+    {
+        if (!PuedeAgendar(dia) || selectedCliente == null)
+        {
+            return;
+        }
+
+        selectedFecha = dia.Date;
+        selMecanicoId = mecanico.Id;
+        selHora = HoraInicialPorDefecto(dia);
+        selectedServicio = null;
+        selectedHoraFin = default;
+        ActualizarServiciosDelMecanico();
+        modalError = null;
+        citaDto = new AgendarCitaDTO
+        {
+            ClienteId = selectedCliente.ClienteId,
+            Fecha = selectedFecha,
+            HoraInicio = selHora
+        };
+
+        vehiculosCliente = await VehiculoService.ObtenerPorClienteAsync(selectedCliente.ClienteId);
+        showModal = true;
     }
 
     private void CloseModal()
     {
         showModal = false;
+        modalError = null;
+    }
+
+    private void OnHoraChanged(ChangeEventArgs e)
+    {
+        if (TimeOnly.TryParse(e.Value?.ToString(), CultureInfo.InvariantCulture, out var h))
+        {
+            selHora = h;
+            citaDto.HoraInicio = h;
+
+            if (selectedServicio != null)
+            {
+                selectedHoraFin = ServicioService.CalcularHoraFin(h, selectedServicio.DuracionMinutos);
+            }
+        }
+    }
+
+    private void OnVehiculoChanged(ChangeEventArgs e)
+    {
+        citaDto.VehiculoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
+    }
+
+    private void OnMecanicoChanged(ChangeEventArgs e)
+    {
+        selMecanicoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
+        // El servicio depende de la especialidad del mecánico: se reinicia al cambiarlo.
+        selectedServicio = null;
+        selectedHoraFin = default;
+        citaDto.ServicioId = 0;
+        ActualizarServiciosDelMecanico();
+    }
+
+    private void OnServiceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int servicioId) && servicioId > 0)
+        {
+            // Solo se ofrecen (y aceptan) servicios de la especialidad del mecánico elegido.
+            selectedServicio = serviciosDelMecanico.FirstOrDefault(s => s.ServicioId == servicioId);
+            if (selectedServicio != null)
+            {
+                citaDto.ServicioId = selectedServicio.ServicioId;
+                selectedHoraFin = ServicioService.CalcularHoraFin(selHora, selectedServicio.DuracionMinutos);
+            }
+        }
+        else
+        {
+            selectedServicio = null;
+            citaDto.ServicioId = 0;
+            selectedHoraFin = default;
+        }
+    }
+
+    private MecanicoDTO? MecanicoSeleccionado =>
+        selMecanicoId is int id ? mecanicos.FirstOrDefault(m => m.Id == id) : null;
+
+    private void ActualizarServiciosDelMecanico()
+    {
+        var mecanico = MecanicoSeleccionado;
+        serviciosDelMecanico = mecanico == null || serviciosActivos == null
+            ? new List<Servicio>()
+            : serviciosActivos.Where(s => s.CategoriaId == mecanico.EspecialidadId).ToList();
+    }
+
+    private bool MecanicoOcupado(TimeOnly ini, TimeOnly fin)
+    {
+        if (selMecanicoId is not int id)
+        {
+            return false;
+        }
+
+        return citasSemana.Any(c =>
+            c.MecanicoId == id
+            && c.Fecha.Date == selectedFecha.Date
+            && c.EstaActiva()
+            && c.OverlapsWith(ini, fin));
     }
 
     private async Task SubmitAppointment()
     {
-        errorMessage = null;
-        isSubmitting = true;
+        modalError = null;
 
+        if (selectedCliente == null)
+        {
+            modalError = "Seleccione un cliente.";
+            return;
+        }
+        if (citaDto.VehiculoId == null)
+        {
+            modalError = "Seleccione un vehículo.";
+            return;
+        }
+        if (selectedServicio == null)
+        {
+            modalError = "Seleccione un servicio.";
+            return;
+        }
+        if (selMecanicoId == null)
+        {
+            modalError = "Seleccione un mecánico.";
+            return;
+        }
+        if (!HoraHabilitada(selHora))
+        {
+            modalError = "El horario seleccionado ya no está disponible.";
+            return;
+        }
+
+        selectedHoraFin = ServicioService.CalcularHoraFin(selHora, selectedServicio.DuracionMinutos);
+        if (selectedHoraFin > Cierre)
+        {
+            modalError = "La cita terminaría después del horario de atención (6:00 p. m.).";
+            return;
+        }
+
+        citaDto.ClienteId = selectedCliente.ClienteId;
+        citaDto.Fecha = selectedFecha;
+        citaDto.HoraInicio = selHora;
+        citaDto.ServicioId = selectedServicio.ServicioId;
+        citaDto.MecanicoId = selMecanicoId.Value;
+        citaDto.NuevoVehiculo = null;
+
+        isSubmitting = true;
         try
         {
-            if (showNewVehicleForm)
-            {
-                citaDto.NuevoVehiculo = nuevoVehiculo;
-            }
-            else
-            {
-                citaDto.NuevoVehiculo = null;
-            }
-
             var nuevaCita = await CitaService.AgendarCitaAsync(citaDto);
-            
+
             successMessage = "Cita agendada exitosamente. Se ha enviado una notificación.";
             await NotificationService.NotificarCitaAgendadaAsync(nuevaCita);
-            
+
             CloseModal();
-            
-            if (calendarInitialized)
-            {
-                await JS.InvokeVoidAsync("fullCalendarInterop.refresh");
-            }
+            await CargarTablero();
         }
         catch (Exception ex) when (ex.GetType().Name == "AppointmentOverlapException")
         {
-            errorMessage = "El horario seleccionado se superpone con otra cita del mecánico.";
+            modalError = "El mecánico ya tiene una cita en ese horario.";
         }
         catch (Exception ex) when (ex.GetType().Name == "InactiveMechanicException")
         {
-            errorMessage = "El mecánico seleccionado no está activo.";
+            modalError = "El mecánico seleccionado no está activo.";
         }
         catch (Exception ex)
         {
             errorMessage = $"Error al agendar la cita: {ex.Message}";
+            CloseModal();
         }
         finally
         {
             isSubmitting = false;
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        debounceTimer?.Dispose();
-        if (calendarInitialized)
-        {
-            try {
-                await JS.InvokeVoidAsync("fullCalendarInterop.destroy");
-            } catch { /* Ignore if disconnected */ }
-        }
-        dotNetRef?.Dispose();
     }
 }

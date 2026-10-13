@@ -96,7 +96,6 @@ Mecano/
 │  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark) + estilos globales
 │  └─ js/
 │     ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin) + window.mecanoRedirectFeedback (init/setAuthenticated/assignRedirectClass: oscurece el menú al redirigir a login)
-│     ├─ fullcalendar-interop.js
 │     └─ theme.js              # window.mecanoTheme: toggle light/dark + persistencia en localStorage
 ├─ Components/
 │  ├─ _Imports.razor          # Directivas using compartidas
@@ -112,7 +111,7 @@ Mecano/
 │  │  └─ ReconnectModal.razor
 │  ├─ Pages/
 │     ├─ Home.razor          # @page "/", [Authorize]
-│     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer
+│     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer. Tablero propio de mecánicos (filas) x días lun-sáb (columnas), sin FullCalendar: cada celda muestra las citas del mecánico ese día y al hacer clic abre el modal de agendado (permite agendar a otro mecánico aunque ya haya una cita en la misma hora). Modal "mecánico primero": el mecánico de la fila llega preseleccionado y el select de servicios solo ofrece los de su especialidad (Servicio.CategoriaId == Mecanico.EspecialidadId); los horarios ya ocupados por ese mecánico se deshabilitan usando las citas de la semana cargada. Estilos en AgendarCita.razor.css.
 │     ├─ Login.razor         # @page "/login", @layout LoginLayout, [AllowAnonymous], InteractiveServer
 │     ├─ AccesoDenegado.razor # @page "/acceso-denegado", @layout LoginLayout, [AllowAnonymous]
 │     ├─ NotFound.razor      # @page "/not-found"
@@ -479,7 +478,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 
 **Presentación.** `@using Mecano.Entidad.Utilidades` se agregó a `Components/_Imports.razor`, y el formateo por tipo (`FormatearIdentificacion(cedula, tipo)` + texto del enum) se aplica en `Clientes.razor` (tabla), `ClienteDetalle.razor` (tarjeta de datos) y `Mecanicos.razor` (tabla). Los modales crear/editar de las tres páginas llevan `InputSelect` con las 3 opciones (Nacional/DIMEX/Pasaporte). Se prefirió llamar al helper desde el `.razor` antes que agregar getters computados a `ClienteDTO`: el DTO se puebla con `Select(Proyeccion)` en EF, y cualquier propiedad calculada quedaría sin valor porque EF solo asigna las propiedades mapeadas. **Deuda**: `AgendarCita.razor:66,82` y los modales de eliminar de `Clientes` / eliminar-transferir de `ClienteDetalle` siguen usando `CedulaNacional` hardcodeado (ignoran el tipo). Para DIMEX el fallback devuelve los dígitos crudos (largo ≠ 9, sin guiones erróneos); un pasaporte cuyos dígitos extraídos sumen exactamente 9 se mostraría con guiones `1-XXXX-XXXX` en esos sitios (ver Sección 11).
 
-**Presentación de precios (colones).** `Formatos.Moneda` es el único punto de formato de moneda de la app (decisión: moneda fija CRC, cultura fija es-CR, sin configuración en `Program.cs` ni middleware de localización). Se aplica en los 3 sitios donde se muestra `Servicio.Precio`: la tabla de servicios de `CategoriaDetalle.razor:89`, el hint en vivo bajo el `InputNumber` de precio (`CategoriaDetalle.razor`, "Se mostrará como ₡35 000,00"), y las opciones del select de servicio de `AgendarCita.razor:181`. Antes mostraban `$35000` crudo con `$` hardcodeado. Verificado en runtime: `Formatos.Moneda(35000)` devuelve `₡35 000,00` incluso con `CurrentCulture = en-US`.
+**Presentación de precios (colones).** `Formatos.Moneda` es el único punto de formato de moneda de la app (decisión: moneda fija CRC, cultura fija es-CR, sin configuración en `Program.cs` ni middleware de localización). Se aplica en los 3 sitios donde se muestra `Servicio.Precio`: la tabla de servicios de `CategoriaDetalle.razor:89`, el hint en vivo bajo el `InputNumber` de precio (`CategoriaDetalle.razor`, "Se mostrará como ₡35 000,00"), y las opciones del select de servicio de `AgendarCita.razor:236` (filtrado por la especialidad del mecánico elegido). Antes mostraban `$35000` crudo con `$` hardcodeado. Verificado en runtime: `Formatos.Moneda(35000)` devuelve `₡35 000,00` incluso con `CurrentCulture = en-US`.
 
 **Datos existentes.** No se agregó migración de normalización. La decisión fue tirar la base: el seeder ya usa `EnsureCreatedAsync`, que es no-op sobre una base existente, así que la reconstrucción era necesaria de todas formas. `DbSeeder` siembra tres clientes, todos `TipoIdentificacion.Nacional` con dígitos (`101010101`/`88881111`, `202020202`/`88882222`, `303030303`/`88883333`) — sin seeds DIMEX/Pasaporte — y los vehículos con placas normalizadas y `Activo = true` (`ABC123`, `DEF456`, `GHI789`, `JKL012`, `MNO345`), respetando el invariante desde el arranque.
 
@@ -498,7 +497,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 | `IVehiculoService` | `VehiculoService` | `ObtenerPorClienteAsync(clienteId, incluirInactivos = false)` — solo activos por defecto (el parámetro opcional protege al llamador legado de `AgendarCita`)<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`EliminarAsync(id)` → `bool` (soft delete: `Activo = false`; sin `ReactivarAsync`)<br>`TransferirAsync(vehiculoId, nuevoClienteId)` → `bool` — reasigna dueño, **reactiva** el vehículo y bloquea si tiene citas futuras | Scoped |
 | `IServicioService` | `ServicioService` | `ObtenerTodosActivosAsync()`<br>`ObtenerPorIdAsync(servicioId)`<br>`CalcularHoraFin(horaInicio, duracionMinutos)`<br>`ObtenerTodosAsync(soloActivos = true)`<br>`ObtenerDetallePorIdAsync(id)`<br>`ObtenerPorCategoriaAsync(categoriaId, soloActivos = true)`<br>`CrearAsync(dto)`<br>`ActualizarAsync(dto)`<br>`EliminarAsync(id)` (soft delete)<br>`ReactivarAsync(id)`<br>`ExisteNombreEnCategoriaAsync(nombre, categoriaId, excluirId)` | Scoped |
 | `ICategoriaService` | `CategoriaService` | `ObtenerTodasAsync()`<br>`ObtenerPorIdAsync(id)`<br>`CrearAsync(dto)`<br>`ActualizarAsync(dto)`<br>`EliminarAsync(id)`<br>`ExisteNombreAsync(nombre, excluirId)` | Scoped |
-| `IMecanicoService` | `MecanicoService` | **Legado (consumido por AgendarCita):** `ObtenerPorEspecialidadAsync(categoriaId)`<br>`ObtenerDisponiblesAsync(categoriaId, fecha, horaInicio, horaFin)`<br>**CRUD admin (consumido por `Components/Pages/Mecanicos/Mecanicos.razor`):** `ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`DesactivarAsync(id)`<br>`ReactivarAsync(id)`<br>`ExisteEmailAsync(email, excluirId)` | Scoped |
+| `IMecanicoService` | `MecanicoService` | **Sin uso (heredado de la etapa FullCalendar; candidatos a eliminar):** `ObtenerPorEspecialidadAsync(categoriaId)`<br>`ObtenerDisponiblesAsync(categoriaId, fecha, horaInicio, horaFin)`<br>**Consumido por `AgendarCita` (filas del tablero) y CRUD admin (`Components/Pages/Mecanicos/Mecanicos.razor`):** `ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`DesactivarAsync(id)`<br>`ReactivarAsync(id)`<br>`ExisteEmailAsync(email, excluirId)` | Scoped |
 | `ICitaService` | `CitaService` | `AgendarCitaAsync(dto)`<br>`CancelarCitaAsync(citaId)`<br>`ObtenerPorRangoAsync(inicio, fin)`<br>`ObtenerPorClienteAsync(clienteId)` → `List<CitaDTO>` | Scoped |
 | `ICalendarQueryService` | `CalendarQueryService` | `ObtenerEventosAsync(inicio, fin)` | Scoped |
 | `INotificationService` | `NotificationService` | `NotificarCitaAgendadaAsync(cita)` | Scoped |
@@ -573,8 +572,6 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
-    <script src='js/fullcalendar-interop.js'></script>
     <script src="js/auth.js"></script>
     <script src="js/theme.js"></script>
 </body>
