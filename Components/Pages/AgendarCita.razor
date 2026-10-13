@@ -11,6 +11,7 @@
 @inject IMecanicoService MecanicoService
 @inject ICitaService CitaService
 @inject INotificationService NotificationService
+@inject NavigationManager Nav
 
 <PageTitle>Agendar Cita</PageTitle>
 
@@ -172,7 +173,9 @@
                                         @foreach (var c in CitasDe(m.Id, dia))
                                         {
                                             <div class="chip chip-@CssEstado(c.Estado)"
-                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto">
+                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto"
+                                                 @onclick="() => IrACita(c.CitaId)"
+                                                 @onclick:stopPropagation="true">
                                                 <span class="chip-hora">@c.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
                                                 <span class="chip-cuerpo">
                                                     <span class="chip-cliente" style="text-transform:capitalize;">@c.Cliente?.NombreCompleto</span>
@@ -475,6 +478,10 @@
             .Where(c => c.MecanicoId == mecanicoId && c.Fecha.Date == dia.Date)
             .OrderBy(c => c.HoraInicio)
             .ToList();
+
+    // Un clic en el chip de una cita abre su detalle en lugar del modal de agendado
+    // (el chip detiene la propagación para no disparar el @onclick de la celda).
+    private void IrACita(int citaId) => Nav.NavigateTo($"citas/{citaId}");
 
     private bool PuedeAgendar(DateTime dia) => selectedCliente != null && dia.Date >= hoy;
 
