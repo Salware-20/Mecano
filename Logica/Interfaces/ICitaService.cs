@@ -12,4 +12,14 @@ public interface ICitaService
     Task CancelarCitaAsync(int citaId);
     Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin);
     Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId);
+
+    // --- READ (listado y detalle) ---
+    /// <summary>Listado paginado de citas filtrado por <see cref="FiltroCitasDTO"/>.</summary>
+    Task<List<CitaDTO>> BuscarPaginadoAsync(FiltroCitasDTO filtro, int pagina, int tamanioPagina);
+
+    /// <summary>Conteo para la paginación; debe recibir el mismo filtro que la consulta paginada.</summary>
+    Task<int> ContarAsync(FiltroCitasDTO filtro);
+
+    /// <summary>Detalle completo de una cita, o null si no existe.</summary>
+    Task<CitaDetalleDTO?> ObtenerDetallePorIdAsync(int citaId);
 }

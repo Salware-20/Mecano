@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -72,31 +73,17 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
         }
 
+        // El vehículo ya no puede crearse al vuelo al agendar: debe existir y pertenecer
+        // al cliente (la UI lo exige). Se valida aquí como defensa en profundidad.
+        if (dto.VehiculoId is null)
+        {
+            throw new InvalidOperationException("Seleccione un vehículo para la cita.");
+        }
+
         await using var transaction = await context.Database.BeginTransactionAsync();
         try
         {
-            int vehiculoId = dto.VehiculoId ?? 0;
-            
-            if (dto.NuevoVehiculo != null && dto.VehiculoId == null)
-            {
-                var vehiculo = new Vehiculo
-                {
-                    ClienteId = dto.ClienteId,
-                    // Mismo invariante que VehiculoService: se almacena en mayúsculas
-                    // sin guiones, o el índice único de Placa no colisionaría con los
-                    // vehículos creados desde /clientes ("abc-123" vs "ABC123").
-                    Placa = Formatos.NormalizarPlaca(dto.NuevoVehiculo.Placa),
-                    Marca = dto.NuevoVehiculo.Marca,
-                    Modelo = dto.NuevoVehiculo.Modelo,
-                    Anio = dto.NuevoVehiculo.Anio,
-                    // Activo se asigna en cada punto de creación (VehiculoService,
-                    // DbSeeder y aquí): la entidad no tiene inicializador.
-                    Activo = true
-                };
-                context.Vehiculo.Add(vehiculo);
-                await context.SaveChangesAsync();
-                vehiculoId = vehiculo.VehiculoId;
-            }
+            int vehiculoId = dto.VehiculoId.Value;
 
             bool overlapExists = await context.Cita
                 .AnyAsync(c => c.MecanicoId == dto.MecanicoId
@@ -170,6 +157,26 @@ public class CitaService : ICitaService
             .ToListAsync();
     }
 
+    // ~~~ READ (proyección compartida) ~~~
+    // Misma proyección para el listado paginado y el panel de citas del cliente:
+    // evita materializar el grafo y mantiene un único contrato de lectura.
+    private static readonly Expression<Func<Cita, CitaDTO>> ProyeccionListado = c => new CitaDTO
+    {
+        Id = c.CitaId,
+        Fecha = c.Fecha,
+        HoraInicio = c.HoraInicio,
+        HoraFin = c.HoraFin,
+        Estado = c.Estado,
+        ClienteId = c.ClienteId,
+        ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+        VehiculoId = c.VehiculoId,
+        VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
+        ServicioId = c.ServicioId,
+        ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
+        MecanicoId = c.MecanicoId,
+        MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null
+    };
+
     // ~~~ READ (por cliente) ~~~
     public async Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId)
     {
@@ -181,17 +188,104 @@ public class CitaService : ICitaService
             .Where(c => c.ClienteId == clienteId)
             .OrderByDescending(c => c.Fecha)
             .ThenByDescending(c => c.HoraInicio)
-            .Select(c => new CitaDTO
+            .Select(ProyeccionListado)
+            .ToListAsync();
+    }
+
+    // ~~~ READ (listado paginado) ~~~
+    public async Task<List<CitaDTO>> BuscarPaginadoAsync(FiltroCitasDTO filtro, int pagina, int tamanioPagina)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await AplicarFiltro(context.Cita.AsNoTracking(), filtro)
+            .OrderByDescending(c => c.Fecha)
+            .ThenByDescending(c => c.HoraInicio)
+            .Skip((pagina - 1) * tamanioPagina)
+            .Take(tamanioPagina)
+            .Select(ProyeccionListado)
+            .ToListAsync();
+    }
+
+    public async Task<int> ContarAsync(FiltroCitasDTO filtro)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await AplicarFiltro(context.Cita.AsNoTracking(), filtro).CountAsync();
+    }
+
+    // ~~~ READ (detalle) ~~~
+    public async Task<CitaDetalleDTO?> ObtenerDetallePorIdAsync(int citaId)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Cita
+            .AsNoTracking()
+            .Where(c => c.CitaId == citaId)
+            .Select(c => new CitaDetalleDTO
             {
                 Id = c.CitaId,
                 Fecha = c.Fecha,
                 HoraInicio = c.HoraInicio,
                 HoraFin = c.HoraFin,
                 Estado = c.Estado,
+                FechaCreacion = c.FechaCreacion,
+                NotasAdmin = c.NotasAdmin,
+
+                ClienteId = c.ClienteId,
+                ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+                ClienteCedula = c.Cliente != null ? c.Cliente.CedulaIdentidad : null,
+                ClienteTipoIdentificacion = c.Cliente != null ? c.Cliente.TipoIdentificacion : default,
+                ClienteTelefono = c.Cliente != null ? c.Cliente.Telefono : null,
+                ClienteCorreo = c.Cliente != null ? c.Cliente.Correo : null,
+
+                VehiculoId = c.VehiculoId,
                 VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
+                VehiculoMarca = c.Vehiculo != null ? c.Vehiculo.Marca : null,
+                VehiculoModelo = c.Vehiculo != null ? c.Vehiculo.Modelo : null,
+                VehiculoAnio = c.Vehiculo != null ? c.Vehiculo.Anio : 0,
+
+                ServicioId = c.ServicioId,
                 ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
-                MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null
+                ServicioDuracionMinutos = c.Servicio != null ? c.Servicio.DuracionMinutos : 0,
+                ServicioPrecio = c.Servicio != null ? c.Servicio.Precio : 0m,
+
+                MecanicoId = c.MecanicoId,
+                MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null,
+                MecanicoEspecialidadNombre = c.Mecanico != null && c.Mecanico.Especialidad != null
+                    ? c.Mecanico.Especialidad.Nombre
+                    : null
             })
-            .ToListAsync();
+            .FirstOrDefaultAsync();
+    }
+
+    // ~~~ FILTRO COMPARTIDO (listado + conteo) ~~~
+    // BuscarPaginadoAsync y ContarAsync comparten este filtro para que el total de la
+    // paginación coincida exactamente con el conjunto paginado.
+    private static IQueryable<Cita> AplicarFiltro(IQueryable<Cita> query, FiltroCitasDTO filtro)
+    {
+        if (filtro.Desde is DateTime desde)
+            query = query.Where(c => c.Fecha >= desde.Date);
+
+        if (filtro.Hasta is DateTime hasta)
+            query = query.Where(c => c.Fecha <= hasta.Date);
+
+        if (filtro.MecanicoId is int mecanicoId)
+            query = query.Where(c => c.MecanicoId == mecanicoId);
+
+        if (filtro.Estado is EstadoCita estado)
+            query = query.Where(c => c.Estado == estado);
+
+        if (string.IsNullOrWhiteSpace(filtro.Termino))
+            return query;
+
+        var termino = filtro.Termino.Trim();
+        // Misma doble comparación que ClienteService: la placa se guarda normalizada
+        // (ABC123) pero se busca formateada (ABC-123), así que se prueba tal cual y normalizada.
+        var placa = Formatos.NormalizarPlaca(termino);
+
+        return query.Where(c =>
+            EF.Functions.Like(c.Cliente.NombreCompleto, $"%{termino}%")
+            || (c.Vehiculo != null && EF.Functions.Like(c.Vehiculo.Placa, $"%{termino}%"))
+            || (c.Vehiculo != null && placa.Length > 0 && EF.Functions.Like(c.Vehiculo.Placa, $"%{placa}%")));
     }
 }
