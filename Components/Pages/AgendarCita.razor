@@ -11,6 +11,7 @@
 @inject IMecanicoService MecanicoService
 @inject ICitaService CitaService
 @inject INotificationService NotificationService
+@inject NavigationManager Nav
 
 <PageTitle>Agendar Cita</PageTitle>
 
@@ -64,7 +65,7 @@
                                 @foreach (var c in clientesEncontrados)
                                 {
                                     <li class="list-group-item list-group-item-action cursor-pointer" @onclick="() => SelectCliente(c)">
-                                        <strong>@c.NombreCompleto</strong> - @Formatos.CedulaNacional(c.CedulaIdentidad)<br />
+                                        <strong style="text-transform:capitalize;">@c.NombreCompleto</strong> - @Formatos.CedulaNacional(c.CedulaIdentidad)<br />
                                         <small class="text-muted">@Formatos.Telefono(c.Telefono) | @c.Correo</small>
                                     </li>
                                 }
@@ -80,7 +81,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title text-success"><i class="bi bi-person-check"></i> Cliente Seleccionado</h5>
-                                <strong>@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br />
+                                <strong style="text-transform:capitalize;">@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br />
                                 <small>@Formatos.Telefono(selectedCliente.Telefono) | @selectedCliente.Correo</small>
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="DeselectCliente">Cambiar</button>
@@ -160,7 +161,7 @@
                         {
                             <tr>
                                 <th class="col-mecanico tablero-mecanico">
-                                    <span class="mecanico-nombre">@m.Nombre</span>
+                                    <span class="mecanico-nombre" style="text-transform:capitalize;">@m.Nombre</span>
                                     @if (!string.IsNullOrWhiteSpace(m.EspecialidadNombre))
                                     {
                                         <span class="mecanico-especialidad">@m.EspecialidadNombre</span>
@@ -172,10 +173,12 @@
                                         @foreach (var c in CitasDe(m.Id, dia))
                                         {
                                             <div class="chip chip-@CssEstado(c.Estado)"
-                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto">
+                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto"
+                                                 @onclick="() => IrACita(c.CitaId)"
+                                                 @onclick:stopPropagation="true">
                                                 <span class="chip-hora">@c.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
                                                 <span class="chip-cuerpo">
-                                                    <span class="chip-cliente">@c.Cliente?.NombreCompleto</span>
+                                                    <span class="chip-cliente" style="text-transform:capitalize;">@c.Cliente?.NombreCompleto</span>
                                                     <span class="chip-servicio">@c.Servicio?.Nombre</span>
                                                 </span>
                                             </div>
@@ -209,9 +212,19 @@
                 </div>
                 <div class="modal-body">
                     <div class="resumen-cita mb-3">
-                        <div><i class="bi bi-person-check"></i> <strong>@selectedCliente?.NombreCompleto</strong></div>
+                        <div><i class="bi bi-person-check"></i> <strong style="text-transform:capitalize;">@selectedCliente?.NombreCompleto</strong></div>
                         <div class="text-secondary"><i class="bi bi-calendar-event"></i> @selectedFecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
-                        <div class="text-secondary"><i class="bi bi-wrench-adjustable"></i> @(MecanicoSeleccionado?.Nombre ?? "Seleccione un mecánico")</div>
+                        <div class="text-secondary">
+                            <i class="bi bi-wrench-adjustable"></i>
+                            @if (MecanicoSeleccionado is not null)
+                            {
+                                <span style="text-transform:capitalize;">@MecanicoSeleccionado.Nombre</span>
+                            }
+                            else
+                            {
+                                <span>Seleccione un mecánico</span>
+                            }
+                        </div>
                     </div>
 
                     <div class="row g-3">
@@ -221,7 +234,7 @@
                                 <option value="">Seleccione un mecánico...</option>
                                 @foreach (var m in mecanicos)
                                 {
-                                    <option value="@m.Id">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
+                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
                                 }
                             </select>
                         </div>
@@ -466,6 +479,10 @@
             .OrderBy(c => c.HoraInicio)
             .ToList();
 
+    // Un clic en el chip de una cita abre su detalle en lugar del modal de agendado
+    // (el chip detiene la propagación para no disparar el @onclick de la celda).
+    private void IrACita(int citaId) => Nav.NavigateTo($"citas/{citaId}");
+
     private bool PuedeAgendar(DateTime dia) => selectedCliente != null && dia.Date >= hoy;
 
     private string ClaseCabeceraDia(DateTime dia)
@@ -698,7 +715,6 @@
         citaDto.HoraInicio = selHora;
         citaDto.ServicioId = selectedServicio.ServicioId;
         citaDto.MecanicoId = selMecanicoId.Value;
-        citaDto.NuevoVehiculo = null;
 
         isSubmitting = true;
         try

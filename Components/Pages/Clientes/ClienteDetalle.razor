@@ -232,7 +232,7 @@ else
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>@(cita.ServicioNombre ?? "-")</td>
-                                    <td>@(cita.MecanicoNombre ?? "-")</td>
+                                    <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
                                         <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
                                     </td>
@@ -284,7 +284,7 @@ else
                         <li class="list-group-item px-0">
                             <div class="d-flex justify-content-between align-items-start gap-2">
                                 <div>
-                                    <span class="fw-semibold">@c.AutorNombre</span>
+                                    <span class="fw-semibold" style="text-transform:capitalize;">@c.AutorNombre</span>
                                     <span class="badge text-bg-@(c.AutorTipo == TipoAutorComentario.Administrador ? "info" : "secondary") ms-1">
                                         @c.AutorTipo
                                     </span>
@@ -333,7 +333,7 @@ else
                         </div>
                         <div class="modal-body">
                             <p class="text-secondary small">
-                                Comentario para <strong>@(cliente?.NombreCompleto ?? "-")</strong>.
+                                Comentario para <strong style="text-transform:capitalize;">@(cliente?.NombreCompleto ?? "-")</strong>.
                                 Quedará con tu nombre y la fecha de hoy.
                             </p>
 
@@ -395,7 +395,7 @@ else
                         }
                         else
                         {
-                            <p>¿Eliminar este comentario de <strong>@comentarioAEliminar.AutorNombre</strong>?</p>
+                            <p>¿Eliminar este comentario de <strong style="text-transform:capitalize;">@comentarioAEliminar.AutorNombre</strong>?</p>
 
                             <figure class="bg-body-tertiary border rounded p-3 mb-3">
                                 <blockquote class="mb-1">@PrevioComentario(comentarioAEliminar.Texto)</blockquote>
@@ -610,7 +610,7 @@ else
                             }
                             else
                             {
-                                <p>¿Desactivar al cliente <strong>@clienteADesactivar.NombreCompleto</strong>?</p>
+                                <p>¿Desactivar al cliente <strong style="text-transform:capitalize;">@clienteADesactivar.NombreCompleto</strong>?</p>
                                 <p class="text-muted small">
                                     El cliente dejará de aparecer en las listas, pero se conserva su historial.
                                 </p>
@@ -650,7 +650,7 @@ else
                             else
                             {
                                 <p>
-                                    ¿Eliminar permanentemente a <strong>@clienteAEliminar.NombreCompleto</strong>
+                                    ¿Eliminar permanentemente a <strong style="text-transform:capitalize;">@clienteAEliminar.NombreCompleto</strong>
                                     (@Formatos.CedulaNacional(clienteAEliminar.CedulaIdentidad))?
                                 </p>
                                 <p class="text-muted small mb-0">
@@ -722,7 +722,7 @@ else
                             }
                             else
                             {
-                                <p>¿Reactivar al cliente <strong>@clienteAReactivar.NombreCompleto</strong>?</p>
+                                <p>¿Reactivar al cliente <strong style="text-transform:capitalize;">@clienteAReactivar.NombreCompleto</strong>?</p>
                                 @if (vehiculos.Count > 0)
                                 {
                                     <p class="text-warning small mb-0">
@@ -763,7 +763,7 @@ else
                             @if (clienteDestino is null)
                             {
                                 <p class="text-muted small">
-                                    Cliente actual: <strong>@(cliente?.NombreCompleto ?? "-")</strong>.
+                                    Cliente actual: <strong style="text-transform:capitalize;">@(cliente?.NombreCompleto ?? "-")</strong>.
                                     Busque el nuevo cliente por nombre o cédula (solo activos).
                                 </p>
 
@@ -797,7 +797,7 @@ else
                                                     @onclick="() => SeleccionarDestino(d)">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
-                                                        <strong>@d.NombreCompleto</strong>
+                                                        <strong style="text-transform:capitalize;">@d.NombreCompleto</strong>
                                                         <small class="text-muted d-block">
                                                             @Formatos.CedulaNacional(d.CedulaIdentidad)
                                                         </small>
@@ -813,7 +813,7 @@ else
                             {
                                 <p>
                                     ¿Transferir el vehículo <strong>@Formatos.Placa(vehiculoATransferir.Placa)</strong>
-                                    a <strong>@clienteDestino.NombreCompleto</strong>
+                                    a <strong style="text-transform:capitalize;">@clienteDestino.NombreCompleto</strong>
                                     (@Formatos.CedulaNacional(clienteDestino.CedulaIdentidad))?
                                 </p>
                                 <p class="text-muted small mb-0">

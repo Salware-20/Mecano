@@ -1,0 +1,364 @@
+@page "/citas/{Id:int}"
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
+@rendermode InteractiveServer
+@using System.Globalization
+@using Mecano.Entidad.Constantes
+@inject ICitaService CitaService
+@inject IVehiculoService VehiculoService
+@inject IServicioService ServicioService
+@inject IMecanicoService MecanicoService
+
+<PageTitle>Cita #@Id - Mecano</PageTitle>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="citas">Citas</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Cita #@Id</li>
+    </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="mb-0"><i class="bi bi-calendar-event"></i> Cita #@Id</h1>
+    <div class="d-flex flex-wrap gap-2">
+        @if (cita is not null && EsEditable(cita.Estado))
+        {
+            <button class="btn btn-primary" @onclick="AbrirEditar">
+                <i class="bi bi-pencil"></i> Editar
+            </button>
+            <button class="btn btn-outline-primary" @onclick="AbrirReprogramar">
+                <i class="bi bi-calendar-week"></i> Reprogramar
+            </button>
+        }
+        <a class="btn btn-outline-secondary" href="citas">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+}
+else if (cita is null)
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-calendar-x display-4 text-muted"></i>
+            <h2 class="h5 mt-3">Cita no encontrada</h2>
+            <p class="text-muted">La cita con ID @Id no existe o fue eliminada.</p>
+            <a class="btn btn-primary" href="citas">
+                <i class="bi bi-arrow-left"></i> Volver a citas
+            </a>
+        </div>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(mensajeExito))
+    {
+        <div class="alert alert-success d-flex align-items-center" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            <div>@mensajeExito</div>
+        </div>
+    }
+
+    @* ---------- Programación ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-clock-history"></i> Programación</strong>
+            <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Fecha</label>
+                    <div>@cita.Fecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Horario</label>
+                    <div>
+                        @cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                        - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Duración estimada</label>
+                    <div>@cita.ServicioDuracionMinutos min</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Registrada</label>
+                    <div>@cita.FechaCreacion.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        @* ---------- Cliente ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-person"></i> Cliente</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
+                        <dd class="col-sm-8">
+                            @if (cita.ClienteId > 0)
+                            {
+                                <a href="clientes/@cita.ClienteId" class="text-decoration-none" style="text-transform:capitalize;">
+                                    @cita.ClienteNombre
+                                </a>
+                            }
+                            else
+                            {
+                                <span style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Identificación</dt>
+                        <dd class="col-sm-8">@Formatos.FormatearIdentificacion(cita.ClienteCedula, cita.ClienteTipoIdentificacion)</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Teléfono</dt>
+                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(cita.ClienteTelefono) ? "-" : Formatos.Telefono(cita.ClienteTelefono))</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Correo</dt>
+                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.ClienteCorreo) ? "-" : cita.ClienteCorreo)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Vehículo ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-car-front"></i> Vehículo</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Placa</dt>
+                        <dd class="col-sm-8">
+                            @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
+                            {
+                                <span class="badge text-bg-light border">@Formatos.Placa(cita.VehiculoPlaca)</span>
+                            }
+                            else
+                            {
+                                <span class="text-secondary">-</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Marca</dt>
+                        <dd class="col-sm-8">@(cita.VehiculoMarca ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Modelo</dt>
+                        <dd class="col-sm-8">@(cita.VehiculoModelo ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Año</dt>
+                        <dd class="col-sm-8 mb-0">@(cita.VehiculoAnio > 0 ? cita.VehiculoAnio.ToString() : "-")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Servicio ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-tools"></i> Servicio</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Servicio</dt>
+                        <dd class="col-sm-8">@(cita.ServicioNombre ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Duración</dt>
+                        <dd class="col-sm-8">@cita.ServicioDuracionMinutos min</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Precio</dt>
+                        <dd class="col-sm-8 mb-0">@Formatos.Moneda(cita.ServicioPrecio)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Mecánico ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-wrench-adjustable"></i> Mecánico</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
+                        <dd class="col-sm-8" style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Especialidad</dt>
+                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.MecanicoEspecialidadNombre) ? "-" : cita.MecanicoEspecialidadNombre)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Notas ---------- *@
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <strong><i class="bi bi-journal-text"></i> Notas</strong>
+                </div>
+                <div class="card-body">
+                    @if (string.IsNullOrWhiteSpace(cita.NotasAdmin))
+                    {
+                        <p class="text-secondary mb-0">Sin notas registradas.</p>
+                    }
+                    else
+                    {
+                        <p class="mb-0" style="white-space:pre-wrap;">@cita.NotasAdmin</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (mostrarModalEditar)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,.5);" @onclick="CerrarEditar">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <EditForm Model="modeloEditar" OnValidSubmit="GuardarEdicion">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar cita #@Id</h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarEditar" disabled="@guardando"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrWhiteSpace(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+
+                        <p class="text-secondary small">
+                            La fecha, la hora y el mecánico no se modifican aquí.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Vehículo *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloEditar.VehiculoId">
+                                @foreach (var v in vehiculos)
+                                {
+                                    <option value="@v.VehiculoId">@Formatos.Placa(v.Placa) · @v.Marca @v.Modelo@(v.Activo ? "" : " (inactivo)")</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloEditar.VehiculoId" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Servicio *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloEditar.ServicioId">
+                                @foreach (var s in servicios)
+                                {
+                                    <option value="@s.Id">@s.Nombre (@s.DuracionMinutos min · @Formatos.Moneda(s.Precio)@(s.Activo ? "" : " (inactivo)"))</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloEditar.ServicioId" />
+                        </div>
+
+                        <div class="mb-0">
+                            <label class="form-label">Notas</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="modeloEditar.NotasAdmin" />
+                            <ValidationMessage For="() => modeloEditar.NotasAdmin" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CerrarEditar" disabled="@guardando">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-check-lg"></i> Guardar cambios
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@if (mostrarModalReprogramar)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,.5);" @onclick="CerrarReprogramar">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <EditForm Model="modeloReprogramar" OnValidSubmit="GuardarReprogramacion">
+                    <DataAnnotationsValidator />
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-calendar-week"></i> Reprogramar cita #@Id</h5>
+                        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarReprogramar" disabled="@guardando"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!string.IsNullOrWhiteSpace(mensajeError))
+                        {
+                            <div class="alert alert-danger">@mensajeError</div>
+                        }
+
+                        <p class="text-secondary small">
+                            El vehículo, el servicio y las notas no se modifican aquí.
+                        </p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mecánico *</label>
+                            <InputSelect class="form-select" @bind-Value="modeloReprogramar.MecanicoId">
+                                @foreach (var m in mecanicos)
+                                {
+                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(m.Activo ? "" : " (inactivo)")</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => modeloReprogramar.MecanicoId" />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label">Fecha *</label>
+                                <InputDate class="form-control" @bind-Value="modeloReprogramar.Fecha" @bind-Value:after="CargarOcupados" min="@FechaMinima" />
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label">Hora de inicio *</label>
+                                <select class="form-select" @bind="horaTexto">
+                                    @foreach (var o in OpcionesHora)
+                                    {
+                                        <option value="@o.Valor" disabled="@(!o.Habilitada)">@o.Etiqueta</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <p class="text-secondary small mb-0">
+                            <i class="bi bi-clock"></i> El servicio actual dura @(cita?.ServicioDuracionMinutos ?? 0) min.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CerrarReprogramar" disabled="@guardando">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" disabled="@guardando">
+                            @if (guardando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-check-lg"></i> Guardar cambios
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo EsCr = new("es-CR");
+}
