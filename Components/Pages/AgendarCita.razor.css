@@ -278,6 +278,10 @@
     --chip-color: #64748B;
 }
 
+.chip-cancelada {
+    --chip-color: #DC2626;
+}
+
 /* ---------- Modal ---------- */
 
 .resumen-cita {
@@ -292,4 +296,38 @@
 /* Ajuste para tema oscuro: los colores claros de los chips bajan de intensidad. */
 [data-bs-theme="dark"] .chip {
     background-color: color-mix(in srgb, var(--chip-color) 26%, var(--bg-surface, #1E293B));
+}
+
+/* ---------- Leyenda de estados ---------- */
+
+.tablero-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .9rem;
+    padding: .6rem 1rem;
+    border-top: 1px solid var(--border-color, #E2E8F0);
+    background-color: var(--bg-surface, #fff);
+    font-size: .8rem;
+    color: var(--text-secondary, #64748B);
+}
+
+.leyenda-titulo {
+    font-weight: 600;
+    color: var(--text-primary, #0F172A);
+}
+
+.leyenda-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    white-space: nowrap;
+}
+
+.leyenda-swatch {
+    width: .85rem;
+    height: .85rem;
+    border-radius: .25rem;
+    background-color: var(--chip-color, #64748B);
+    flex: 0 0 auto;
 }
