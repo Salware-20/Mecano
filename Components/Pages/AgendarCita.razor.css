@@ -266,7 +266,7 @@
     --chip-color: #D97706;
 }
 
-.chip-confirmada {
+.chip-confirmado {
     --chip-color: #059669;
 }
 
@@ -274,11 +274,11 @@
     --chip-color: #0284C7;
 }
 
-.chip-finalizada {
+.chip-finalizado {
     --chip-color: #64748B;
 }
 
-.chip-cancelada {
+.chip-cancelado {
     --chip-color: #DC2626;
 }
 

@@ -86,6 +86,7 @@ namespace Mecano.Data
 
                 var tomorrow = DateTime.Today.AddDays(1);
                 var dayAfter = DateTime.Today.AddDays(2);
+                var today = DateTime.Today.AddDays(0);
                 
                 var cita1 = new Cita
                 {
@@ -111,7 +112,19 @@ namespace Mecano.Data
                     Estado = EstadoCita.Pendiente
                 };
 
-                context.Cita.AddRange(cita1, cita2);
+                var cita3 = new Cita
+                {
+                    ClienteId = cliRoberto.ClienteId,
+                    VehiculoId = vehRoberto1.VehiculoId,
+                    ServicioId = servRevision.ServicioId,
+                    MecanicoId = mecAna.MecanicoId,
+                    Fecha = today,
+                    HoraInicio = new TimeOnly(12, 0),
+                    HoraFin = new TimeOnly(12, 30),
+                    Estado = EstadoCita.Finalizado
+                };
+
+                context.Cita.AddRange(cita1, cita2, cita3);
                 await context.SaveChangesAsync();
             }
 

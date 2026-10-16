@@ -401,12 +401,12 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         if (cliente is null) return;
         clienteADesactivar = cliente;
 
-        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelada/Finalizada)
+        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelado/Finalizado)
         // Usamos la lista ya cargada en CargarAsync (citas) para evitar query extra.
         citasFuturas = citas.Count(c =>
             c.Fecha >= DateTime.Today
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada);
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado);
 
         mensajeError = null;
     }
@@ -645,10 +645,10 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private static string BadgeEstado(EstadoCita estado) => estado switch
     {
         EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmada => "bg-primary",
+        EstadoCita.Confirmado => "bg-primary",
         EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizada => "bg-success",
-        EstadoCita.Cancelada => "bg-danger",
+        EstadoCita.Finalizado => "bg-success",
+        EstadoCita.Cancelado => "bg-danger",
         _ => "bg-secondary"
     };
 

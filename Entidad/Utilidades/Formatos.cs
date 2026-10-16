@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mecano.Entidad.Clases;
 
 namespace Mecano.Entidad.Utilidades
 {
@@ -184,5 +185,15 @@ namespace Mecano.Entidad.Utilidades
 
             return $"{normalizada[..3]}-{normalizada[3..]}";
         }
+
+        /// <summary>
+        /// Nombre legible de un estado de cita para la UI. El identificador del enum no
+        /// admite espacios (EnProceso), así que el "En Proceso" es solo de presentación.
+        /// </summary>
+        public static string NombreEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.EnProceso => "En Proceso",
+            _ => estado.ToString()
+        };
     }
 }

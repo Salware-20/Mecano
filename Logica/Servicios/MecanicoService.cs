@@ -42,8 +42,8 @@ public class MecanicoService : IMecanicoService
 
         var busyMechanicIds = await context.Cita
             .Where(c => c.Fecha.Date == fecha.Date
-                && c.Estado != EstadoCita.Cancelada
-                && c.Estado != EstadoCita.Finalizada
+                && c.Estado != EstadoCita.Cancelado
+                && c.Estado != EstadoCita.Finalizado
                 && c.HoraInicio < horaFin
                 && horaInicio < c.HoraFin)
             .Select(c => c.MecanicoId)

@@ -42,7 +42,7 @@
                     <option value="">Todos</option>
                     @foreach (var e in EstadosCita)
                     {
-                        <option value="@e">@e</option>
+                        <option value="@e">@Formatos.NombreEstado(e)</option>
                     }
                 </select>
             </div>
@@ -127,7 +127,7 @@
                                 <td>@(cita.ServicioNombre ?? "-")</td>
                                 <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                 <td class="text-center">
-                                    <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                    <span class="badge badge-estado @BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                 </td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-outline-primary" href="citas/@cita.Id">

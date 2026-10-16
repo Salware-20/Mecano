@@ -202,10 +202,10 @@
         <div class="tablero-leyenda" role="list" aria-label="Leyenda de estados de cita">
             <span class="leyenda-titulo">Estados:</span>
             <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-pendiente"></span> Pendiente</span>
-            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-confirmada"></span> Confirmada</span>
-            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-proceso"></span> EnProceso</span>
-            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-finalizada"></span> Finalizada</span>
-            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-cancelada"></span> Cancelada</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-confirmado"></span> Confirmado</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-proceso"></span> En Proceso</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-finalizado"></span> Finalizado</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-cancelado"></span> Cancelado</span>
         </div>
     </div>
 </div>
@@ -395,7 +395,7 @@
             mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
             // La semana visible va de lunes a sábado (el domingo el taller está cerrado).
             var citas = await CitaService.ObtenerPorRangoAsync(semanaInicio, semanaInicio.AddDays(5));
-            citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelada).ToList();
+            citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelado).ToList();
         }
         finally
         {
@@ -515,10 +515,11 @@
     private static string CssEstado(EstadoCita estado) => estado switch
     {
         EstadoCita.Pendiente => "pendiente",
-        EstadoCita.Confirmada => "confirmada",
+        EstadoCita.Confirmado => "confirmado",
         EstadoCita.EnProceso => "proceso",
-        EstadoCita.Finalizada => "finalizada",
-        _ => "cancelada"
+        EstadoCita.Finalizado => "finalizado",
+        EstadoCita.Cancelado => "cancelado",
+        _ => "cancelado"
     };
 
     // ~~~ Modal ~~~ 

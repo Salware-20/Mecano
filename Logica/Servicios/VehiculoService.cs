@@ -153,13 +153,13 @@ public class VehiculoService : IVehiculoService
             throw new InvalidOperationException("El cliente destino no está activo.");
         }
 
-        // Bloquear si hay citas futuras (Fecha >= hoy y Estado no Cancelada/Finalizada)
+        // Bloquear si hay citas futuras (Fecha >= hoy y Estado no Cancelado/Finalizado)
         var hoy = DateTime.Today;
         var citasFuturas = await context.Cita.CountAsync(c =>
             c.VehiculoId == vehiculoId
             && c.Fecha >= hoy
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada);
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado);
 
         if (citasFuturas > 0)
         {

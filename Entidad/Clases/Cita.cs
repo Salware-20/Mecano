@@ -7,10 +7,10 @@ namespace Mecano.Entidad.Clases
     public enum EstadoCita
     {
         Pendiente,
-        Confirmada,
+        Confirmado,
         EnProceso,
-        Finalizada,
-        Cancelada
+        Finalizado,
+        Cancelado
     }
 
     public class Cita
@@ -43,6 +43,6 @@ namespace Mecano.Entidad.Clases
         
         public bool OverlapsWith(TimeOnly otherStart, TimeOnly otherEnd) => HoraInicio < otherEnd && otherStart < HoraFin;
         
-        public bool EstaActiva() => Estado != EstadoCita.Cancelada && Estado != EstadoCita.Finalizada;
+        public bool EstaActiva() => Estado != EstadoCita.Cancelado && Estado != EstadoCita.Finalizado;
     }
 }

@@ -88,8 +88,8 @@ public class CitaService : ICitaService
             bool overlapExists = await context.Cita
                 .AnyAsync(c => c.MecanicoId == dto.MecanicoId
                             && c.Fecha.Date == dto.Fecha.Date
-                            && c.Estado != EstadoCita.Cancelada
-                            && c.Estado != EstadoCita.Finalizada
+                            && c.Estado != EstadoCita.Cancelado
+                            && c.Estado != EstadoCita.Finalizado
                             && c.HoraInicio < horaFin
                             && dto.HoraInicio < c.HoraFin);
 
@@ -140,7 +140,7 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"La cita con ID {citaId} no existe.");
         }
 
-        cita.Estado = EstadoCita.Cancelada;
+        cita.Estado = EstadoCita.Cancelado;
         await context.SaveChangesAsync();
     }
 
@@ -301,8 +301,8 @@ public class CitaService : ICitaService
             c.CitaId != dto.Id
             && c.MecanicoId == mecanicoId
             && c.Fecha.Date == fecha.Date
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado
             && c.HoraInicio < horaFin
             && horaInicio < c.HoraFin);
 
@@ -364,8 +364,8 @@ public class CitaService : ICitaService
             c.CitaId != dto.Id
             && c.MecanicoId == dto.MecanicoId
             && c.Fecha.Date == dto.Fecha.Date
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado
             && c.HoraInicio < horaFin
             && dto.HoraInicio < c.HoraFin);
 

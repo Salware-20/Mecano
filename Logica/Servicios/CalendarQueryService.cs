@@ -31,7 +31,7 @@ public class CalendarQueryService : ICalendarQueryService
             .Include(c => c.Servicio)
             .Where(c => c.Fecha >= inicio.Date 
                      && c.Fecha <= fin.Date 
-                     && c.Estado != EstadoCita.Cancelada)
+                     && c.Estado != EstadoCita.Cancelado)
             .AsNoTracking()
             .ToListAsync();
 
@@ -51,10 +51,10 @@ public class CalendarQueryService : ICalendarQueryService
         return estado switch
         {
             EstadoCita.Pendiente => "#ffc107",
-            EstadoCita.Confirmada => "#28a745",
+            EstadoCita.Confirmado => "#28a745",
             EstadoCita.EnProceso => "#17a2b8",
-            EstadoCita.Finalizada => "#6c757d",
-            _ => "#dc3545" // Include Cancelada as fallback even if it's filtered
+            EstadoCita.Finalizado => "#6c757d",
+            _ => "#dc3545" // Include Cancelado as fallback even if it's filtered
         };
     }
 }

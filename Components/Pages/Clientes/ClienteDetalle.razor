@@ -234,7 +234,7 @@ else
                                     <td>@(cita.ServicioNombre ?? "-")</td>
                                     <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
-                                        <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                        <span class="badge badge-estado @BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                     </td>
                                 </tr>
                             }

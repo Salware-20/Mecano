@@ -142,10 +142,10 @@ public partial class Citas : ComponentBase
     private static string BadgeEstado(EstadoCita estado) => estado switch
     {
         EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmada => "bg-primary",
+        EstadoCita.Confirmado => "bg-primary",
         EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizada => "bg-success",
-        EstadoCita.Cancelada => "bg-danger",
+        EstadoCita.Finalizado => "bg-success",
+        EstadoCita.Cancelado => "bg-danger",
         _ => "bg-secondary"
     };
 }

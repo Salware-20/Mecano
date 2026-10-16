@@ -103,6 +103,15 @@ h1:focus {
     color: var(--badge-danger-text);
 }
 
+/* Ancho uniforme para las insignias de estado de cita: Pendiente, Confirmado,
+   En Proceso, Finalizado y Cancelado miden igual sin importar el largo del texto. */
+.badge-estado {
+    display: inline-block;
+    min-width: 6.5rem;
+    max-width: 6.5rem;
+    text-align: center;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
