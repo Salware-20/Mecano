@@ -29,6 +29,9 @@ namespace Mecano.Entidad.Clases
 
         public int Anio { get; set; }
 
+        /// <summary>Kilometraje (odómetro) del vehículo. Nulo si aún no se ha registrado.</summary>
+        public int? Kilometraje { get; set; }
+
         [MaxLength(50)]
         public string? Color { get; set; }
 

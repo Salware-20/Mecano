@@ -459,16 +459,6 @@ public partial class Clientes : ComponentBase, IDisposable
             filaExpandidaId = null;
     }
 
-    private static string BadgeEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmado => "bg-primary",
-        EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizado => "bg-success",
-        EstadoCita.Cancelado => "bg-danger",
-        _ => "bg-secondary"
-    };
-
     private bool SinHistoria(ClienteDTO cliente) => cliente.CantidadVehiculos == 0 && cliente.CantidadCitas == 0;
 
     private string TextoVacio() =>

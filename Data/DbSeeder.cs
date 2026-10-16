@@ -75,11 +75,11 @@ namespace Mecano.Data
 
                 // La placa se guarda en mayúsculas sin guiones (invariante de VehiculoService).
                 // El formato legible "ABC-123" lo aplica Formatos en la UI.
-                var vehJuan1 = new Vehiculo { Placa = "ABC123", Marca = "Toyota", Modelo = "Corolla", Anio = 2020, ClienteId = cliJuan.ClienteId, Activo = true };
-                var vehJuan2 = new Vehiculo { Placa = "DEF456", Marca = "Honda", Modelo = "CRV", Anio = 2019, ClienteId = cliJuan.ClienteId, Activo = true };
-                var vehLaura = new Vehiculo { Placa = "GHI789", Marca = "Hyundai", Modelo = "Tucson", Anio = 2021, ClienteId = cliLaura.ClienteId, Activo = true };
-                var vehRoberto1 = new Vehiculo { Placa = "JKL012", Marca = "Nissan", Modelo = "Sentra", Anio = 2018, ClienteId = cliRoberto.ClienteId, Activo = true };
-                var vehRoberto2 = new Vehiculo { Placa = "MNO345", Marca = "Suzuki", Modelo = "Vitara", Anio = 2022, ClienteId = cliRoberto.ClienteId, Activo = true };
+                var vehJuan1 = new Vehiculo { Placa = "ABC123", Marca = "Toyota", Modelo = "Corolla", Anio = 2020, Color = "Blanco", Kilometraje = 45000, Notas = "Cambio de aceite al día.", ClienteId = cliJuan.ClienteId, Activo = true };
+                var vehJuan2 = new Vehiculo { Placa = "DEF456", Marca = "Honda", Modelo = "CRV", Anio = 2019, Color = "Gris", Kilometraje = 78000, ClienteId = cliJuan.ClienteId, Activo = true };
+                var vehLaura = new Vehiculo { Placa = "GHI789", Marca = "Hyundai", Modelo = "Tucson", Anio = 2021, Color = "Azul", Kilometraje = 21000, ClienteId = cliLaura.ClienteId, Activo = true };
+                var vehRoberto1 = new Vehiculo { Placa = "JKL012", Marca = "Nissan", Modelo = "Sentra", Anio = 2018, Color = "Negro", Kilometraje = 96000, ClienteId = cliRoberto.ClienteId, Activo = true };
+                var vehRoberto2 = new Vehiculo { Placa = "MNO345", Marca = "Suzuki", Modelo = "Vitara", Anio = 2022, Color = "Rojo", Kilometraje = 15000, Notas = "Pendiente revisión de frenos.", ClienteId = cliRoberto.ClienteId, Activo = true };
 
                 context.Vehiculo.AddRange(vehJuan1, vehJuan2, vehLaura, vehRoberto1, vehRoberto2);
                 await context.SaveChangesAsync();

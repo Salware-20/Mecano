@@ -192,6 +192,19 @@ public class CitaService : ICitaService
             .ToListAsync();
     }
 
+    public async Task<List<CitaDTO>> ObtenerPorVehiculoAsync(int vehiculoId)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Cita
+            .AsNoTracking()
+            .Where(c => c.VehiculoId == vehiculoId)
+            .OrderByDescending(c => c.Fecha)
+            .ThenByDescending(c => c.HoraInicio)
+            .Select(ProyeccionListado)
+            .ToListAsync();
+    }
+
     // ~~~ READ (listado paginado) ~~~
     public async Task<List<CitaDTO>> BuscarPaginadoAsync(FiltroCitasDTO filtro, int pagina, int tamanioPagina)
     {

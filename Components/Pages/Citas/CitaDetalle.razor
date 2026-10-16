@@ -70,7 +70,7 @@ else
     <div class="card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong><i class="bi bi-clock-history"></i> Programación</strong>
-            <span class="badge badge-estado @BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
+            <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
         </div>
         <div class="card-body">
             <div class="row g-3">
@@ -145,7 +145,7 @@ else
                         <dd class="col-sm-8">
                             @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
                             {
-                                <span class="badge text-bg-light border">@Formatos.Placa(cita.VehiculoPlaca)</span>
+                                <a class="badge text-bg-light border text-decoration-none" href="vehiculos/@cita.VehiculoId">@Formatos.Placa(cita.VehiculoPlaca)</a>
                             }
                             else
                             {

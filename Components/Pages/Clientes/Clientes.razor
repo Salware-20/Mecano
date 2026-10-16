@@ -229,7 +229,7 @@
                                                                 @foreach (var veh in VehiculosDe(cli.Id))
                                                                 {
                                                                     <div class="vehiculo-item d-flex align-items-center gap-2">
-                                                                        <span class="placa-badge">@Formatos.Placa(veh.Placa)</span>
+                                                                        <a class="placa-badge text-decoration-none" href="vehiculos/@veh.VehiculoId">@Formatos.Placa(veh.Placa)</a>
                                                                         <div class="min-w-0 flex-grow-1">
                                                                             <div class="fw-semibold text-truncate">@veh.Marca @veh.Modelo</div>
                                                                             <div class="text-secondary small">
@@ -289,7 +289,7 @@
                                                                                 <td>@(cita.ServicioNombre ?? "-")</td>
                                                                                 <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                                                                 <td class="text-center">
-                                                                                    <span class="badge badge-estado @BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
+                                                                                    <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                                                                 </td>
                                                                             </tr>
                                                                         }

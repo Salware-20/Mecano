@@ -195,5 +195,19 @@ namespace Mecano.Entidad.Utilidades
             EstadoCita.EnProceso => "En Proceso",
             _ => estado.ToString()
         };
+
+        /// <summary>
+        /// Clases de color de Bootstrap para la insignia de un estado de cita. Centralizado
+        /// aquí para que las pantallas no dupliquen el mapeo estado → color.
+        /// </summary>
+        public static string BadgeEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.Pendiente => "bg-secondary",
+            EstadoCita.Confirmado => "bg-primary",
+            EstadoCita.EnProceso => "bg-info text-dark",
+            EstadoCita.Finalizado => "bg-success",
+            EstadoCita.Cancelado => "bg-danger",
+            _ => "bg-secondary"
+        };
     }
 }

@@ -21,5 +21,14 @@ namespace Mecano.Entidad.DTOs
 
         [Range(1900, 2100, ErrorMessage = "El año debe estar entre 1900 y 2100")]
         public int Anio { get; set; }
+
+        [Range(0, 9_999_999, ErrorMessage = "El kilometraje debe ser un número positivo")]
+        public int? Kilometraje { get; set; }
+
+        [StringLength(50)]
+        public string? Color { get; set; }
+
+        [StringLength(500)]
+        public string? Notas { get; set; }
     }
 }

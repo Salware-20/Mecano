@@ -53,16 +53,6 @@ public partial class CitaDetalle : ComponentBase
         }
     }
 
-    private static string BadgeEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmado => "bg-primary",
-        EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizado => "bg-success",
-        EstadoCita.Cancelado => "bg-danger",
-        _ => "bg-secondary"
-    };
-
     private static bool EsEditable(EstadoCita estado) =>
         estado != EstadoCita.Cancelado && estado != EstadoCita.Finalizado;
 

@@ -182,6 +182,9 @@ else
                                     <td>@veh.Modelo</td>
                                     <td class="text-center">@veh.Anio</td>
                                     <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-secondary me-1" href="vehiculos/@veh.VehiculoId">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
                                         <AuthorizeView Roles="Administrador" Context="authCtx">
                                             <button class="btn btn-sm btn-outline-primary"
                                                     @onclick="() => AbrirEditarVehiculo(veh)">
@@ -234,7 +237,7 @@ else
                                     <td>@(cita.ServicioNombre ?? "-")</td>
                                     <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
-                                        <span class="badge badge-estado @BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
+                                        <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                     </td>
                                 </tr>
                             }
@@ -555,11 +558,33 @@ else
                                     </div>
                                 </div>
 
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="vehAnio">Año *</label>
+                                        <InputNumber id="vehAnio" class="form-control" @bind-Value="modeloVehiculo.Anio"
+                                                     placeholder="Ej. 2020" />
+                                        <ValidationMessage For="() => modeloVehiculo.Anio" class="text-danger small" />
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label" for="vehKilometraje">Kilometraje</label>
+                                        <InputNumber id="vehKilometraje" class="form-control" @bind-Value="modeloVehiculo.Kilometraje"
+                                                     placeholder="Ej. 45000" />
+                                        <ValidationMessage For="() => modeloVehiculo.Kilometraje" class="text-danger small" />
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" for="vehColor">Color</label>
+                                    <InputText id="vehColor" class="form-control" @bind-Value="modeloVehiculo.Color"
+                                               placeholder="Ej. Blanco" />
+                                    <ValidationMessage For="() => modeloVehiculo.Color" class="text-danger small" />
+                                </div>
+
                                 <div class="mb-1">
-                                    <label class="form-label" for="vehAnio">Año *</label>
-                                    <InputNumber id="vehAnio" class="form-control" @bind-Value="modeloVehiculo.Anio"
-                                                 placeholder="Ej. 2020" />
-                                    <ValidationMessage For="() => modeloVehiculo.Anio" class="text-danger small" />
+                                    <label class="form-label" for="vehNotas">Notas</label>
+                                    <InputTextArea id="vehNotas" class="form-control" rows="3" @bind-Value="modeloVehiculo.Notas"
+                                                   placeholder="Detalles u observaciones del vehículo" />
+                                    <ValidationMessage For="() => modeloVehiculo.Notas" class="text-danger small" />
                                 </div>
                             </div>
                             <div class="modal-footer justify-content-between">
