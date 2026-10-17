@@ -25,13 +25,13 @@
 
             <div class="mb-3">
                 <label for="email" class="form-label">Correo Electrónico</label>
-                <InputText id="email" class="form-control" @bind-Value="loginModel.Email" placeholder="ejemplo@mecano.cr" autocomplete="off"/>
+                <InputText id="email" class="form-control input-email" @bind-Value="loginModel.Email" placeholder="ejemplo@mecano.cr" autocomplete="off"/>
                 <ValidationMessage For="@(() => loginModel.Email)" class="text-danger small" />
             </div>
 
             <div class="mb-4">
                 <label for="password" class="form-label">Contraseña</label>
-                <InputText id="password" type="password" class="form-control" @bind-Value="loginModel.Password" placeholder="••••••••" />
+                <InputText id="password" type="password" class="form-control input-password" @bind-Value="loginModel.Password" placeholder="••••••••" />
                 <ValidationMessage For="@(() => loginModel.Password)" class="text-danger small" />
             </div>
 

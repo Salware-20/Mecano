@@ -19,6 +19,7 @@
     --nav-active-bg: rgba(2, 132, 199, 0.18);
     --nav-hover-bg: rgba(255, 255, 255, 0.08);
     color-scheme: light;
+    --placeholder-color: #4a4e69;
 }
 
 [data-bs-theme="dark"],
@@ -43,6 +44,7 @@ body.dark-mode {
     --nav-active-bg: rgba(56, 189, 248, 0.18);
     --nav-hover-bg: rgba(255, 255, 255, 0.06);
     color-scheme: dark;
+    --placeholder-color: #e5e5e5;
 }
 
 html, body {
