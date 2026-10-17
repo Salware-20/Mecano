@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Mecano.Entidad.Utilidades;
 
 namespace Mecano.Entidad.DTOs.Mecanico
 {
@@ -6,17 +7,20 @@ namespace Mecano.Entidad.DTOs.Mecanico
     /// DTO de escritura para crear un mecánico.
     /// StringLength está deliberadamente acotado a los límites del esquema
     /// (Nombre varchar(150), Email varchar(200), Cedula/Telefono varchar(20)).
-    /// La normalización estricta (email a minúsculas, trim) ocurre en el servicio.
+    /// La normalización estricta (email a minúsculas, trim, teléfono a 8 dígitos)
+    /// ocurre en el servicio.
     /// </summary>
     public class CrearMecanicoDTO
     {
         [Required(ErrorMessage = "El nombre es obligatorio")]
         [StringLength(150, ErrorMessage = "El nombre no puede superar 150 caracteres")]
+        [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string Nombre { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "El correo es obligatorio")]
         [StringLength(200, ErrorMessage = "El correo no puede superar 200 caracteres")]
         [EmailAddress(ErrorMessage = "El correo no tiene un formato válido")]
+        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
         public string Email { get; set; } = string.Empty;
 
         [StringLength(20, ErrorMessage = "La cédula no puede superar 20 caracteres")]
@@ -24,6 +28,8 @@ namespace Mecano.Entidad.DTOs.Mecanico
 
         public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
 
+        [Required(ErrorMessage = Patrones.MensajeTelefonoRequerido)]
+        [Phone(ErrorMessage = Patrones.MensajeTelefonoFormato)]
         [StringLength(20, ErrorMessage = "El teléfono no puede superar 20 caracteres")]
         public string? Telefono { get; set; }
 

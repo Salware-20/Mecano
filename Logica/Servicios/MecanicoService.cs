@@ -25,6 +25,23 @@ public class MecanicoService : IMecanicoService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Normaliza y valida el teléfono del mecánico con la misma regla que
+    /// <c>ClienteService</c>: se guarda solo con dígitos y debe tener exactamente
+    /// <see cref="Formatos.LargoTelefono"/> dígitos. El teléfono es obligatorio.
+    /// </summary>
+    private static string NormalizarTelefono(string? telefono)
+    {
+        var tel = Formatos.SoloDigitos(telefono);
+        if (tel.Length != Formatos.LargoTelefono)
+        {
+            throw new InvalidOperationException(
+                $"El teléfono debe tener exactamente {Formatos.LargoTelefono} dígitos.");
+        }
+
+        return tel;
+    }
+
     // ~~~ Métodos existentes — consumidos por AgendarCita. No modificar. ~~~
 
     public async Task<List<Mecanico>> ObtenerPorEspecialidadAsync(int categoriaId)
@@ -124,7 +141,7 @@ public class MecanicoService : IMecanicoService
         var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
             ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
             : null;
-        var telefono = dto.Telefono?.Trim();
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         // Validar unicidad de email en Administradores y Mecánicos
         if (await ExisteEmailAsync(email))
@@ -166,7 +183,7 @@ public class MecanicoService : IMecanicoService
         var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
             ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
             : null;
-        var telefono = dto.Telefono?.Trim();
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         // Validar unicidad de email excluyendo al propio mecánico
         if (await ExisteEmailAsync(email, excluirId: dto.Id))

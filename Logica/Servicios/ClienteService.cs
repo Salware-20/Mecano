@@ -143,21 +143,6 @@ public class ClienteService : IClienteService
             .FirstOrDefaultAsync(c => c.ClienteId == clienteId);
     }
 
-    /// <summary>
-    /// Envoltura del contrato legado "register": delega en <see cref="CrearAsync"/> para que
-    /// la validación de cédula duplicada y la asignación de TipoIdentificacion tengan una sola fuente.
-    /// </summary>
-    public async Task<int> RegistrarAsync(string cedulaIdentidad, string nombreCompleto, string? telefono, string? correo)
-    {
-        return await CrearAsync(new CrearClienteDTO
-        {
-            CedulaIdentidad = cedulaIdentidad,
-            NombreCompleto = nombreCompleto,
-            Telefono = telefono,
-            Correo = correo
-        });
-    }
-
     // ~~~ READ (lista) ~~~
     public async Task<List<ClienteDTO>> ObtenerTodosAsync(bool soloActivos = true)
     {

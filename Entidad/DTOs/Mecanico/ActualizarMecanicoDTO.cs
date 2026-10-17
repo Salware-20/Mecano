@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using Mecano.Entidad.Utilidades;
 
 namespace Mecano.Entidad.DTOs.Mecanico
 {
     /// <summary>
     /// DTO de escritura para actualizar un mecánico existente.
+    /// Las reglas de validación son espejo de <see cref="CrearMecanicoDTO"/>.
     /// Password y ConfirmarPassword son opcionales: si se dejan vacíos, el servicio
     /// conserva el hash actual sin modificarlo.
     /// </summary>
@@ -14,11 +16,13 @@ namespace Mecano.Entidad.DTOs.Mecanico
 
         [Required(ErrorMessage = "El nombre es obligatorio")]
         [StringLength(150, ErrorMessage = "El nombre no puede superar 150 caracteres")]
+        [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string Nombre { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "El correo es obligatorio")]
         [StringLength(200, ErrorMessage = "El correo no puede superar 200 caracteres")]
         [EmailAddress(ErrorMessage = "El correo no tiene un formato válido")]
+        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
         public string Email { get; set; } = string.Empty;
 
         [StringLength(20, ErrorMessage = "La cédula no puede superar 20 caracteres")]
@@ -26,6 +30,8 @@ namespace Mecano.Entidad.DTOs.Mecanico
 
         public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
 
+        [Required(ErrorMessage = Patrones.MensajeTelefonoRequerido)]
+        [Phone(ErrorMessage = Patrones.MensajeTelefonoFormato)]
         [StringLength(20, ErrorMessage = "El teléfono no puede superar 20 caracteres")]
         public string? Telefono { get; set; }
 

@@ -148,12 +148,12 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">Nombre *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Nombre" autocomplete="off" style="text-transform:capitalize;" autocapitalize="words" />
+                            <InputText class="form-control" @bind-Value="modelo.Nombre" maxlength="150" autocomplete="off" style="text-transform:capitalize;" autocapitalize="words" />
                             <ValidationMessage For="() => modelo.Nombre" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Email *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Email" autocomplete="off" />
+                            <InputText class="form-control" @bind-Value="modelo.Email" type="email" maxlength="200" autocomplete="off" />
                             <ValidationMessage For="() => modelo.Email" />
                         </div>
                         <div class="row">
@@ -167,12 +167,12 @@ else
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label">Identificación</label>
-                                <InputText class="form-control" @bind-Value="modelo.Cedula" placeholder="Ej. 101230123" autocomplete="off" />
+                                <InputText class="form-control" @bind-Value="modelo.Cedula" maxlength="20" placeholder="Ej. 101230123" autocomplete="off" />
                                 <ValidationMessage For="() => modelo.Cedula" />
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <InputText class="form-control" @bind-Value="modelo.Telefono" autocomplete="off" />
+                                <label class="form-label">Teléfono *</label>
+                                <InputText class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20" autocomplete="off" />
                                 <ValidationMessage For="() => modelo.Telefono" />
                             </div>
                         </div>

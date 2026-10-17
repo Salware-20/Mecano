@@ -55,11 +55,11 @@ namespace Mecano.Data
                 context.Servicio.AddRange(servPastillas, servRectificado, servDiagMotor, servAfinado, servAlineado, servAmortiguadores, servAceite, servRevision);
                 await context.SaveChangesAsync();
 
-                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = defaultMecPassword, Cedula = "1-1111-1111", EspecialidadId = catFrenos.CategoriaId, Activo = true };
-                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = defaultMecPassword, Cedula = "2-2222-2222", EspecialidadId = catMotor.CategoriaId, Activo = true };
-                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = defaultMecPassword, Cedula = "3-3333-3333", EspecialidadId = catSuspension.CategoriaId, Activo = true };
-                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = defaultMecPassword, Cedula = "4-4444-4444", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
-                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = defaultMecPassword, Cedula = "5-5555-5555", EspecialidadId = catMotor.CategoriaId, Activo = false };
+                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = defaultMecPassword, Cedula = "1-1111-1111", Telefono = "70110001", EspecialidadId = catFrenos.CategoriaId, Activo = true };
+                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = defaultMecPassword, Cedula = "2-2222-2222", Telefono = "70110002", EspecialidadId = catMotor.CategoriaId, Activo = true };
+                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = defaultMecPassword, Cedula = "3-3333-3333", Telefono = "70110003", EspecialidadId = catSuspension.CategoriaId, Activo = true };
+                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = defaultMecPassword, Cedula = "4-4444-4444", Telefono = "70110004", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
+                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = defaultMecPassword, Cedula = "5-5555-5555", Telefono = "70110005", EspecialidadId = catMotor.CategoriaId, Activo = false };
 
                 context.Mecanico.AddRange(mecCarlos, mecMaria, mecJose, mecAna, mecPedro);
                 await context.SaveChangesAsync();

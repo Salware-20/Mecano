@@ -463,13 +463,13 @@ else
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label" for="detCedula">Identificación *</label>
-                                        <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
+                                        <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad" maxlength="20"
                                                    placeholder="Número de documento" />
                                         <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label" for="detNombre">Nombre completo *</label>
-                                        <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto"
+                                        <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto" maxlength="150"
                                                autocapitalize="words" style="text-transform:capitalize;"
                                                    placeholder="Nombre y apellidos" />
                                         <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
@@ -478,14 +478,14 @@ else
 
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="detTelefono">Teléfono</label>
-                                        <InputText id="detTelefono" class="form-control" @bind-Value="modelo.Telefono"
-                                                   placeholder="Ej. 8888-0000" />
+                                        <label class="form-label" for="detTelefono">Teléfono *</label>
+                                        <InputText id="detTelefono" class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20"
+                                                   placeholder="Ej. 88888888" />
                                         <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label" for="detCorreo">Correo</label>
-                                        <InputText id="detCorreo" class="form-control" @bind-Value="modelo.Correo"
+                                        <InputText id="detCorreo" class="form-control" @bind-Value="modelo.Correo" type="email" maxlength="200"
                                                    placeholder="cliente@correo.com" />
                                         <ValidationMessage For="() => modelo.Correo" class="text-danger small" />
                                     </div>
@@ -493,7 +493,7 @@ else
 
                                 <div class="mb-1">
                                     <label class="form-label" for="detDireccion">Dirección</label>
-                                    <InputTextArea id="detDireccion" class="form-control" @bind-Value="modelo.Direccion"
+                                    <InputTextArea id="detDireccion" class="form-control" @bind-Value="modelo.Direccion" maxlength="300"
                                                    rows="2" placeholder="Dirección opcional" />
                                     <ValidationMessage For="() => modelo.Direccion" class="text-danger small" />
                                 </div>
