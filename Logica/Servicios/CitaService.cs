@@ -169,6 +169,7 @@ public class CitaService : ICitaService
         Estado = c.Estado,
         ClienteId = c.ClienteId,
         ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+        ClienteActivo = c.Cliente != null && c.Cliente.Activo,
         VehiculoId = c.VehiculoId,
         VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
         ServicioId = c.ServicioId,
@@ -246,6 +247,7 @@ public class CitaService : ICitaService
 
                 ClienteId = c.ClienteId,
                 ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+                ClienteActivo = c.Cliente != null && c.Cliente.Activo,
                 ClienteCedula = c.Cliente != null ? c.Cliente.CedulaIdentidad : null,
                 ClienteTipoIdentificacion = c.Cliente != null ? c.Cliente.TipoIdentificacion : default,
                 ClienteTelefono = c.Cliente != null ? c.Cliente.Telefono : null,

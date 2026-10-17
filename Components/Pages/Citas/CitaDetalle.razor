@@ -100,9 +100,13 @@ else
     <div class="row g-4">
         @* ---------- Cliente ---------- *@
         <div class="col-12 col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header">
+            <div class="card shadow-sm h-100 @(cita.ClienteActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <strong><i class="bi bi-person"></i> Cliente</strong>
+                    @if (!cita.ClienteActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -129,6 +133,14 @@ else
                         <dt class="col-sm-4 text-muted fw-normal small">Correo</dt>
                         <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.ClienteCorreo) ? "-" : cita.ClienteCorreo)</dd>
                     </dl>
+
+                    @if (!cita.ClienteActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este cliente está inactivo. Revise su estado antes de continuar.</div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>

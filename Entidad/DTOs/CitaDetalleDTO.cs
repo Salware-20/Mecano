@@ -21,6 +21,7 @@ namespace Mecano.Entidad.DTOs
         // Cliente
         public int ClienteId { get; set; }
         public string? ClienteNombre { get; set; }
+        public bool ClienteActivo { get; set; }
         public string? ClienteCedula { get; set; }
         public TipoIdentificacion ClienteTipoIdentificacion { get; set; }
         public string? ClienteTelefono { get; set; }

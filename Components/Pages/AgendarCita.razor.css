@@ -262,6 +262,12 @@
     white-space: nowrap;
 }
 
+/* Marca de advertencia cuando el cliente de la cita está inactivo. */
+.chip-cliente-inactivo {
+    color: var(--bs-warning-text-emphasis, #664D03);
+    margin-right: .15rem;
+}
+
 .chip-pendiente {
     --chip-color: #D97706;
 }

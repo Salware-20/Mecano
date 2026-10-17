@@ -108,6 +108,10 @@
                                         <a href="clientes/@cita.ClienteId" class="text-decoration-none" style="text-transform:capitalize;">
                                             @cita.ClienteNombre
                                         </a>
+                                        @if (!cita.ClienteActivo)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        }
                                     }
                                     else
                                     {
