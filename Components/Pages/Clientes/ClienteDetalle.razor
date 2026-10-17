@@ -518,106 +518,26 @@ else
 
         @if (mostrarModalVehiculo)
         {
-            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <EditForm Model="modeloVehiculo" OnValidSubmit="GuardarVehiculo" FormName="vehiculoForm">
-                            <DataAnnotationsValidator />
-                            <div class="modal-header">
-                                <h5 class="modal-title">
-                                    @(vehiculoEditando is not null ? "Editar vehículo" : "Nuevo vehículo")
-                                </h5>
-                                <button type="button" class="btn-close" @onclick="CerrarModalVehiculo"></button>
-                            </div>
-                            <div class="modal-body">
-                                @if (!string.IsNullOrEmpty(mensajeError))
-                                {
-                                    <div class="alert alert-danger">@mensajeError</div>
-                                }
-
-                                <div class="mb-3">
-                                    <label class="form-label" for="vehPlaca">Placa *</label>
-                                    <InputText id="vehPlaca" class="form-control" @bind-Value="modeloVehiculo.Placa"
-                                               placeholder="Ej. ABC123" />
-                                    <ValidationMessage For="() => modeloVehiculo.Placa" class="text-danger small" />
-                                    <div class="form-text">6 caracteres alfanuméricos, sin guiones.</div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehMarca">Marca *</label>
-                                        <InputText id="vehMarca" class="form-control" @bind-Value="modeloVehiculo.Marca"
-                                                   placeholder="Ej. Toyota" />
-                                        <ValidationMessage For="() => modeloVehiculo.Marca" class="text-danger small" />
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehModelo">Modelo *</label>
-                                        <InputText id="vehModelo" class="form-control" @bind-Value="modeloVehiculo.Modelo"
-                                                   placeholder="Ej. Corolla" />
-                                        <ValidationMessage For="() => modeloVehiculo.Modelo" class="text-danger small" />
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehAnio">Año *</label>
-                                        <InputNumber id="vehAnio" class="form-control" @bind-Value="modeloVehiculo.Anio"
-                                                     placeholder="Ej. 2020" />
-                                        <ValidationMessage For="() => modeloVehiculo.Anio" class="text-danger small" />
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehKilometraje">Kilometraje</label>
-                                        <InputNumber id="vehKilometraje" class="form-control" @bind-Value="modeloVehiculo.Kilometraje"
-                                                     placeholder="Ej. 45000" />
-                                        <ValidationMessage For="() => modeloVehiculo.Kilometraje" class="text-danger small" />
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label" for="vehColor">Color</label>
-                                    <InputText id="vehColor" class="form-control" @bind-Value="modeloVehiculo.Color"
-                                               placeholder="Ej. Blanco" />
-                                    <ValidationMessage For="() => modeloVehiculo.Color" class="text-danger small" />
-                                </div>
-
-                                <div class="mb-1">
-                                    <label class="form-label" for="vehNotas">Notas</label>
-                                    <InputTextArea id="vehNotas" class="form-control" rows="3" @bind-Value="modeloVehiculo.Notas"
-                                                   placeholder="Detalles u observaciones del vehículo" />
-                                    <ValidationMessage For="() => modeloVehiculo.Notas" class="text-danger small" />
-                                </div>
-                            </div>
-                            <div class="modal-footer justify-content-between">
-                                <div>
-                                    @if (vehiculoEditando is not null)
-                                    {
-                                        <button type="button" class="btn btn-outline-danger me-1"
-                                                @onclick="ConfirmarEliminarVehiculo">
-                                            <i class="bi bi-trash"></i> Eliminar
-                                        </button>
-                                        <button type="button" class="btn btn-outline-primary"
-                                                @onclick="AbrirTransferencia">
-                                            <i class="bi bi-arrow-left-right"></i> Transferir
-                                        </button>
-                                    }
-                                </div>
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-secondary" @onclick="CerrarModalVehiculo">
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" class="btn btn-primary" disabled="@guardando">
-                                        @if (guardando)
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-1"></span>
-                                        }
-                                        Guardar
-                                    </button>
-                                </div>
-                            </div>
-                        </EditForm>
-                    </div>
-                </div>
-            </div>
+            <VehiculoFormModal Model="modeloVehiculo"
+                               EsEdicion="vehiculoEditando is not null"
+                               Guardando="guardando"
+                               MensajeError="mensajeError"
+                               OnGuardar="GuardarVehiculo"
+                               OnCancelar="CerrarModalVehiculo">
+                <FooterIzquierdo>
+                    @if (vehiculoEditando is not null)
+                    {
+                        <button type="button" class="btn btn-outline-danger me-1"
+                                @onclick="ConfirmarEliminarVehiculo">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                        <button type="button" class="btn btn-outline-primary"
+                                @onclick="AbrirTransferencia">
+                            <i class="bi bi-arrow-left-right"></i> Transferir
+                        </button>
+                    }
+                </FooterIzquierdo>
+            </VehiculoFormModal>
         }
 
         @if (clienteADesactivar is not null)

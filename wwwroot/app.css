@@ -205,3 +205,42 @@ h1:focus {
     align-items: center;
     justify-content: center;
 }
+
+/* --- Impresión: reporte de citas (Generar Reporte -> window.print) --- */
+@media print {
+    /* Fuerza un tema claro legible incluso si el usuario está en modo oscuro */
+    :root,
+    [data-bs-theme="dark"],
+    [data-bs-theme="light"],
+    body.dark-mode {
+        color-scheme: light;
+        --bg-app: #FFFFFF;
+        --bg-surface: #FFFFFF;
+        --text-primary: #212529;
+        --text-secondary: #495057;
+        --border-color: #CED4DA;
+        /* Tokens de Bootstrap que el tema oscuro deja en tonos claros */
+        --bs-body-bg: #FFFFFF;
+        --bs-body-color: #212529;
+        --bs-emphasis-color: #000000;
+        --bs-border-color: #CED4DA;
+    }
+
+    html,
+    body {
+        background: #FFFFFF !important;
+        color: #212529 !important;
+    }
+
+    /* Conserva los colores de las insignias de estado al imprimir */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Tarjetas planas, con borde discreto en lugar de sombra */
+    .card {
+        box-shadow: none !important;
+        border: 1px solid var(--border-color) !important;
+    }
+}

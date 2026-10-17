@@ -88,3 +88,11 @@ main {
         right: 0.75rem;
         top: 0.5rem;
     }
+
+@media print {
+    /* El reporte impreso solo muestra el contenido: se oculta el marco de navegación */
+    .sidebar,
+    .top-row {
+        display: none;
+    }
+}
