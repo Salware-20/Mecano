@@ -12,9 +12,28 @@ namespace Mecano.Components.Pages
         [Inject]
         public NavigationManager NavigationManager { get; set; } = default!;
 
+        /// <summary>
+        /// Ruta a la que volver tras iniciar sesión. La aporta el middleware de cookies
+        /// (?ReturnUrl=...) cuando se intenta acceder a una página protegida sin sesión.
+        /// Blazor la enlaza desde la query string y ya viene decodificada.
+        /// </summary>
+        [SupplyParameterFromQuery(Name = "ReturnUrl")]
+        public string? ReturnUrl { get; set; }
+
         protected LoginDTO loginModel { get; set; } = new();
         protected string? ErrorMessage { get; set; }
         protected bool isLoading { get; set; }
+
+        /// <summary>
+        /// Solo aceptamos rutas locales relativas ("/clientes", "/citas/5?x=1") para evitar
+        /// open redirects: rechazamos absolutas ("https://evil.com"), protocol-relative
+        /// ("//evil.com") y el truco de barra invertida ("/\evil.com", que algunos
+        /// navegadores normalizan a "//evil.com").
+        /// </summary>
+        private static bool EsRutaLocal(string? url) =>
+            !string.IsNullOrWhiteSpace(url)
+            && url[0] == '/'
+            && (url.Length < 2 || (url[1] != '/' && url[1] != '\\'));
 
         protected async Task HandleLogin()
         {
@@ -33,7 +52,8 @@ namespace Mecano.Components.Pages
                 {
                     // Forzar recarga completa (forceLoad: true) para que el circuito Blazor se inicialice
                     // con la nueva cookie de autenticación ya presente en el navegador.
-                    NavigationManager.NavigateTo("/", forceLoad: true);
+                    // Volvemos a ReturnUrl solo si es una ruta local válida; si no, al inicio.
+                    NavigationManager.NavigateTo(EsRutaLocal(ReturnUrl) ? ReturnUrl! : "/", forceLoad: true);
                 }
                 else
                 {
