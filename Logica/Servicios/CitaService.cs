@@ -266,6 +266,7 @@ public class CitaService : ICitaService
 
                 MecanicoId = c.MecanicoId,
                 MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null,
+                MecanicoActivo = c.Mecanico != null && c.Mecanico.Activo,
                 MecanicoEspecialidadId = c.Mecanico != null ? c.Mecanico.EspecialidadId : 0,
                 MecanicoEspecialidadNombre = c.Mecanico != null && c.Mecanico.Especialidad != null
                     ? c.Mecanico.Especialidad.Nombre

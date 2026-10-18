@@ -178,25 +178,17 @@ public partial class CitaDetalle : ComponentBase
         modeloReprogramar = new ReprogramarCitaDTO
         {
             Id = cita.Id,
-            MecanicoId = cita.MecanicoId,
+            // Si el mecánico actual está inactivo, se parte sin selección (0): la
+            // reprogramación debe reasignar la cita a un mecánico activo.
+            MecanicoId = cita.MecanicoActivo ? cita.MecanicoId : 0,
             Fecha = cita.Fecha.Date,
             HoraInicio = cita.HoraInicio
         };
         horaTexto = cita.HoraInicio.ToString("HH:mm", CultureInfo.InvariantCulture);
 
+        // Solo se ofrecen mecánicos activos: reprogramar sirve, entre otras cosas,
+        // para reasignar una cita de un mecánico inactivo a uno disponible.
         mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
-        // Si el mecánico actual está inactivo, se conserva como opción para no forzar un cambio.
-        if (mecanicos.All(m => m.Id != cita.MecanicoId))
-        {
-            mecanicos.Insert(0, new MecanicoDTO
-            {
-                Id = cita.MecanicoId,
-                Nombre = cita.MecanicoNombre ?? "Mecánico actual",
-                EspecialidadId = cita.MecanicoEspecialidadId,
-                EspecialidadNombre = cita.MecanicoEspecialidadNombre,
-                Activo = false
-            });
-        }
 
         await CargarOcupados();
         mostrarModalReprogramar = true;

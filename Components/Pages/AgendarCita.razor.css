@@ -164,6 +164,20 @@
     color: var(--text-secondary, #64748B);
 }
 
+/* Fila de un mecánico inactivo: se mantiene visible (para reasignar sus citas)
+   pero atenuada para dejar claro que ya no se le agendan citas nuevas. */
+.tablero-mecanico-inactivo .tablero-mecanico {
+    background-color: color-mix(in srgb, #64748B 8%, var(--bg-surface, #fff));
+}
+
+.tablero-mecanico-inactivo .mecanico-nombre {
+    color: var(--text-secondary, #64748B);
+}
+
+.tablero-mecanico-inactivo .celda-dia {
+    opacity: .85;
+}
+
 /* ---------- Celdas de día ---------- */
 
 .celda-dia {

@@ -177,9 +177,13 @@
                     <tbody>
                         @foreach (var m in mecanicos)
                         {
-                            <tr>
+                            <tr class="@(!m.Activo ? "tablero-mecanico-inactivo" : null)">
                                 <th class="col-mecanico tablero-mecanico">
                                     <span class="mecanico-nombre" style="text-transform:capitalize;">@m.Nombre</span>
+                                    @if (!m.Activo)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Inactivo</span>
+                                    }
                                     @if (!string.IsNullOrWhiteSpace(m.EspecialidadNombre))
                                     {
                                         <span class="mecanico-especialidad">@m.EspecialidadNombre</span>
@@ -187,7 +191,7 @@
                                 </th>
                                 @foreach (var dia in DiasSemana)
                                 {
-                                    <td class="@ClaseCelda(dia)" @onclick="() => AbrirModal(m, dia)">
+                                    <td class="@ClaseCelda(m, dia)" @onclick="() => AbrirModal(m, dia)">
                                         @foreach (var c in CitasDe(m.Id, dia))
                                         {
                                             <div class="chip chip-@CssEstado(c.Estado)"
@@ -207,7 +211,7 @@
                                                 </span>
                                             </div>
                                         }
-                                        @if (PuedeAgendar(dia))
+                                        @if (PuedeAgendar(dia) && m.Activo)
                                         {
                                             <span class="celda-agregar">
                                                 <i class="bi bi-plus-lg"></i> Agendar
@@ -274,7 +278,7 @@
                             <label class="form-label" for="mecanico">Mecánico</label>
                             <select id="mecanico" class="form-select" value="@selMecanicoId" @onchange="OnMecanicoChanged">
                                 <option value="">Seleccione un mecánico...</option>
-                                @foreach (var m in mecanicos)
+                                @foreach (var m in mecanicos.Where(x => x.Activo))
                                 {
                                     <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
                                 }
@@ -424,10 +428,17 @@
         cargando = true;
         try
         {
-            mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
             // La semana visible va de lunes a sábado (el domingo el taller está cerrado).
             var citas = await CitaService.ObtenerPorRangoAsync(semanaInicio, semanaInicio.AddDays(5));
             citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelado).ToList();
+
+            // Se muestran los mecánicos activos y, además, los inactivos que aún tienen
+            // citas vigentes en la semana visible: así el administrador no pierde de vista
+            // las citas pendientes de un mecánico dado de baja y puede reasignarlas.
+            var inactivosConCitas = citasSemana.Select(c => c.MecanicoId).ToHashSet();
+            mecanicos = (await MecanicoService.ObtenerTodosAsync(FiltroActivo.Todos))
+                .Where(m => m.Activo || inactivosConCitas.Contains(m.Id))
+                .ToList();
         }
         finally
         {
@@ -539,12 +550,14 @@
         return clases;
     }
 
-    private string ClaseCelda(DateTime dia)
+    private string ClaseCelda(MecanicoDTO mecanico, DateTime dia)
     {
         var clases = "celda-dia";
         if (dia.Date == hoy) clases += " es-hoy";
         if (dia.Date < hoy) clases += " es-pasado";
-        if (PuedeAgendar(dia)) clases += " es-clicable";
+        // Las celdas de un mecánico inactivo no se marcan como clicables: no se
+        // agendan citas nuevas sobre él, solo se visualizan y reasignan las existentes.
+        if (PuedeAgendar(dia) && mecanico.Activo) clases += " es-clicable";
         return clases;
     }
 
@@ -617,7 +630,9 @@
 
     private async Task AbrirModal(MecanicoDTO mecanico, DateTime dia)
     {
-        if (!PuedeAgendar(dia) || selectedCliente == null)
+        // No se agendan citas nuevas sobre un mecánico inactivo (defensa extra a nivel
+        // de UI: sus celdas ya no son clicables en el tablero).
+        if (!PuedeAgendar(dia) || selectedCliente == null || !mecanico.Activo)
         {
             return;
         }
