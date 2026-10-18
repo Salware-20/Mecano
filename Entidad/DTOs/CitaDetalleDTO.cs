@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
+using Mecano.Entidad.DTOs.Mecanico;
 
 namespace Mecano.Entidad.DTOs
 {
@@ -40,11 +42,7 @@ namespace Mecano.Entidad.DTOs
         public int ServicioDuracionMinutos { get; set; }
         public decimal ServicioPrecio { get; set; }
 
-        // Mecánico
-        public int MecanicoId { get; set; }
-        public string? MecanicoNombre { get; set; }
-        public bool MecanicoActivo { get; set; }
-        public int MecanicoEspecialidadId { get; set; }
-        public string? MecanicoEspecialidadNombre { get; set; }
+        /// <summary>Mecánicos asignados a la cita (misma especialidad).</summary>
+        public List<MecanicoDTO> Mecanicos { get; set; } = new();
     }
 }

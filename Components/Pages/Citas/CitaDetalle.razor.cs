@@ -33,6 +33,7 @@ public partial class CitaDetalle : ComponentBase
     private bool mostrarModalReprogramar;
     private ReprogramarCitaDTO modeloReprogramar = new();
     private List<MecanicoDTO> mecanicos = new();
+    private HashSet<int> selMecanicosIds = new();
     private List<Cita> citasDelDia = new();
     private string horaTexto = string.Empty;
 
@@ -89,10 +90,11 @@ public partial class CitaDetalle : ComponentBase
             });
         }
 
-        // Servicios de la especialidad del mecánico; el servicio actual se conserva como opción
-        // aunque no pertenezca a esa categoría (datos heredados).
-        servicios = cita.MecanicoEspecialidadId > 0
-            ? await ServicioService.ObtenerPorCategoriaAsync(cita.MecanicoEspecialidadId)
+        // Servicios de la especialidad de los mecánicos asignados (compartida); el servicio
+        // actual se conserva como opción aunque no pertenezca a esa categoría (datos heredados).
+        var especialidadId = cita.Mecanicos.FirstOrDefault()?.EspecialidadId ?? 0;
+        servicios = especialidadId > 0
+            ? await ServicioService.ObtenerPorCategoriaAsync(especialidadId)
             : new List<ServicioDTO>();
 
         if (servicios.All(s => s.Id != cita.ServicioId))
@@ -103,7 +105,7 @@ public partial class CitaDetalle : ComponentBase
                 Nombre = cita.ServicioNombre ?? "Servicio actual",
                 DuracionMinutos = cita.ServicioDuracionMinutos,
                 Precio = cita.ServicioPrecio,
-                CategoriaId = cita.MecanicoEspecialidadId > 0 ? cita.MecanicoEspecialidadId : null,
+                CategoriaId = especialidadId > 0 ? especialidadId : null,
                 Activo = false
             });
         }
@@ -175,12 +177,13 @@ public partial class CitaDetalle : ComponentBase
 
         mensajeError = null;
         mensajeExito = null;
+        // Se parte de los mecánicos actualmente asignados que siguen activos; los inactivos
+        // se excluyen porque la reprogramación debe dejar solo mecánicos activos.
+        selMecanicosIds = cita.Mecanicos.Where(m => m.Activo).Select(m => m.Id).ToHashSet();
         modeloReprogramar = new ReprogramarCitaDTO
         {
             Id = cita.Id,
-            // Si el mecánico actual está inactivo, se parte sin selección (0): la
-            // reprogramación debe reasignar la cita a un mecánico activo.
-            MecanicoId = cita.MecanicoActivo ? cita.MecanicoId : 0,
+            MecanicosIds = selMecanicosIds.ToList(),
             Fecha = cita.Fecha.Date,
             HoraInicio = cita.HoraInicio
         };
@@ -215,11 +218,46 @@ public partial class CitaDetalle : ComponentBase
         citasDelDia = await CitaService.ObtenerPorRangoAsync(modeloReprogramar.Fecha, modeloReprogramar.Fecha);
     }
 
+    private void ToggleMecanicoReprogramar(int mecanicoId, ChangeEventArgs e)
+    {
+        if (e.Value is bool marcado && marcado)
+        {
+            selMecanicosIds.Add(mecanicoId);
+        }
+        else
+        {
+            selMecanicosIds.Remove(mecanicoId);
+        }
+
+        modeloReprogramar.MecanicosIds = selMecanicosIds.ToList();
+    }
+
+    // Agrupación de los mecánicos activos por especialidad, para la lista de checkboxes.
+    private IEnumerable<IGrouping<int, MecanicoDTO>> MecanicosPorEspecialidad =>
+        mecanicos.Where(m => m.Activo)
+            .GroupBy(m => m.EspecialidadId)
+            .OrderBy(g => g.First().EspecialidadNombre);
+
+    // Especialidad (compartida) de los mecánicos elegidos; null si aún no hay ninguno.
+    private int? EspecialidadSeleccionadaId =>
+        mecanicos.FirstOrDefault(m => selMecanicosIds.Contains(m.Id))?.EspecialidadId;
+
+    // Solo se combinan mecánicos de la misma especialidad: se habilita el grupo de la
+    // especialidad elegida y, por robustez, cualquier grupo que ya tenga seleccionados
+    // (así un estado mixto heredado siempre se puede corregir).
+    private bool GrupoHabilitado(int especialidadId) =>
+        !selMecanicosIds.Any()
+        || EspecialidadSeleccionadaId == especialidadId
+        || mecanicos.Any(m => m.EspecialidadId == especialidadId && selMecanicosIds.Contains(m.Id));
+
     private bool MecanicoOcupado(TimeOnly ini, TimeOnly fin)
     {
+        if (!selMecanicosIds.Any())
+            return false;
+
         return citasDelDia.Any(c =>
             c.CitaId != cita?.Id
-            && c.MecanicoId == modeloReprogramar.MecanicoId
+            && c.CitaMecanicos.Any(cm => selMecanicosIds.Contains(cm.MecanicoId))
             && c.Fecha.Date == modeloReprogramar.Fecha.Date
             && c.EstaActiva()
             && c.OverlapsWith(ini, fin));
@@ -248,12 +286,19 @@ public partial class CitaDetalle : ComponentBase
             return;
         }
 
+        if (!selMecanicosIds.Any())
+        {
+            mensajeError = "Seleccione al menos un mecánico.";
+            return;
+        }
+
         if (!HoraHabilitada(hora))
         {
             mensajeError = "El horario seleccionado ya no está disponible.";
             return;
         }
 
+        modeloReprogramar.MecanicosIds = selMecanicosIds.ToList();
         modeloReprogramar.HoraInicio = hora;
 
         guardando = true;

@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.DTOs.Mecanico;
 
 namespace Mecano.Entidad.DTOs
 {
@@ -26,7 +29,10 @@ namespace Mecano.Entidad.DTOs
         public int ServicioId { get; set; }
         public string? ServicioNombre { get; set; }
 
-        public int MecanicoId { get; set; }
-        public string? MecanicoNombre { get; set; }
+        /// <summary>Mecánicos asignados a la cita (misma especialidad).</summary>
+        public List<MecanicoDTO> Mecanicos { get; set; } = new();
+
+        /// <summary>Nombres de los mecánicos separados por coma, para las tablas.</summary>
+        public string MecanicosNombres => string.Join(", ", Mecanicos.Select(m => m.Nombre));
     }
 }

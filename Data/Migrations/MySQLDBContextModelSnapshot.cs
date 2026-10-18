@@ -113,9 +113,6 @@ namespace Mecano.Migrations
                     b.Property<TimeOnly>("HoraInicio")
                         .HasColumnType("time(6)");
 
-                    b.Property<int>("MecanicoId")
-                        .HasColumnType("int");
-
                     b.Property<string>("NotasAdmin")
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
@@ -130,13 +127,26 @@ namespace Mecano.Migrations
 
                     b.HasIndex("ClienteId");
 
-                    b.HasIndex("MecanicoId");
-
                     b.HasIndex("ServicioId");
 
                     b.HasIndex("VehiculoId");
 
                     b.ToTable("Cita");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.CitaMecanico", b =>
+                {
+                    b.Property<int>("CitaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MecanicoId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CitaId", "MecanicoId");
+
+                    b.HasIndex("MecanicoId");
+
+                    b.ToTable("CitaMecanico");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Cliente", b =>
@@ -401,12 +411,6 @@ namespace Mecano.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Mecano.Entidad.Clases.Mecanico", "Mecanico")
-                        .WithMany("Citas")
-                        .HasForeignKey("MecanicoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Mecano.Entidad.Clases.Servicio", "Servicio")
                         .WithMany("Citas")
                         .HasForeignKey("ServicioId")
@@ -421,11 +425,28 @@ namespace Mecano.Migrations
 
                     b.Navigation("Cliente");
 
-                    b.Navigation("Mecanico");
-
                     b.Navigation("Servicio");
 
                     b.Navigation("Vehiculo");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.CitaMecanico", b =>
+                {
+                    b.HasOne("Mecano.Entidad.Clases.Cita", "Cita")
+                        .WithMany("CitaMecanicos")
+                        .HasForeignKey("CitaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mecano.Entidad.Clases.Mecanico", "Mecanico")
+                        .WithMany("CitaMecanicos")
+                        .HasForeignKey("MecanicoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cita");
+
+                    b.Navigation("Mecanico");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Comentario", b =>
@@ -490,6 +511,8 @@ namespace Mecano.Migrations
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Cita", b =>
                 {
+                    b.Navigation("CitaMecanicos");
+
                     b.Navigation("Notificaciones");
                 });
 
@@ -504,7 +527,7 @@ namespace Mecano.Migrations
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
                 {
-                    b.Navigation("Citas");
+                    b.Navigation("CitaMecanicos");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Servicio", b =>

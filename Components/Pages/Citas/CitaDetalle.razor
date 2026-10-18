@@ -207,17 +207,29 @@ else
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
-                        <dd class="col-sm-8" style="text-transform:capitalize;">
-                            @(cita.MecanicoNombre ?? "-")
-                            @if (!cita.MecanicoActivo)
+                        <dt class="col-sm-4 text-muted fw-normal small">Mecánico@(cita.Mecanicos.Count > 1 ? "s" : "")</dt>
+                        <dd class="col-sm-8">
+                            @if (cita.Mecanicos.Any())
                             {
-                                <span class="badge bg-secondary ms-1">Inactivo</span>
+                                @foreach (var m in cita.Mecanicos)
+                                {
+                                    <div style="text-transform:capitalize;">
+                                        @m.Nombre
+                                        @if (!m.Activo)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <span>-</span>
                             }
                         </dd>
 
                         <dt class="col-sm-4 text-muted fw-normal small">Especialidad</dt>
-                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.MecanicoEspecialidadNombre) ? "-" : cita.MecanicoEspecialidadNombre)</dd>
+                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.Mecanicos.FirstOrDefault()?.EspecialidadNombre) ? "-" : cita.Mecanicos.First().EspecialidadNombre)</dd>
                     </dl>
                 </div>
             </div>
@@ -330,23 +342,49 @@ else
                             El vehículo, el servicio y las notas no se modifican aquí.
                         </p>
 
-                        @if (cita is { MecanicoActivo: false })
+                        @if (cita is not null && cita.Mecanicos.Any(m => !m.Activo))
                         {
                             <div class="alert alert-warning py-2 small" role="alert">
-                                <i class="bi bi-exclamation-triangle"></i> El mecánico actual está inactivo. Seleccione un mecánico activo para reasignar la cita.
+                                <i class="bi bi-exclamation-triangle"></i> Hay mecánicos inactivos asignados. Seleccione solo mecánicos activos para reasignar la cita.
                             </div>
                         }
 
                         <div class="mb-3">
-                            <label class="form-label">Mecánico *</label>
-                            <InputSelect class="form-select" @bind-Value="modeloReprogramar.MecanicoId">
-                                <option value="0">Seleccione un mecánico...</option>
-                                @foreach (var m in mecanicos)
+                            <label class="form-label">
+                                Mecánicos *
+                                <span class="text-muted small">(puede elegir varios de la misma especialidad)</span>
+                            </label>
+                            <div class="border rounded p-2" style="max-height:220px;overflow-y:auto;">
+                                @foreach (var grupo in MecanicosPorEspecialidad)
                                 {
-                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre</option>
+                                    var habilitado = GrupoHabilitado(grupo.Key);
+                                    <div class="mb-2" style="@(habilitado ? "" : "opacity:.5;")">
+                                        <div class="text-uppercase text-muted small fw-semibold">
+                                            @(string.IsNullOrWhiteSpace(grupo.First().EspecialidadNombre) ? "Sin especialidad" : grupo.First().EspecialidadNombre)
+                                            @if (!habilitado)
+                                            {
+                                                <span class="text-muted small fw-normal">&#32;— misma especialidad requerida</span>
+                                            }
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            @foreach (var m in grupo)
+                                            {
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="rep-mec-@m.Id"
+                                                           checked="@selMecanicosIds.Contains(m.Id)"
+                                                           disabled="@(!habilitado)"
+                                                           @onchange="e => ToggleMecanicoReprogramar(m.Id, e)" />
+                                                    <label class="form-check-label" for="rep-mec-@m.Id" style="text-transform:capitalize;">@m.Nombre</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 }
-                            </InputSelect>
-                            <ValidationMessage For="() => modeloReprogramar.MecanicoId" />
+                            </div>
+                            @if (!selMecanicosIds.Any())
+                            {
+                                <div class="form-text text-danger">Seleccione al menos un mecánico.</div>
+                            }
                         </div>
 
                         <div class="row">

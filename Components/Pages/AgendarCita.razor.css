@@ -313,6 +313,38 @@
     font-size: .9rem;
 }
 
+/* ---------- Selección múltiple de mecánicos (N:M) ---------- */
+
+.lista-mecanicos {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: .6rem .75rem;
+    border: 1px solid var(--border-color, #E2E8F0);
+    border-radius: .5rem;
+    background-color: var(--bg-surface, #fff);
+}
+
+.grupo-mecanicos-titulo {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary, #64748B);
+    margin-bottom: .25rem;
+}
+
+/* Un grupo de otra especialidad queda deshabilitado: la cita solo admite
+   mecánicos de una misma especialidad. */
+.grupo-mecanicos-deshabilitado {
+    opacity: .5;
+}
+
+.grupo-mecanicos-deshabilitado .form-check-label {
+    color: var(--text-secondary, #64748B);
+}
+
 /* Ajuste para tema oscuro: los colores claros de los chips bajan de intensidad. */
 [data-bs-theme="dark"] .chip {
     background-color: color-mix(in srgb, var(--chip-color) 26%, var(--bg-surface, #1E293B));

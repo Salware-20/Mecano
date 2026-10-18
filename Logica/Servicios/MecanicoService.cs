@@ -63,7 +63,7 @@ public class MecanicoService : IMecanicoService
                 && c.Estado != EstadoCita.Finalizado
                 && c.HoraInicio < horaFin
                 && horaInicio < c.HoraFin)
-            .Select(c => c.MecanicoId)
+            .SelectMany(c => c.CitaMecanicos.Select(cm => cm.MecanicoId))
             .Distinct()
             .ToListAsync();
 

@@ -254,13 +254,13 @@
                         <div class="text-secondary"><i class="bi bi-calendar-event"></i> @selectedFecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
                         <div class="text-secondary">
                             <i class="bi bi-wrench-adjustable"></i>
-                            @if (MecanicoSeleccionado is not null)
+                            @if (selMecanicosIds.Any())
                             {
-                                <span style="text-transform:capitalize;">@MecanicoSeleccionado.Nombre</span>
+                                <span style="text-transform:capitalize;">@MecanicosSeleccionadosNombres</span>
                             }
                             else
                             {
-                                <span>Seleccione un mecánico</span>
+                                <span>Seleccione al menos un mecánico</span>
                             }
                         </div>
                     </div>
@@ -274,30 +274,57 @@
                     }
 
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="mecanico">Mecánico</label>
-                            <select id="mecanico" class="form-select" value="@selMecanicoId" @onchange="OnMecanicoChanged">
-                                <option value="">Seleccione un mecánico...</option>
-                                @foreach (var m in mecanicos.Where(x => x.Activo))
+                        <div class="col-12">
+                            <label class="form-label mb-1">
+                                Mecánicos
+                                <span class="text-muted small">(puede elegir varios de la misma especialidad)</span>
+                            </label>
+                            <div class="lista-mecanicos">
+                                @foreach (var grupo in MecanicosPorEspecialidad)
                                 {
-                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
+                                    var habilitado = GrupoHabilitado(grupo.Key);
+                                    <div class="grupo-mecanicos @(habilitado ? "" : "grupo-mecanicos-deshabilitado")">
+                                        <div class="grupo-mecanicos-titulo">
+                                            @(string.IsNullOrWhiteSpace(grupo.First().EspecialidadNombre) ? "Sin especialidad" : grupo.First().EspecialidadNombre)
+                                            @if (!habilitado)
+                                            {
+                                                <span class="text-muted small">&#32;— misma especialidad requerida</span>
+                                            }
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            @foreach (var m in grupo)
+                                            {
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="mec-@m.Id"
+                                                           checked="@selMecanicosIds.Contains(m.Id)"
+                                                           disabled="@(!habilitado)"
+                                                           @onchange="e => ToggleMecanico(m.Id, e)" />
+                                                    <label class="form-check-label" for="mec-@m.Id" style="text-transform:capitalize;">@m.Nombre</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 }
-                            </select>
+                            </div>
+                            @if (!selMecanicosIds.Any())
+                            {
+                                <div class="form-text text-danger">Seleccione al menos un mecánico.</div>
+                            }
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label" for="servicio">Servicio</label>
                             <select id="servicio" class="form-select" value="@citaDto.ServicioId" @onchange="OnServiceChanged"
-                                    disabled="@(selMecanicoId == null || !serviciosDelMecanico.Any())">
+                                    disabled="@(!selMecanicosIds.Any() || !serviciosDelMecanico.Any())">
                                 <option value="0">Seleccione un servicio...</option>
                                 @foreach (var s in serviciosDelMecanico)
                                 {
                                     <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
                                 }
                             </select>
-                            @if (selMecanicoId != null && !serviciosDelMecanico.Any())
+                            @if (selMecanicosIds.Any() && !serviciosDelMecanico.Any())
                             {
-                                <div class="form-text text-danger">Este mecánico no tiene servicios asociados a su especialidad.</div>
+                                <div class="form-text text-danger">Esta especialidad no tiene servicios asociados.</div>
                             }
                         </div>
 
@@ -398,7 +425,7 @@
     private string? errorMessage;
 
     private DateTime selectedFecha;
-    private int? selMecanicoId;
+    private HashSet<int> selMecanicosIds = new();
     private TimeOnly selHora = Apertura;
     private TimeOnly selectedHoraFin;
     private Servicio? selectedServicio;
@@ -435,7 +462,9 @@
             // Se muestran los mecánicos activos y, además, los inactivos que aún tienen
             // citas vigentes en la semana visible: así el administrador no pierde de vista
             // las citas pendientes de un mecánico dado de baja y puede reasignarlas.
-            var inactivosConCitas = citasSemana.Select(c => c.MecanicoId).ToHashSet();
+            var inactivosConCitas = citasSemana
+                .SelectMany(c => c.CitaMecanicos.Select(cm => cm.MecanicoId))
+                .ToHashSet();
             mecanicos = (await MecanicoService.ObtenerTodosAsync(FiltroActivo.Todos))
                 .Where(m => m.Activo || inactivosConCitas.Contains(m.Id))
                 .ToList();
@@ -526,9 +555,10 @@
     }
 
     // ~~~ Render del tablero ~~~
+    // Una cita aparece en la fila de CADA mecánico asignado (misma cita, varias filas).
     private List<Cita> CitasDe(int mecanicoId, DateTime dia) =>
         citasSemana
-            .Where(c => c.MecanicoId == mecanicoId && c.Fecha.Date == dia.Date)
+            .Where(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId) && c.Fecha.Date == dia.Date)
             .OrderBy(c => c.HoraInicio)
             .ToList();
 
@@ -638,7 +668,7 @@
         }
 
         selectedFecha = dia.Date;
-        selMecanicoId = mecanico.Id;
+        selMecanicosIds = new HashSet<int> { mecanico.Id };
         selHora = HoraInicialPorDefecto(dia);
         selectedServicio = null;
         selectedHoraFin = default;
@@ -680,14 +710,28 @@
         citaDto.VehiculoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
     }
 
-    private void OnMecanicoChanged(ChangeEventArgs e)
+    private void ToggleMecanico(int mecanicoId, ChangeEventArgs e)
     {
-        selMecanicoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
-        // El servicio depende de la especialidad del mecánico: se reinicia al cambiarlo.
-        selectedServicio = null;
-        selectedHoraFin = default;
-        citaDto.ServicioId = 0;
-        ActualizarServiciosDelMecanico();
+        var especialidadAntes = EspecialidadSeleccionadaId;
+
+        if (e.Value is bool marcado && marcado)
+        {
+            selMecanicosIds.Add(mecanicoId);
+        }
+        else
+        {
+            selMecanicosIds.Remove(mecanicoId);
+        }
+
+        // El servicio depende de la especialidad de los mecánicos elegidos: si cambia
+        // (en la práctica, al pasar de vacío a una especialidad), se reinicia.
+        if (EspecialidadSeleccionadaId != especialidadAntes)
+        {
+            selectedServicio = null;
+            selectedHoraFin = default;
+            citaDto.ServicioId = 0;
+            ActualizarServiciosDelMecanico();
+        }
     }
 
     private void OnServiceChanged(ChangeEventArgs e)
@@ -710,26 +754,44 @@
         }
     }
 
-    private MecanicoDTO? MecanicoSeleccionado =>
-        selMecanicoId is int id ? mecanicos.FirstOrDefault(m => m.Id == id) : null;
+    private List<MecanicoDTO> MecanicosSeleccionados =>
+        mecanicos.Where(m => selMecanicosIds.Contains(m.Id)).OrderBy(m => m.Nombre).ToList();
+
+    private string MecanicosSeleccionadosNombres =>
+        string.Join(", ", MecanicosSeleccionados.Select(m => m.Nombre));
+
+    // Especialidad (compartida) de los mecánicos elegidos; null si aún no hay ninguno.
+    private int? EspecialidadSeleccionadaId =>
+        mecanicos.FirstOrDefault(m => selMecanicosIds.Contains(m.Id))?.EspecialidadId;
+
+    // Agrupación de los mecánicos activos por especialidad, para la lista de checkboxes.
+    private IEnumerable<IGrouping<int, MecanicoDTO>> MecanicosPorEspecialidad =>
+        mecanicos.Where(m => m.Activo)
+            .GroupBy(m => m.EspecialidadId)
+            .OrderBy(g => g.First().EspecialidadNombre);
+
+    // Solo se permite combinar mecánicos de la misma especialidad: una vez elegido uno,
+    // los grupos de otras especialidades quedan deshabilitados.
+    private bool GrupoHabilitado(int especialidadId) =>
+        !selMecanicosIds.Any() || EspecialidadSeleccionadaId == especialidadId;
 
     private void ActualizarServiciosDelMecanico()
     {
-        var mecanico = MecanicoSeleccionado;
-        serviciosDelMecanico = mecanico == null || serviciosActivos == null
+        var especialidadId = EspecialidadSeleccionadaId;
+        serviciosDelMecanico = especialidadId is null || serviciosActivos == null
             ? new List<Servicio>()
-            : serviciosActivos.Where(s => s.CategoriaId == mecanico.EspecialidadId).ToList();
+            : serviciosActivos.Where(s => s.CategoriaId == especialidadId).ToList();
     }
 
     private bool MecanicoOcupado(TimeOnly ini, TimeOnly fin)
     {
-        if (selMecanicoId is not int id)
+        if (!selMecanicosIds.Any())
         {
             return false;
         }
 
         return citasSemana.Any(c =>
-            c.MecanicoId == id
+            c.CitaMecanicos.Any(cm => selMecanicosIds.Contains(cm.MecanicoId))
             && c.Fecha.Date == selectedFecha.Date
             && c.EstaActiva()
             && c.OverlapsWith(ini, fin));
@@ -754,9 +816,9 @@
             modalError = "Seleccione un servicio.";
             return;
         }
-        if (selMecanicoId == null)
+        if (selMecanicosIds.Count == 0)
         {
-            modalError = "Seleccione un mecánico.";
+            modalError = "Seleccione al menos un mecánico.";
             return;
         }
         if (!HoraHabilitada(selHora))
@@ -776,7 +838,7 @@
         citaDto.Fecha = selectedFecha;
         citaDto.HoraInicio = selHora;
         citaDto.ServicioId = selectedServicio.ServicioId;
-        citaDto.MecanicoId = selMecanicoId.Value;
+        citaDto.MecanicosIds = selMecanicosIds.ToList();
 
         isSubmitting = true;
         try
@@ -791,11 +853,11 @@
         }
         catch (Exception ex) when (ex.GetType().Name == "AppointmentOverlapException")
         {
-            modalError = "El mecánico ya tiene una cita en ese horario.";
+            modalError = ex.Message;
         }
         catch (Exception ex) when (ex.GetType().Name == "InactiveMechanicException")
         {
-            modalError = "El mecánico seleccionado no está activo.";
+            modalError = ex.Message;
         }
         catch (Exception ex)
         {

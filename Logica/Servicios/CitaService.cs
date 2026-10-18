@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs;
+using Mecano.Entidad.DTOs.Mecanico;
 using Mecano.Entidad.Excepciones;
 using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
@@ -28,11 +29,33 @@ public class CitaService : ICitaService
     public async Task<Cita> AgendarCitaAsync(AgendarCitaDTO dto)
     {
         using var context = await _factory.CreateDbContextAsync();
-        
-        var mecanico = await context.Mecanico.FindAsync(dto.MecanicoId);
-        if (mecanico == null || !mecanico.Activo)
+
+        var mecanicosIds = dto.MecanicosIds?.Distinct().ToList() ?? new List<int>();
+        if (mecanicosIds.Count == 0)
         {
-            throw new InactiveMechanicException($"Mecánico con ID {dto.MecanicoId} no existe o está inactivo.");
+            throw new InvalidOperationException("Seleccione al menos un mecánico.");
+        }
+
+        var mecanicos = await context.Mecanico
+            .Where(m => mecanicosIds.Contains(m.MecanicoId))
+            .ToDictionaryAsync(m => m.MecanicoId);
+
+        // Todos los mecánicos asignados deben existir y estar activos (defensa en
+        // profundidad: la UI ya solo ofrece activos).
+        foreach (var id in mecanicosIds)
+        {
+            if (!mecanicos.TryGetValue(id, out var mec) || !mec.Activo)
+            {
+                throw new InactiveMechanicException($"Mecánico con ID {id} no existe o está inactivo.");
+            }
+        }
+
+        // Una cita solo admite mecánicos de una misma especialidad (defensa en profundidad:
+        // la UI agrupa por especialidad, pero el servicio es la última barrera ante
+        // llamadas directas o datos manipulados).
+        if (mecanicos.Values.Select(m => m.EspecialidadId).Distinct().Count() > 1)
+        {
+            throw new InvalidOperationException("Todos los mecánicos de una cita deben pertenecer a la misma especialidad.");
         }
 
         var servicio = await context.Servicio.FindAsync(dto.ServicioId);
@@ -85,17 +108,23 @@ public class CitaService : ICitaService
         {
             int vehiculoId = dto.VehiculoId.Value;
 
-            bool overlapExists = await context.Cita
-                .AnyAsync(c => c.MecanicoId == dto.MecanicoId
-                            && c.Fecha.Date == dto.Fecha.Date
-                            && c.Estado != EstadoCita.Cancelado
-                            && c.Estado != EstadoCita.Finalizado
-                            && c.HoraInicio < horaFin
-                            && dto.HoraInicio < c.HoraFin);
-
-            if (overlapExists)
+            // La cita ocupa el tramo para TODOS los mecánicos asignados: si alguno
+            // está ocupado, se rechaza la cita completa indicando cuál conflicto.
+            foreach (var id in mecanicosIds)
             {
-                throw new AppointmentOverlapException("El mecánico ya tiene una cita asignada en ese horario.");
+                bool overlapExists = await context.Cita
+                    .AnyAsync(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == id)
+                                && c.Fecha.Date == dto.Fecha.Date
+                                && c.Estado != EstadoCita.Cancelado
+                                && c.Estado != EstadoCita.Finalizado
+                                && c.HoraInicio < horaFin
+                                && dto.HoraInicio < c.HoraFin);
+
+                if (overlapExists)
+                {
+                    throw new AppointmentOverlapException(
+                        $"El mecánico {mecanicos[id].Nombre} ya tiene una cita asignada en ese horario.");
+                }
             }
 
             var cita = new Cita
@@ -103,12 +132,14 @@ public class CitaService : ICitaService
                 ClienteId = dto.ClienteId,
                 VehiculoId = vehiculoId,
                 ServicioId = dto.ServicioId,
-                MecanicoId = dto.MecanicoId,
                 Fecha = dto.Fecha,
                 HoraInicio = dto.HoraInicio,
                 HoraFin = horaFin,
                 Estado = EstadoCita.Pendiente,
-                FechaCreacion = DateTime.Now
+                FechaCreacion = DateTime.Now,
+                CitaMecanicos = mecanicosIds
+                    .Select(id => new CitaMecanico { MecanicoId = id })
+                    .ToList()
             };
 
             context.Cita.Add(cita);
@@ -119,7 +150,7 @@ public class CitaService : ICitaService
                 .Include(c => c.Cliente)
                 .Include(c => c.Vehiculo)
                 .Include(c => c.Servicio)
-                .Include(c => c.Mecanico)
+                .Include(c => c.CitaMecanicos)
                 .FirstAsync(c => c.CitaId == cita.CitaId);
         }
         catch (Exception ex)
@@ -151,7 +182,8 @@ public class CitaService : ICitaService
             .Include(c => c.Cliente)
             .Include(c => c.Vehiculo)
             .Include(c => c.Servicio)
-            .Include(c => c.Mecanico)
+            .Include(c => c.CitaMecanicos)
+                .ThenInclude(cm => cm.Mecanico)
             .Where(c => c.Fecha >= inicio.Date && c.Fecha <= fin.Date)
             .AsNoTracking()
             .ToListAsync();
@@ -174,8 +206,20 @@ public class CitaService : ICitaService
         VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
         ServicioId = c.ServicioId,
         ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
-        MecanicoId = c.MecanicoId,
-        MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null
+        Mecanicos = c.CitaMecanicos
+            .Select(cm => new MecanicoDTO
+            {
+                Id                 = cm.MecanicoId,
+                Nombre             = cm.Mecanico.Nombre,
+                Email              = cm.Mecanico.Email,
+                Cedula             = cm.Mecanico.Cedula,
+                TipoIdentificacion = cm.Mecanico.TipoIdentificacion,
+                Telefono           = cm.Mecanico.Telefono,
+                EspecialidadId     = cm.Mecanico.EspecialidadId,
+                EspecialidadNombre = cm.Mecanico.Especialidad != null ? cm.Mecanico.Especialidad.Nombre : null,
+                Activo             = cm.Mecanico.Activo
+            })
+            .ToList()
     };
 
     // ~~~ READ (por cliente) ~~~
@@ -264,13 +308,20 @@ public class CitaService : ICitaService
                 ServicioDuracionMinutos = c.Servicio != null ? c.Servicio.DuracionMinutos : 0,
                 ServicioPrecio = c.Servicio != null ? c.Servicio.Precio : 0m,
 
-                MecanicoId = c.MecanicoId,
-                MecanicoNombre = c.Mecanico != null ? c.Mecanico.Nombre : null,
-                MecanicoActivo = c.Mecanico != null && c.Mecanico.Activo,
-                MecanicoEspecialidadId = c.Mecanico != null ? c.Mecanico.EspecialidadId : 0,
-                MecanicoEspecialidadNombre = c.Mecanico != null && c.Mecanico.Especialidad != null
-                    ? c.Mecanico.Especialidad.Nombre
-                    : null
+                Mecanicos = c.CitaMecanicos
+                    .Select(cm => new MecanicoDTO
+                    {
+                        Id                 = cm.MecanicoId,
+                        Nombre             = cm.Mecanico.Nombre,
+                        Email              = cm.Mecanico.Email,
+                        Cedula             = cm.Mecanico.Cedula,
+                        TipoIdentificacion = cm.Mecanico.TipoIdentificacion,
+                        Telefono           = cm.Mecanico.Telefono,
+                        EspecialidadId     = cm.Mecanico.EspecialidadId,
+                        EspecialidadNombre = cm.Mecanico.Especialidad != null ? cm.Mecanico.Especialidad.Nombre : null,
+                        Activo             = cm.Mecanico.Activo
+                    })
+                    .ToList()
             })
             .FirstOrDefaultAsync();
     }
@@ -281,7 +332,9 @@ public class CitaService : ICitaService
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var cita = await context.Cita.FindAsync(dto.Id);
+        var cita = await context.Cita
+            .Include(c => c.CitaMecanicos)
+            .FirstOrDefaultAsync(c => c.CitaId == dto.Id);
         if (cita is null)
             return false;
 
@@ -305,7 +358,8 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("El vehículo seleccionado no está activo.");
 
         // Cambiar el servicio cambia la duración: se recalcula el fin y se revalida la agenda.
-        var mecanicoId = cita.MecanicoId;
+        // La cita ocupa el tramo para todos sus mecánicos: basta con que uno esté ocupado.
+        var mecanicosIds = cita.CitaMecanicos.Select(cm => cm.MecanicoId).ToList();
         var fecha = cita.Fecha;
         var horaInicio = cita.HoraInicio;
         var horaFin = horaInicio.AddMinutes(servicio.DuracionMinutos);
@@ -315,7 +369,7 @@ public class CitaService : ICitaService
 
         bool overlapExists = await context.Cita.AnyAsync(c =>
             c.CitaId != dto.Id
-            && c.MecanicoId == mecanicoId
+            && c.CitaMecanicos.Any(cm => mecanicosIds.Contains(cm.MecanicoId))
             && c.Fecha.Date == fecha.Date
             && c.Estado != EstadoCita.Cancelado
             && c.Estado != EstadoCita.Finalizado
@@ -342,16 +396,32 @@ public class CitaService : ICitaService
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var cita = await context.Cita.FindAsync(dto.Id);
+        var cita = await context.Cita
+            .Include(c => c.CitaMecanicos)
+            .FirstOrDefaultAsync(c => c.CitaId == dto.Id);
         if (cita is null)
             return false;
 
         if (!cita.EstaActiva())
             throw new InvalidOperationException("No se puede reprogramar una cita cancelada o finalizada.");
 
-        var mecanico = await context.Mecanico.FindAsync(dto.MecanicoId);
-        if (mecanico is null || !mecanico.Activo)
-            throw new InactiveMechanicException($"Mecánico con ID {dto.MecanicoId} no existe o está inactivo.");
+        var mecanicosIds = dto.MecanicosIds?.Distinct().ToList() ?? new List<int>();
+        if (mecanicosIds.Count == 0)
+            throw new InvalidOperationException("Seleccione al menos un mecánico.");
+
+        var mecanicos = await context.Mecanico
+            .Where(m => mecanicosIds.Contains(m.MecanicoId))
+            .ToDictionaryAsync(m => m.MecanicoId);
+
+        foreach (var id in mecanicosIds)
+        {
+            if (!mecanicos.TryGetValue(id, out var mec) || !mec.Activo)
+                throw new InactiveMechanicException($"Mecánico con ID {id} no existe o está inactivo.");
+        }
+
+        // La reprogramación también debe respetar la especialidad compartida.
+        if (mecanicos.Values.Select(m => m.EspecialidadId).Distinct().Count() > 1)
+            throw new InvalidOperationException("Todos los mecánicos de una cita deben pertenecer a la misma especialidad.");
 
         var servicio = await context.Servicio.FindAsync(cita.ServicioId);
         if (servicio is null)
@@ -376,26 +446,44 @@ public class CitaService : ICitaService
         if (horaFin > cierre)
             throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
 
-        bool overlapExists = await context.Cita.AnyAsync(c =>
-            c.CitaId != dto.Id
-            && c.MecanicoId == dto.MecanicoId
-            && c.Fecha.Date == dto.Fecha.Date
-            && c.Estado != EstadoCita.Cancelado
-            && c.Estado != EstadoCita.Finalizado
-            && c.HoraInicio < horaFin
-            && dto.HoraInicio < c.HoraFin);
+        bool hayConflicto = false;
+        string nomConflicto = string.Empty;
+        foreach (var id in mecanicosIds)
+        {
+            bool overlapExists = await context.Cita.AnyAsync(c =>
+                c.CitaId != dto.Id
+                && c.CitaMecanicos.Any(cm => cm.MecanicoId == id)
+                && c.Fecha.Date == dto.Fecha.Date
+                && c.Estado != EstadoCita.Cancelado
+                && c.Estado != EstadoCita.Finalizado
+                && c.HoraInicio < horaFin
+                && dto.HoraInicio < c.HoraFin);
 
-        if (overlapExists)
-            throw new AppointmentOverlapException("El mecánico ya tiene una cita asignada en ese horario.");
+            if (overlapExists)
+            {
+                hayConflicto = true;
+                nomConflicto = mecanicos[id].Nombre;
+                break;
+            }
+        }
 
-        cita.MecanicoId = dto.MecanicoId;
+        if (hayConflicto)
+            throw new AppointmentOverlapException($"El mecánico {nomConflicto} ya tiene una cita asignada en ese horario.");
+
+        // La reprogramación reemplaza el conjunto de mecánicos asignados.
+        cita.CitaMecanicos.Clear();
+        foreach (var id in mecanicosIds)
+        {
+            cita.CitaMecanicos.Add(new CitaMecanico { CitaId = cita.CitaId, MecanicoId = id });
+        }
+
         cita.Fecha = dto.Fecha;
         cita.HoraInicio = dto.HoraInicio;
         cita.HoraFin = horaFin;
 
         await context.SaveChangesAsync();
-        _logger.LogInformation("Cita {Id} reprogramada a {Fecha} {Hora} con mecánico {MecanicoId}.",
-            cita.CitaId, dto.Fecha, dto.HoraInicio, dto.MecanicoId);
+        _logger.LogInformation("Cita {Id} reprogramada a {Fecha} {Hora} con mecánicos {MecanicosIds}.",
+            cita.CitaId, dto.Fecha, dto.HoraInicio, string.Join(", ", mecanicosIds));
         return true;
     }
 
@@ -411,7 +499,7 @@ public class CitaService : ICitaService
             query = query.Where(c => c.Fecha <= hasta.Date);
 
         if (filtro.MecanicoId is int mecanicoId)
-            query = query.Where(c => c.MecanicoId == mecanicoId);
+            query = query.Where(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId));
 
         if (filtro.Estado is EstadoCita estado)
             query = query.Where(c => c.Estado == estado);

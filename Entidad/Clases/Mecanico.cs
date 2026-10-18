@@ -34,6 +34,6 @@ namespace Mecano.Entidad.Clases
 
         public bool Activo { get; set; } = true;
 
-        public ICollection<Cita> Citas { get; } = new List<Cita>();
+        public ICollection<CitaMecanico> CitaMecanicos { get; } = new List<CitaMecanico>();
     }
 }

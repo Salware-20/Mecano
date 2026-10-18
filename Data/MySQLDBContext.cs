@@ -10,6 +10,7 @@ namespace Mecano.Data
         public DbSet<Administrador> Administradors { get; set; }
         public DbSet<Categoria> Categorias { get; set; }
         public DbSet<Cita> Cita { get; set; }
+        public DbSet<CitaMecanico> CitaMecanico { get; set; }
         public DbSet<Cliente> Cliente { get; set; }
         public DbSet<Comentario> Comentario { get; set; }
         public DbSet<Mecanico> Mecanico { get; set; }
@@ -42,11 +43,22 @@ namespace Mecano.Data
                 .HasForeignKey(c => c.VehiculoId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Mecanico - Cita
-            modelBuilder.Entity<Mecanico>()
-                .HasMany(m => m.Citas)
-                .WithOne(ci => ci.Mecanico)
-                .HasForeignKey(ci => ci.MecanicoId)
+            // Mecanico - Cita (N:M a través de CitaMecanico): una cita puede tener
+            // varios mecánicos de la misma especialidad. Al borrar la cita se borran
+            // sus asignaciones; el mecánico no se puede borrar si todavía está asignado.
+            modelBuilder.Entity<CitaMecanico>()
+                .HasKey(cm => new { cm.CitaId, cm.MecanicoId });
+
+            modelBuilder.Entity<CitaMecanico>()
+                .HasOne(cm => cm.Cita)
+                .WithMany(c => c.CitaMecanicos)
+                .HasForeignKey(cm => cm.CitaId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CitaMecanico>()
+                .HasOne(cm => cm.Mecanico)
+                .WithMany(m => m.CitaMecanicos)
+                .HasForeignKey(cm => cm.MecanicoId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Mecanico - Especialidad (Categoria)

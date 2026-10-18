@@ -188,7 +188,7 @@ else
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>@(cita.ServicioNombre ?? "-")</td>
-                                    <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
+                                    <td style="text-transform:capitalize;">@(string.IsNullOrWhiteSpace(cita.MecanicosNombres) ? "-" : cita.MecanicosNombres)</td>
                                     <td>
                                         <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                     </td>
