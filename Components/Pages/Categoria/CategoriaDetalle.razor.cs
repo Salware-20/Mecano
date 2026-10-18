@@ -83,6 +83,17 @@ public partial class CategoriaDetalle : ComponentBase
         idEditando = null;
     }
 
+    // Actualiza el hint "Equivale a ..." mientras el usuario escribe la duración: el
+    // @bind-Value de InputNumber solo engancha onchange (se dispara al salir del campo),
+    // así que este handler refresca el modelo en cada tecla. e.Value es el texto crudo
+    // del <input> (null si queda vacío); si no parsea, se conserva el último valor válido
+    // para no reescribir lo que el usuario está tecleando.
+    private void OnDuracionInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var minutos))
+            modelo.DuracionMinutos = minutos;
+    }
+
     private async Task Guardar()
     {
         guardando = true;

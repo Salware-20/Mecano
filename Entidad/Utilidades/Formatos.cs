@@ -57,6 +57,29 @@ namespace Mecano.Entidad.Utilidades
             monto.ToString(monto % 1 == 0 ? "C0" : "C2", FormatoMonedaCR);
 
         /// <summary>
+        /// Presenta una duración en minutos de forma legible en español, con singular/plural
+        /// correctos y omitiendo la parte cero: 60 → "1 hora", 120 → "2 horas",
+        /// 90 → "1 hora 30 minutos", 45 → "45 minutos", 1 → "1 minuto",
+        /// 0 o negativo → "0 minutos". Solo presentación.
+        /// </summary>
+        public static string Duracion(int minutos)
+        {
+            if (minutos <= 0)
+                return "0 minutos";
+
+            var horas = minutos / 60;
+            var resto = minutos % 60;
+
+            var textoHoras = horas == 1 ? "1 hora" : $"{horas} horas";
+            var textoMinutos = resto == 1 ? "1 minuto" : $"{resto} minutos";
+
+            if (horas > 0 && resto > 0)
+                return $"{textoHoras} {textoMinutos}";
+
+            return horas > 0 ? textoHoras : textoMinutos;
+        }
+
+        /// <summary>
         /// Elimina todo carácter que no sea un dígito. Devuelve cadena vacía si el input es null.
         /// </summary>
         public static string SoloDigitos(string? raw)

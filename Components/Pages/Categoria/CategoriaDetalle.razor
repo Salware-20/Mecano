@@ -85,7 +85,7 @@
                             <tr class="@(s.Activo ? "" : "table-secondary")">
                                 <td><strong>@s.Nombre</strong></td>
                                 <td class="text-muted">@s.Descripcion</td>
-                                <td class="text-center">@s.DuracionMinutos min</td>
+                                <td class="text-center">@Formatos.Duracion(s.DuracionMinutos)</td>
                                 <td class="text-end">@Formatos.Moneda(s.Precio)</td>
                                 <td class="text-center">
                                     @if (s.Activo)
@@ -164,9 +164,11 @@
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="servDuracion">Duración (minutos) *</label>
                                 <InputNumber id="servDuracion" class="form-control" @bind-Value="modelo.DuracionMinutos"
-                                             min="5" max="480" step="5" />
+                                             @oninput="OnDuracionInput" min="5" max="480" step="5" />
                                 <ValidationMessage For="() => modelo.DuracionMinutos" class="text-danger small" />
-                                <small class="text-muted">Entre 5 y 480 minutos.</small>
+                                <small class="text-muted">
+                                    Entre 5 y 480 minutos. Equivale a <strong>@Formatos.Duracion(modelo.DuracionMinutos)</strong>.
+                                </small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="servPrecio">Precio *</label>
