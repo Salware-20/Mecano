@@ -1,5 +1,6 @@
 using Mecano.Data;
 using Mecano.Entidad.DTOs.Perfil;
+using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Utilidades;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +51,11 @@ public class AdministradorService : IAdministradorService
         var admin = await context.Administradors.FindAsync(adminId);
         if (admin is null) return false;
 
+        var nombre = dto.Nombre.Trim();
+        var cedula = !string.IsNullOrWhiteSpace(dto.Cedula)
+            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
+            : null;
+
         var correo = string.IsNullOrWhiteSpace(dto.CorreoNotificaciones)
             ? null
             : dto.CorreoNotificaciones.Trim();
@@ -67,6 +73,9 @@ public class AdministradorService : IAdministradorService
                     $"El correo de notificaciones '{correo}' ya está en uso por otro administrador.");
         }
 
+        admin.Nombre               = nombre;
+        admin.Cedula               = cedula;
+        admin.TipoIdentificacion   = dto.TipoIdentificacion;
         admin.CorreoNotificaciones = correo;
         await context.SaveChangesAsync();
         return true;

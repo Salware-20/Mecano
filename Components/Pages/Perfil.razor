@@ -76,19 +76,32 @@ else
 
                         <div class="mb-3">
                             <label class="form-label" for="perfilNombre">Nombre completo</label>
-                            <input id="perfilNombre" class="form-control bg-body-secondary text-capitalize" value="@perfil.Nombre" readonly />
+                            <InputText id="perfilNombre" class="form-control" maxlength="150" autocomplete="off"
+                                       style="text-transform:capitalize;" autocapitalize="words"
+                                       @bind-Value="perfilModel.Nombre" />
+                            <ValidationMessage For="() => perfilModel.Nombre" class="text-danger small" />
                         </div>
 
                         <div class="row">
                             <div class="col-md-5 mb-3">
                                 <label class="form-label" for="perfilTipoId">Tipo de identificación</label>
-                                <input id="perfilTipoId" class="form-control bg-body-secondary" value="@perfil.TipoIdentificacion" readonly />
+                                <InputSelect id="perfilTipoId" class="form-select" @bind-Value="perfilModel.TipoIdentificacion">
+                                    <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Nacional">Nacional</option>
+                                    <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Dimex">DIMEX</option>
+                                    <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Pasaporte">Pasaporte</option>
+                                </InputSelect>
                             </div>
                             <div class="col-md-7 mb-3">
                                 <label class="form-label" for="perfilCedula">Identificación</label>
-                                <input id="perfilCedula" class="form-control bg-body-secondary"
-                                       value="@(string.IsNullOrEmpty(perfil.Cedula) ? "—" : Formatos.FormatearIdentificacion(perfil.Cedula, perfil.TipoIdentificacion))" readonly />
+                                <InputText id="perfilCedula" class="form-control" maxlength="20"
+                                           placeholder="Ej. 101230123" autocomplete="off"
+                                           @bind-Value="perfilModel.Cedula" />
+                                <ValidationMessage For="() => perfilModel.Cedula" class="text-danger small" />
                             </div>
+                        </div>
+                        <div class="form-text mb-3">
+                            Actualiza tu nombre y tu identificación si el puesto pasa a otra persona.
+                            Déjala vacía si aún no tienes una registrada.
                         </div>
 
                         <div class="mb-3">

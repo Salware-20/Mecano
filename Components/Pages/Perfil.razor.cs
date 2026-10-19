@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Mecano.Entidad.DTOs.Perfil;
+using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 
@@ -56,6 +57,9 @@ namespace Mecano.Components.Pages
                 {
                     perfilModel = new ActualizarPerfilAdminDTO
                     {
+                        Nombre               = perfil.Nombre,
+                        Cedula               = perfil.Cedula,
+                        TipoIdentificacion   = perfil.TipoIdentificacion,
                         CorreoNotificaciones = perfil.CorreoNotificaciones
                     };
                 }
@@ -101,13 +105,27 @@ namespace Mecano.Components.Pages
                     // Se sincroniza el modelo en memoria en lugar de recargar el
                     // perfil: CargarPerfil() activa el spinner y desmontaría ambas
                     // tarjetas (parpadeo y pérdida del foco) tras cada guardado.
+                    // El servicio ya validó la identificación, así que normalizarla
+                    // aquí con el mismo helper no puede lanzar.
+                    var nombre = perfilModel.Nombre.Trim();
+                    var cedula = string.IsNullOrWhiteSpace(perfilModel.Cedula)
+                        ? null
+                        : Formatos.NormalizarIdentificacion(perfilModel.Cedula, perfilModel.TipoIdentificacion);
                     var correo = string.IsNullOrWhiteSpace(perfilModel.CorreoNotificaciones)
                         ? null
                         : perfilModel.CorreoNotificaciones.Trim();
 
+                    perfilModel.Nombre               = nombre;
+                    perfilModel.Cedula               = cedula;
                     perfilModel.CorreoNotificaciones = correo;
+
                     if (perfil is not null)
+                    {
+                        perfil.Nombre               = nombre;
+                        perfil.Cedula               = cedula;
+                        perfil.TipoIdentificacion   = perfilModel.TipoIdentificacion;
                         perfil.CorreoNotificaciones = correo;
+                    }
 
                     mensajeExitoPerfil = "Datos del perfil actualizados correctamente.";
                 }
