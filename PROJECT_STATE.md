@@ -8,7 +8,7 @@
 | **Propósito** | Aplicación de taller mecánico para agendar citas, gestionar clientes, vehículos, servicios y mecánicos. |
 | **Stack principal** | .NET 10.0 (SDK Web), Blazor Server (Interactive Server), Entity Framework Core 9.0, MySQL 8.0 (Pomelo EF Provider) |
 | **Estado general** | Prototipo / MVP — gestión operativa de citas, clientes, vehículos, categorías y servicios, con autenticación por cookies y autorización por roles implementadas. |
-| **Páginas Blazor** | 12 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Components/Shared/VehiculoFormModal.razor(.cs) (formulario de vehículo compartido) y Layout (MainLayout, LoginLayout, NavMenu, ReconnectModal); Login y AccesoDenegado usan LoginLayout (sin menú lateral). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). `wwwroot/js/auth.js` alberga además `window.mecanoRedirectFeedback` (oscurece/anima el menú al redirigir a login; lo invocan `MainLayout` y `RedirectToLogin`). |
+| **Páginas Blazor** | 13 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Mecanicos}; además Components/Shared/RedirectToLogin.razor y Components/Shared/VehiculoFormModal.razor(.cs) (formulario de vehículo compartido) y Layout (MainLayout, LoginLayout, NavMenu, ReconnectModal); Login y AccesoDenegado usan LoginLayout (sin menú lateral). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). `wwwroot/js/auth.js` alberga además `window.mecanoRedirectFeedback` (oscurece/anima el menú al redirigir a login; lo invocan `MainLayout` y `RedirectToLogin`). |
 | **Entidades de dominio** | 8 clases principales: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, NotificacionLog. `Cliente`, `Mecanico` y `Administrador` llevan `TipoIdentificacion` (enum `Nacional=1, Dimex=2, Pasaporte=3`; commit `8ec693b`). |
 | **Invariante de datos** | La identificación se normaliza **por tipo** vía `Formatos.NormalizarIdentificacion` y se presenta vía `Formatos.FormatearIdentificacion`: `Nacional` = 9 dígitos (`101110111` ↔ `1-0111-0111`); `DIMEX` = 11–12 dígitos, display crudo; `Pasaporte` = alfanumérico ≤20 (solo `Trim`, preserva mayúsculas), display crudo. `Cliente.Telefono`/`Mecanico.Telefono` (8 dígitos; el del mecánico obligatorio desde las regulaciones de entrada, ver Sección 5.1) y `Vehiculo.Placa` (6 caracteres, mayúsculas sin guiones, ej. `ABC123`) mantienen su invariante. El formato legible se aplica en presentación vía `Entidad/Utilidades/Formatos.cs`. Ver Sección 5.1. Los precios (`Servicio.Precio`) se presentan como colones vía `Formatos.Moneda` (formato fijo: punto de miles, coma decimal, decimales dinámicos) y las duraciones (`Servicio.DuracionMinutos`) de forma legible vía `Formatos.Duracion` (`90` → `1 hora 30 minutos`). |
 | ** Keep “YAGNI” and “KISS” in mind ** | I don't want a project with a super-complex backend |
@@ -64,10 +64,14 @@ Mecano/
 │  │     ├─ CategoriaDTO.cs
 │  │     ├─ CrearCategoriaDTO.cs
 │  │     └─ ActualizarCategoriaDTO.cs
-│  │  └─ Mecanico/             # Namespace que colisiona con la clase Mecanico (ver Sección 11)
-│  │     ├─ MecanicoDTO.cs       # Read model; EspecialidadNombre resuelto desde Categoria; incluye TipoIdentificacion
-│  │     ├─ CrearMecanicoDTO.cs  # Write model (Password + ConfirmarPassword con [Compare]); Cedula opcional + TipoIdentificacion (default Nacional); nombre/correo/teléfono con las reglas de Patrones
-│  │     └─ ActualizarMecanicoDTO.cs # Espejo de CrearMecanicoDTO; Password opcional (vacío = conservar hash)
+│  │  ├─ Mecanico/             # Namespace que colisiona con la clase Mecanico (ver Sección 11)
+│  │  │  ├─ MecanicoDTO.cs       # Read model; EspecialidadNombre resuelto desde Categoria; incluye TipoIdentificacion
+│  │  │  ├─ CrearMecanicoDTO.cs  # Write model (Password + ConfirmarPassword con [Compare]); Cedula opcional + TipoIdentificacion (default Nacional); nombre/correo/teléfono con las reglas de Patrones
+│  │  │  └─ ActualizarMecanicoDTO.cs # Espejo de CrearMecanicoDTO; Password opcional (vacío = conservar hash)
+│  │  └─ Perfil/               # "Mi Perfil" del administrador (ver Sección 7)
+│  │     ├─ PerfilAdminDTO.cs           # Read model: Nombre, Cedula, TipoIdentificacion, Correo (login, no editable) + CorreoNotificaciones (editable, opcional)
+│  │     ├─ ActualizarPerfilAdminDTO.cs # Write model: solo CorreoNotificaciones; sin [EmailAddress] a propósito (ver Sección 11) y unicidad validada en el servicio
+│  │     └─ CambiarPasswordDTO.cs       # PasswordActual + NuevaPassword + ConfirmarPassword ([Compare]); complejidad con regex de lookaheads + .+$ (ver Sección 11)
 │  ├─ Excepciones/
 │  │  ├─ InactiveMechanicException.cs
 │  │  └─ AppointmentOverlapException.cs
@@ -81,7 +85,7 @@ Mecano/
 ├─ Data/
 │  ├─ MySQLDBContext.cs     # DbContext con DbSet<>
 │  ├─ DbSeeder.cs           # Seed de datos iniciales (categorías, servicios, mecánicos, etc.)
-│  └─ Migrations/           # 20261003033206_Inicial + 20261005232947_AgregarTipoIdentificacionCliente + 20261006160916_Vehiculo-Activo-bool + 20261011040945_TipoIdentificacion-mecanico-adminitrador + 20261011150853_AgregarTipoIdentificacionMecanico (las dos últimas se pisan; ver Sección 11) + 20261016235018_AgregarKilometrajeVehiculo + 20261018204110_AgregarSoporteMultiMecanicoCita (N:M Cita↔Mecanico con backfill)
+│  └─ Migrations/           # 20261003033206_Inicial + 20261005232947_AgregarTipoIdentificacionCliente + 20261006160916_Vehiculo-Activo-bool + 20261011040945_TipoIdentificacion-mecanico-adminitrador + 20261011150853_AgregarTipoIdentificacionMecanico (las dos últimas se pisan; ver Sección 11) + 20261016235018_AgregarKilometrajeVehiculo + 20261018204110_AgregarSoporteMultiMecanicoCita (N:M Cita↔Mecanico con backfill) + 20261019180239_AgregarCorreoNotificacionesAdmin
 ├─ Endpoints/
 │  └─ AuthEndpoints.cs      # Minimal API: POST /api/auth/login, POST /api/auth/logout
 ├─ Logica/
@@ -98,7 +102,8 @@ Mecano/
 │     ├─ CategoriaService.cs
 │     ├─ CalendarQueryService.cs
 │     ├─ NotificationService.cs
-│     └─ VehiculoService.cs
+│     ├─ VehiculoService.cs
+│     └─ AdministradorService.cs # Perfil del administrador autenticado (ObtenerPerfilAsync / ActualizarPerfilAsync / CambiarPasswordAsync)
 ├─ wwwroot/
 │  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark) + estilos globales
 │  └─ js/
@@ -109,11 +114,11 @@ Mecano/
 │  ├─ Routes.razor           # Configuración del enrutador
 │  ├─ App.razor              # Raíz HTML con script de framework Blazor
 │  ├─ Layout/
-│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + dropdown de usuario + sidebar + @Body (canvas px-4 py-3). @code: ToggleTheme, ToggleUserMenu/CloseUserMenu, HandleLogout; OnAfterRenderAsync(firstRender) inicializa window.mecanoRedirectFeedback y le pasa el estado de autenticación
+│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + dropdown de usuario (incluye enlace "Mi Perfil" a `/perfil`) + sidebar + @Body (canvas px-4 py-3). @code: ToggleTheme, ToggleUserMenu/CloseUserMenu, HandleLogout; OnAfterRenderAsync(firstRender) inicializa window.mecanoRedirectFeedback y le pasa el estado de autenticación
 │  │  ├─ MainLayout.razor.css # Sidebar con var(--bg-sidebar); header con var(--bg-header) y var(--border-color)
 │  │  ├─ LoginLayout.razor   # Layout anónimo sin sidebar: header con marca MECANO + toggle de tema + @Body; lo usan Login.razor y AccesoDenegado.razor
 │  │  ├─ LoginLayout.razor.css # Header y contenedor (.page min-height 100vh); duplica #blazor-error-ui
-│  │  ├─ NavMenu.razor       # Brand MECANO; Inicio, Agendar Cita, Citas; header literal "Gestión" (SIN AuthorizeView: visible para todos los roles — ver Sección 11): Clientes y Vehículos, Categorías y Servicios, Mecánicos; TEST al final
+│  │  ├─ NavMenu.razor       # Brand MECANO; Dashboard, Agendar Cita, Citas; header literal "Gestión" (SIN AuthorizeView: visible para todos los roles — ver Sección 11): Clientes y Vehículos, Categorías y Servicios, Mecánicos, Mi Perfil (enlace `bi-person-circle` a `/perfil`, admin-only por atributo)
 │  │  ├─ NavMenu.razor.css    # Links con tokens (--text-sidebar, --nav-active-bg, --nav-hover-bg, --primary-accent)
 │  │  ├─ ReconnectModal.razor
 │  │  └─ ReconnectModal.razor.css # Modal de reconexión de la plantilla (157 líneas, sin cambios)
@@ -128,6 +133,9 @@ Mecano/
 │     ├─ NotFound.razor      # @page "/not-found"
 │     ├─ Error.razor         # @page "/Error"
 │     ├─ ConnectionTest.razor # @page "/connectiontest", [Authorize(Roles=Administrador)], InteractiveServer
+│     ├─ Perfil.razor        # @page "/perfil", [Authorize(Roles=Administrador)], InteractiveServer. Avatar circular con las iniciales de Nombre + badge de rol; datos personales en solo lectura (Nombre, TipoIdentificacion, Cedula, Correo de login) y CorreoNotificaciones editable; tarjeta de cambio de contraseña con el mismo patrón del login (nunca type="password": type="text" + autocomplete="off" + -webkit-text-security + botón de ojo)
+│     ├─ Perfil.razor.cs     # Resuelve el admin por el claim NameIdentifier; ObtenerPerfilAsync al cargar; GuardarPerfil / GuardarPassword con alertas de éxito/error; Iniciales() (primera + última palabra, máx. 2 letras)
+│     ├─ Perfil.razor.css    # Avatar circular (var(--primary-accent)) + ajustes de la tarjeta de perfil
 │     ├─ Categoria/
 │     │  ├─ Categorias.razor      # @page "/categorias", lista + CRUD modal (Administrador)
 │     │  ├─ Categorias.razor.cs
@@ -440,7 +448,7 @@ namespace Mecano.Data
 
 | Entidad | DbSet | Comentario |
 |---|---|---|
-| Administrador | `DbSet<Administrador>` | Usuario con credenciales (email/hash password) |
+| Administrador | `DbSet<Administrador>` | Usuario con credenciales (email/hash password); `Cedula`/`TipoIdentificacion` y `CorreoNotificaciones` (correo secundario opcional, editable desde `/perfil`) |
 | Categoria | `DbSet<Categoria>` | Agrupación de servicios |
 | Cita | `DbSet<Cita>` | Consulta de horarios, disponibilidad |
 | Cliente | `DbSet<Cliente>` | No tiene login/credenciales |
@@ -465,13 +473,14 @@ namespace Mecano.Data
 2. `Vehiculo.Placa` — Unique index.
 
 ### Estado de migraciones
-- **Carpeta `Data/Migrations/`**: Siete migraciones — `20261003033206_Inicial.cs`, `20261005232947_AgregarTipoIdentificacionCliente.cs`, `20261006160916_Vehiculo-Activo-bool.cs`, `20261011040945_TipoIdentificacion-mecanico-adminitrador.cs`, `20261011150853_AgregarTipoIdentificacionMecanico.cs`, `20261016235018_AgregarKilometrajeVehiculo.cs` (agrega `Vehiculo.Kilometraje int NULL`) y `20261018204110_AgregarSoporteMultiMecanicoCita.cs` (crea la tabla `CitaMecanico`, backfillea desde `Cita.MecanicoId` y luego dropea la columna; cada una con su `.Designer.cs`, más `MySQLDBContextModelSnapshot.cs`).
+- **Carpeta `Data/Migrations/`**: Ocho migraciones — `20261003033206_Inicial.cs`, `20261005232947_AgregarTipoIdentificacionCliente.cs`, `20261006160916_Vehiculo-Activo-bool.cs`, `20261011040945_TipoIdentificacion-mecanico-adminitrador.cs`, `20261011150853_AgregarTipoIdentificacionMecanico.cs`, `20261016235018_AgregarKilometrajeVehiculo.cs` (agrega `Vehiculo.Kilometraje int NULL`), `20261018204110_AgregarSoporteMultiMecanicoCita.cs` (crea la tabla `CitaMecanico`, backfillea desde `Cita.MecanicoId` y luego dropea la columna) y `20261019180239_AgregarCorreoNotificacionesAdmin.cs` (agrega `Administrador.CorreoNotificaciones varchar(200) NULL`); cada una con su `.Designer.cs`, más `MySQLDBContextModelSnapshot.cs`.
 - **¿Migraciones aplicadas a la BD?**: El seeder usa `Database.EnsureCreatedAsync()` en lugar de `MigrateAsync()`, por lo que el esquema se crea directamente desde el modelo; las migraciones existen como historial pero no se aplican en runtime. `EnsureCreatedAsync` es no-op sobre una BD ya existente, así que **agregar una columna requiere actualizar el esquema a mano**. El camino documentado era `DROP DATABASE mecano;` y dejar que el seeder reconstruya, pero eso pierde los datos; para `AgregarSoporteMultiMecanicoCita` se optó por aplicar el DDL equivalente con `mysql.exe` (crear `CitaMecanico`, `INSERT … SELECT` de backfill, drop FK/índice/columna) **preservando las filas existentes**, sin crear `__EFMigrationsHistory` (el runtime no lo usa).
 - **`TipoIdentificacion` en Cliente**: Columna `int NOT NULL DEFAULT 1`. EF no puede deducir el default porque el enum arranca en `Nacional = 1` (sin miembro `0`), por lo que el `defaultValue` está fijado a mano en la migración; sin él las filas existentes quedarían en `0`, un valor inválido.
 - **`TipoIdentificacion` en Mecanico y Administrador** (commit `8ec693b`): dos migraciones encadenadas — `20261011040945` agrega `TipoIdentificacion int NOT NULL DEFAULT 0` a `Mecanico` y `Administradors`, y `20261011150853` vuelve a agregar `TipoIdentificacion int NOT NULL DEFAULT 1` solo a `Mecanico`. Las entidades declaran default `Nacional` en código. Ver Sección 11 (historial duplicado, inofensivo bajo `EnsureCreatedAsync`).
 - **Índice único de Cliente**: Compuesto `(CedulaIdentidad, TipoIdentificacion)`. El índice único de `CedulaIdentidad` por sí solo se eliminó para permitir que DIMEX y Pasaporte convivan con un Nacional en la Fase 2.
 - **`Vehiculo.Activo`**: Columna `bool` agregada por `20261006160916` **sin `defaultValue`** (el modelo EF no define `HasDefaultValue`). La entidad no lleva inicializador `= true`; cada punto de creación asigna explícito `Activo = true`: `VehiculoService.CrearAsync`, `CitaService.AgendarCitaAsync` y `DbSeeder`. No existe `ReactivarAsync` de vehículo — un vehículo desactivado desaparece de listas y selects, y se restaura por caminos laterales con UI: **transferirlo** (siempre guarda `Activo = true`) o **reactivar su cliente** (cascada). Ver Sección 11.
 - **`Vehiculo.Placa`**: única (índice), almacenada normalizada (`ABC123`). El chequeo de duplicado debe mirar **todas** las filas, incluidas las inactivas (el índice único no filtra por `Activo`): si no, la colisión estallaría como `DbUpdateException` cruda. Ver Sección 5.1.
+- **`Administrador.CorreoNotificaciones`**: agregado por `20261019180239_AgregarCorreoNotificacionesAdmin` como `varchar(200) NULL` (MySql CharSet `utf8mb4`), columna **opcional** (`NULL`/vacío = sin correo de notificaciones). Como el runtime usa `EnsureCreatedAsync`, además de versionar la migración se aplicó el DDL equivalente a mano preservando las filas: `ALTER TABLE Administradors ADD COLUMN CorreoNotificaciones varchar(200) NULL AFTER Email;` (verificado con `SHOW COLUMNS`). La unicidad entre administradores **no** tiene índice en BD: la valida `AdministradorService` (case-insensitive, `Trim`, excluyendo al propio admin), en espejo de `MecanicoService.ExisteEmailAsync`.
 - **Estrategia de acceso a BD**: `IDbContextFactory<MySQLDBContext>` — los servicios crean contexto bajo demanda con `_factory.CreateDbContextAsync()`. No se inyecta `DbContext` directamente.
 - **Normalización y formato de cédula/teléfono/placa**: ver Sección 5.1.
 
@@ -541,6 +550,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 | `ICalendarQueryService` | `CalendarQueryService` | `ObtenerEventosAsync(inicio, fin)` | Scoped |
 | `INotificationService` | `NotificationService` | `NotificarCitaAgendadaAsync(cita)` | Scoped |
 | `IAuthServices` | `AuthServices` | `LoginAsync(email, password)`<br>`RegisterAdminAsync(email, nombre, password)` (delega con `(null, Nacional)`)<br>`RegisterAdminAsync(email, nombre, password, cedula?, tipoIdentificacion)` (normaliza per-tipo, persiste `Cedula` + `TipoIdentificacion`)<br>`EmailExisteAsync(email)` | Scoped |
+| `IAdministradorService` | `AdministradorService` | `ObtenerPerfilAsync(adminId)` → `PerfilAdminDTO?` (proyección `AsNoTracking`: Nombre, Cedula, TipoIdentificacion, `Email`→`Correo`, CorreoNotificaciones)<br>`ActualizarPerfilAsync(adminId, dto)` → `bool` (false si el admin no existe; `Trim` + vacío→`null`; unicidad entre admins case-insensitive excluyendo al propio → `InvalidOperationException`)<br>`CambiarPasswordAsync(adminId, dto)` → `bool` (false si el admin no existe; verifica la actual con `PasswordHasher.Verify` + fallback legado sin `$`; rechaza nueva == actual; rehashea con `PasswordHasher.Hash`) | Scoped |
 | `AuthenticationStateProvider` | `CustomAuthenticationStateProvider` | Revalida el estado de auth contra BD cada 10 min (hereda de `RevalidatingServerAuthenticationStateProvider`) | Scoped |
 | — | `DbSeeder` | `SeedAsync()` — siembra categorías, servicios, mecánicos, clientes, vehículos, citas, admin global | Scoped |
 
@@ -696,7 +706,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 
                 <AuthorizeView>
                     <Authorized>
-                    <div class="dropdown"> ... menú de usuario (nombre, email, rol, logout vía HandleLogout) ... </div>
+                    <div class="dropdown"> ... menú de usuario (nombre, email, rol, enlace "Mi Perfil" -> /perfil, logout vía HandleLogout) ... </div>
                     </Authorized>
                     <NotAuthorized> ... botón "Iniciar Sesión" -> /login ... </NotAuthorized>
                 </AuthorizeView>
@@ -733,12 +743,17 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
     <nav class="nav flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <i class="bi bi-speedometer2" aria-hidden="true"></i> Inicio
+                <i class="bi bi-speedometer2" aria-hidden="true"></i> Dashboard
             </NavLink>
         </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="agendar">
                 <i class="bi bi-calendar-plus" aria-hidden="true"></i> Agendar Cita
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="citas">
+                <i class="bi bi-calendar-event" aria-hidden="true"></i> Citas
             </NavLink>
         </div>
 
@@ -758,17 +773,16 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
                 <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
             </NavLink>
         </div>
-
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="connectiontest">
-                <i class="bi bi-list-nested-nav-menu" aria-hidden="true"></i> TEST
+            <NavLink class="nav-link" href="perfil">
+                <i class="bi bi-person-circle" aria-hidden="true"></i> Mi Perfil
             </NavLink>
         </div>
     </nav>
 </div>
 ```
 
-> El header `Gestión` es un `<div>` literal **sin `<AuthorizeView>`**: los 3 enlaces los ve cualquier usuario autenticado (incluido `Mecanico`). La defensa queda en los atributos `[Authorize(Roles = ...)]` de cada página. Ver Sección 11.
+> El header `Gestión` es un `<div>` literal **sin `<AuthorizeView>`**: los 4 enlaces los ve cualquier usuario autenticado (incluido `Mecanico`). La defensa queda en los atributos `[Authorize(Roles = ...)]` de cada página (por eso "Mi Perfil" aparece en el menú de un mecánico pero `/perfil` le responde "No tienes permisos"). Ver Sección 11.
 
 ### Tema "Industrial Clean" (variables CSS + light/dark)
 
@@ -799,6 +813,7 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
 | `/not-found` | Ninguna | Página de error 404 |
 | `/Error` | Ninguna | Página de manejo de errores |
 | `/connectiontest` | `[Authorize(Roles = "Administrador")]` | Prueba de conexión a la BD (InteractiveServer) |
+| `/perfil` | `[Authorize(Roles = "Administrador")]` | "Mi Perfil" del administrador autenticado (InteractiveServer). Avatar circular con las iniciales de `Nombre` + badge `Administrador Global` (derivado del claim `EsAdminGlobal`). Datos personales en **solo lectura** (Nombre, Tipo de identificación, Cédula y correo de login) y `CorreoNotificaciones` editable (opcional: vacío lo borra; unicidad case-insensitive validada en el servicio). Tarjeta aparte para **cambiar la contraseña**, con los tres campos bajo el mismo patrón del login (`type="text"` + `autocomplete="off"` + `-webkit-text-security` + botón de ojo) para que el navegador no ofrezca guardar la contraseña en las computadoras compartidas del taller |
 
 > Nota: `Counter.razor` y `Weather.razor` (páginas de plantilla) fueron eliminadas del proyecto.
 
@@ -944,6 +959,13 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
 | **`@bind-Value:event="oninput"` NO sirve en componentes `InputBase`** | El modificador `:event` aplica a **elementos HTML**, no a componentes. En un componente, `@bind-Value:event="oninput"` renombra el callback de binding y lo tipa como el valor enlazado (`int`), no como `ChangeEventArgs`. Como `InputNumber` vuelca sus `AdditionalAttributes` sobre el `<input>` real, ese `oninput` recibe un `ChangeEventArgs` del DOM y el renderer lo invoca contra un `EventCallback<int>` → `ArgumentException: Object of type 'Microsoft.AspNetCore.Components.ChangeEventArgs' cannot be converted to type 'System.Int32'`, que **rompe el circuito** (la página deja de responder; la UI ni se entera porque el `input` ya tiene el texto). La forma correcta de actualizar en vivo es un handler explícito `@oninput="OnDuracionInput"` con firma `void OnDuracionInput(ChangeEventArgs e)` que parsea `e.Value` y asigna el modelo (ver `CategoriaDetalle.razor.cs`). Detectado al verificar el hint de duración con Playwright (18/10/2026). |
 | **Advertencia de cliente inactivo: ¿por qué no se agrega un guard en el servicio?** | `CitaService.AgendarCitaAsync` valida que el mecánico esté activo, el vehículo exista, el servicio exista, la fecha/hora sea válida y no haya solape, pero **no** valida `Cliente.Activo`. Es intencional (decisión de producto): el cliente inactivo se puede agendar y lo que se agrega es una señal visual en las 3 superficies. Si algún día se quiere bloquear el agendar, el guard natural sería en `AgendarCitaAsync` lanzando `InvalidOperationException` (y opcionalmente quitando las advertencias de la UI). |
 | **Clase `.content` eliminada del canvas** | El canvas pasó de `article.content px-4` (padding-top 1.1rem) a `article.px-4.py-3`; la regla `.content` ya no existe en `app.css`. Ritmo vertical de todas las páginas cambió levemente (aprobado, Q3-a). |
+| **`[EmailAddress]` rechaza la cadena vacía (bloqueaba borrar el correo de notificaciones)** | Detectado con Playwright al verificar `/perfil`: al vaciar `CorreoNotificaciones` no se disparaba ningún submit (la validación mostraba "El correo no tiene un formato válido"). Causa: `EmailAddressAttribute.IsValid("")` devuelve `false`, y Blazor entrega al modelo la cadena vacía (el `<input type="email">` además recorta el valor). Como el campo es **opcional** (vacío = borrar), se quitó `[EmailAddress]` de `ActualizarPerfilAdminDTO` y se dejó solo `[RegularExpression(Patrones.Correo, ...)]`, que trata null/vacío como válido y es **más estricto** que `EmailAddress` (exige punto + extensión alfabética ≥2). Verificado en runtime: `UPDATE Administradors SET CorreoNotificaciones = NULL` + recarga en `''`. **Ojo**: otros DTOs con correo **opcional** (p. ej. `ActualizarClienteDTO.Correo`) tienen la misma combinación `[EmailAddress]` + opcional; si algún día se necesita borrar ese campo, hay que quitar allí el atributo también. |
+| **`[RegularExpression]` exige coincidencia completa: un patrón de solo lookaheads nunca valida** | `RegularExpressionAttribute` **ancla** el patrón (equivale a `^(?:patrón)$`), así que `@"(?=.*[a-z])(?=.*[A-Z])(?=.*\d)"` no puede coincidir con ninguna cadena no vacía: los lookaheads son de ancho cero y el ancla final exige consumir el resto del texto. Consecuencia: `CambiarPasswordDTO.NuevaPassword` rechazaba **todas** las contraseñas válidas ("La contraseña debe contener mayúsculas, minúsculas y números") y el cambio de contraseña era imposible; se detectó con Playwright en `/perfil`. Fix: patrón `@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$"` (el `.+` consume los caracteres, así que valida tanto si el atributo ancla como si no). Comprobado con un proyecto de prueba contra `DataAnnotations` real: `Regex.Match(...).Success` crudo es `true`, pero el atributo fallaba; con `.+$` valida. **`RegistroAdminDTO` conserva el patrón roto**, pero es **código muerto** (ninguna página ni servicio lo referencia; `AuthServices.RegisterAdminAsync` no valida complejidad). Si algún día se le da UI al registro de administradores, hay que copiar el patrón corregido. |
+| **Aviso de servicio persistente al reintentar con datos inválidos (`/perfil`)** | Si un guardado falla por una regla de negocio (p. ej. "La contraseña actual no es correcta.") y luego se reintenta con datos que no pasan `DataAnnotations`, la alerta de error anterior **sigue visible** junto a los nuevos errores de campo, porque `OnValidSubmit` solo limpia el mensaje al enviar un formulario válido. Es el mismo comportamiento que ya tienen los demás formularios de la app (Clientes, Mecánicos) y se dejó **sin cambios** por consistencia y alcance; si se quiere corregir, basta un `OnInvalidSubmit` que limpie los mensajes de servicio. |
+| **`<PageTitle>` solo aplica en carga completa de página** | Limitación preexistente de la app, no del perfil: `App.razor` usa un `<HeadOutlet />` estático, así que al navegar **client-side** el `<title>` no se actualiza (queda "Mecano"); con recarga completa sí aparece "Mi Perfil - Mecano". Se reprodujo también en `/mecanicos`. Sin corregir (requeriría render interactivo del `HeadOutlet`). |
+| **Guardado de perfil sin recarga completa (`/perfil`)** | `GuardarPerfil` **no** llama a `CargarPerfil()` (que pone `cargando = true` y desmontaría ambas tarjetas con un parpadeo de spinner): sincroniza en memoria `perfil.CorreoNotificaciones` y `perfilModel.CorreoNotificaciones` con el valor normalizado (`Trim`/`null`) que el servicio persistió. Verificado en el log de EF: tras el `UPDATE` **no** hay una nueva proyección de `ObtenerPerfilAsync`. |
+| **`Administrador.CorreoNotificaciones` es solo notificaciones** | No participa del login: la clave de autenticación sigue siendo `Administrador.Email`, por eso el campo se muestra en solo lectura en `/perfil` (cambiarlo invalidaría el login). Tampoco hay envío real de correos conectado a esta columna; `NotificationService.NotificarCitaAgendadaAsync` hoy solo registra en `NotificacionLog`. El correo secundario queda persistido y validado para un uso futuro. |
+| **Cambiar la contraseña no invalida la sesión** | `CambiarPasswordAsync` rehashea `HashPassword` pero no revoca la cookie de autenticación: la sesión en curso sigue válida (decisión de diseño). Verificado con Playwright: tras el cambio, cerrar sesión e iniciar de nuevo funciona con la contraseña nueva, y la anterior deja de servir. |
 | **Comentarios que contradicen el código actual** | El comentario en `Cliente.cs:7` dice "Clients do NOT have login accounts" — lo cual es coherente con que `Cliente` no tenga `HashPassword`. Sin embargo, `AuthServices.LoginAsync` intenta login en `Mecanico` y `Administrador` solo, lo cual es consistente. |
 | **Dependencias circulares entre proyectos** | No hay múltiples proyectos — riesgo de circulares no aplica en la actualidad. |
 | **Paquetes NuGet desactualizados con vulnerabilidades** | `Pomelo.EntityFrameworkCore.MySql` versión 9.0.0 vs .NET 10.0 release. No hay evidencia de vulnerabilidades conocidas en las versiones usadas, pero es el primer release de EF Core 9/10 con este proveedor. |
@@ -1020,6 +1042,10 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Components/Pages/AgendarCita.razor` | Secciones 2, 6 (reglas de agenda), 7 (`/agendar`) y 11 |
 | `Mecano/Components/Pages/AgendarCita.razor.css` | Secciones 2 y 7 (estilos del tablero) |
 | `Mecano/Logica/Servicios/CitaService.cs` | Sección 6 (guards de `AgendarCitaAsync`) |
+| `Mecano/Entidad/DTOs/Perfil/` (3 DTOs) | Sección 2, 6 y 11 (perfil, correo opcional sin `[EmailAddress]`, regex de complejidad con `.+$`) |
+| `Mecano/Logica/Interfaces/IAdministradorService.cs` · `Mecano/Logica/Servicios/AdministradorService.cs` | Sección 6 (perfil + cambio de contraseña) |
+| `Mecano/Components/Pages/Perfil.razor` + `.razor.cs` + `.razor.css` | Sección 7 y 11 (`/perfil`) |
+| `Mecano/Data/Migrations/20261019180239_AgregarCorreoNotificacionesAdmin.cs` | Sección 5 (columna `Administrador.CorreoNotificaciones`) |
 
 ---
 
@@ -1043,7 +1069,7 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 
 9. **CRUD de vehículos en `ClienteDetalle`** — Resuelto: crear/editar con un único modal (mismo formulario, título distinto según modo) y eliminar con modal de confirmación que reemplaza al formulario (sin apilar modales). Solo `Administrador` escribe; `Mecanico` solo lee la lista. Placa normalizada a `ABC123`, mostrada como `ABC-123`; duplicado chequeado contra todas las filas (incluidas inactivas) antes de guardar. `Vehiculo.Activo` sin inicializador: los tres puntos de creación asignan `true` explícito.
 
-10. **¿Existe alguna política de contraseña compleja más allá de los 6 caracteres minimum?** — Sigue abierto: `LoginDTO`/`RegistroAdminDTO` validan formato, pero no se observó validación de fortaleza en `AuthServices.RegisterAdminAsync`.
+10. **¿Existe alguna política de contraseña compleja más allá de los 6 caracteres minimum?** — Parcialmente resuelto: `CambiarPasswordDTO` (`/perfil`) exige mínimo 6 caracteres y mayúscula+minúscula+dígito (`[RegularExpression]` corregido, ver Sección 11), y `CambiarPasswordAsync` rechaza repetir la actual; `RegistroAdminDTO` declara la misma regla pero con el patrón roto y **no tiene UI** (código muerto), y `AuthServices.RegisterAdminAsync` sigue sin validar fortaleza. No hay política centralizada: la regla de complejidad vive solo en los DTOs.
 
 11. **¿Cómo se persiste el estado `AuthenticatedUser` entre requests?** — Resuelto: ya no se usa el record en memoria para auth; la sesión vive en la cookie y el estado Blazor se reconstruye vía `CustomAuthenticationStateProvider` (claims del `ClaimsPrincipal`).
 
@@ -1060,3 +1086,5 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 17. **Advertencia de cliente inactivo en agenda y citas** — Resuelto en `c06de79`: los clientes inactivos se pueden seguir agendando (contrato legado) pero se señalan en `/agendar` (fila gris + badge, tarjeta y modal en tonos warning, ícono + tooltip en el chip), en `/citas` (badge) y en `/citas/{id}` (tarjeta warning + aviso). Pendiente de decisión: hoy **solo el Administrador** ve estas señales, porque las tres rutas son admin-only; un `Mecanico` únicamente encuentra el estado del cliente en `/clientes` y `/clientes/{id}`. Si el requisito era avisar también al mecánico, hay que decidir si se abre `/citas` al rol mecánico (Fase 6 del plan de CRUD de citas) o si se replica la señal en las superficies que el mecánico sí ve.
 
 18. **Correcciones del login (401 puro + `ReturnUrl`)** — Resuelto y verificado con Playwright: `POST /api/auth/login` con credenciales inválidas vuelve a responder **401** sin cuerpo (se excluyó `/api/*` de `UseStatusCodePagesWithReExecute` en `Program.cs`), y el login respeta `?ReturnUrl` solo si es una ruta local (guardas contra open redirect en `Login.razor.cs`). La verificación se hizo con una segunda instancia del build nuevo en `https://localhost:7299`; pendiente reiniciar la instancia principal (`https://mecano:7224`, hoy bajo el depurador de VS) para cargar los cambios.
+
+19. **Personalización del perfil del Administrador Global (correo de notificaciones + cambio de contraseña)** — Resuelto: página `/perfil` (`[Authorize(Roles = "Administrador")]`, InteractiveServer) con `AdministradorService` (`ObtenerPerfilAsync`/`ActualizarPerfilAsync`/`CambiarPasswordAsync`), DTOs en `Entidad/DTOs/Perfil/`, columna `Administrador.CorreoNotificaciones` (migración `20261019180239`, DDL aplicado a mano sobre la BD existente) y enlaces "Mi Perfil" en `NavMenu` y en el dropdown de usuario de `MainLayout`. El correo de login queda de solo lectura (es la clave de autenticación) y la contraseña se cambia sin invalidar la sesión. Verificado con Playwright en `http://localhost:5023` (correo opcional que se borra → `NULL`, unicidad case-insensitive, guards de contraseña, y login real con la contraseña nueva). Pendiente de decisión: no hay envío de correos conectado a `CorreoNotificaciones`; queda persistido y validado para un uso futuro.

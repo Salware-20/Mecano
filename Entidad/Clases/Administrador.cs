@@ -25,6 +25,14 @@ namespace Mecano.Entidad.Clases
         [MaxLength(200)]
         public string Email { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Correo secundario para recibir notificaciones (opcional). Es la única vía de
+        /// aviso cuando el administrador está fuera, así que se mantiene único entre
+        /// administradores: un mismo buzón no puede pertenecer a dos cuentas.
+        /// </summary>
+        [MaxLength(200)]
+        public string? CorreoNotificaciones { get; set; }
+
         [Required]
         public string HashPassword { get; set; } = string.Empty;
 

@@ -37,6 +37,10 @@ namespace Mecano.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("CorreoNotificaciones")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(200)
