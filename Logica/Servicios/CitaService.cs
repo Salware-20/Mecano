@@ -64,6 +64,13 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"Servicio con ID {dto.ServicioId} no existe.");
         }
 
+        // Un servicio desactivado no se puede agendar (defensa en profundidad: la UI
+        // solo ofrece servicios activos, pero la desactivación puede ocurrir en paralelo).
+        if (!servicio.Activo)
+        {
+            throw new InactiveServiceException("El servicio seleccionado está desactivado. Elige un servicio activo para agendar la cita.");
+        }
+
         // Reglas de agenda (defensa en profundidad: la UI ya las restringe, pero el
         // servicio es la última barrera ante llamadas directas o datos manipulados).
         if (dto.Fecha.Date < DateTime.Today)
@@ -206,6 +213,7 @@ public class CitaService : ICitaService
         VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
         ServicioId = c.ServicioId,
         ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
+        ServicioActivo = c.Servicio != null && c.Servicio.Activo,
         Mecanicos = c.CitaMecanicos
             .Select(cm => new MecanicoDTO
             {
@@ -307,6 +315,7 @@ public class CitaService : ICitaService
                 ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
                 ServicioDuracionMinutos = c.Servicio != null ? c.Servicio.DuracionMinutos : 0,
                 ServicioPrecio = c.Servicio != null ? c.Servicio.Precio : 0m,
+                ServicioActivo = c.Servicio != null && c.Servicio.Activo,
 
                 Mecanicos = c.CitaMecanicos
                     .Select(cm => new MecanicoDTO

@@ -180,9 +180,13 @@ else
 
         @* ---------- Servicio ---------- *@
         <div class="col-12 col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header">
+            <div class="card shadow-sm h-100 @(cita.ServicioActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <strong><i class="bi bi-tools"></i> Servicio</strong>
+                    @if (!cita.ServicioActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -195,6 +199,14 @@ else
                         <dt class="col-sm-4 text-muted fw-normal small">Precio</dt>
                         <dd class="col-sm-8 mb-0">@Formatos.Moneda(cita.ServicioPrecio)</dd>
                     </dl>
+
+                    @if (!cita.ServicioActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este servicio fue desactivado: no admite citas nuevas. La cita ya agendada se conserva.</div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>

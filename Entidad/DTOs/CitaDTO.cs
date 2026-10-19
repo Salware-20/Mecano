@@ -29,6 +29,12 @@ namespace Mecano.Entidad.DTOs
         public int ServicioId { get; set; }
         public string? ServicioNombre { get; set; }
 
+        /// <summary>
+        /// El servicio de la cita sigue activo. La UI marca la cita cuando el servicio
+        /// fue desactivado después de agendarla (las citas existentes no se cancelan solas).
+        /// </summary>
+        public bool ServicioActivo { get; set; }
+
         /// <summary>Mecánicos asignados a la cita (misma especialidad).</summary>
         public List<MecanicoDTO> Mecanicos { get; set; } = new();
 

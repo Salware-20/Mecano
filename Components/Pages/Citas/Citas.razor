@@ -128,7 +128,13 @@
                                         <span class="text-secondary">-</span>
                                     }
                                 </td>
-                                <td>@(cita.ServicioNombre ?? "-")</td>
+                                <td>
+                                    @(cita.ServicioNombre ?? "-")
+                                    @if (!cita.ServicioActivo)
+                                    {
+                                        <span class="badge bg-secondary ms-1" title="El servicio fue desactivado; no admite citas nuevas.">Servicio inactivo</span>
+                                    }
+                                </td>
                                 <td style="text-transform:capitalize;">@(string.IsNullOrWhiteSpace(cita.MecanicosNombres) ? "-" : cita.MecanicosNombres)</td>
                                 <td class="text-center">
                                     <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>

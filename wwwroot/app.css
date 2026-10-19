@@ -246,3 +246,9 @@ h1:focus {
         border: 1px solid var(--border-color) !important;
     }
 }
+
+/* --- Insignias neutras (estados sin carga semántica de éxito/error) --- */
+.badge-status-neutral {
+    background-color: var(--border-color);
+    color: var(--text-secondary);
+}

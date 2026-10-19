@@ -859,6 +859,10 @@
         {
             modalError = ex.Message;
         }
+        catch (Exception ex) when (ex.GetType().Name == "InactiveServiceException")
+        {
+            modalError = ex.Message;
+        }
         catch (Exception ex)
         {
             errorMessage = $"Error al agendar la cita: {ex.Message}";
