@@ -13,132 +13,166 @@
 {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         @mensajeExito
-        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => mensajeExito = null"></button>
     </div>
 }
 @if (!string.IsNullOrEmpty(mensajeErrorPagina))
 {
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         @mensajeErrorPagina
-        <button type="button" class="btn-close" @onclick="() => mensajeErrorPagina = null"></button>
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => mensajeErrorPagina = null"></button>
     </div>
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-        <p class="text-muted mb-0">
-            @mecanicos.Count mecánico(s) @TextoEtiquetaFiltro()
-        </p>
-        <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 text-nowrap" for="selMecanicosEstado">Estado</label>
-            <select id="selMecanicosEstado" class="form-select form-select-sm"
-                    value="@filtro" @onchange="CambiarFiltro">
-                <option value="@FiltroActivo.Activos">Activos</option>
-                <option value="@FiltroActivo.Inactivos">Inactivos</option>
-                <option value="@FiltroActivo.Todos">Todos</option>
-            </select>
+<div class="card shadow-sm">
+    <div class="card-header">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar por nombre, cédula, correo o especialidad…"
+                           value="@terminoBusqueda" @oninput="OnBuscarCambio" />
+                    @if (!string.IsNullOrEmpty(terminoBusqueda))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" title="Limpiar búsqueda"
+                                @onclick="LimpiarBusqueda">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 text-nowrap" for="selMecanicosEstado">Estado</label>
+                    <select id="selMecanicosEstado" class="form-select form-select-sm"
+                            value="@filtro" @onchange="CambiarFiltro">
+                        <option value="@FiltroActivo.Activos">Activos</option>
+                        <option value="@FiltroActivo.Inactivos">Inactivos</option>
+                        <option value="@FiltroActivo.Todos">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3 text-md-end">
+                <button class="btn btn-primary w-100" @onclick="AbrirCrear"
+                        disabled="@(especialidades.Count == 0)"
+                        title="@(especialidades.Count == 0 ? "Requiere especialidades cargadas" : null)">
+                    <i class="bi bi-plus-circle"></i> Nuevo mecánico
+                </button>
+            </div>
         </div>
     </div>
-    @if (especialidades.Count > 0)
+
+    <div class="card-body">
+        @if (cargando)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Cargando…</span>
+                </div>
+            </div>
+        }
+        else if (!MecanicosVisibles.Any())
+        {
+            <div class="alert alert-info mb-0">
+                @TextoVacio()
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Identificación</th>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Teléfono</th>
+                            <th>Especialidad</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var mec in MecanicosVisibles)
+                        {
+                            <tr class="@(mec.Activo ? "" : "table-secondary")">
+                                <td>
+                                    @if (!string.IsNullOrEmpty(mec.Cedula))
+                                    {
+                                        <span>@Formatos.FormatearIdentificacion(mec.Cedula, mec.TipoIdentificacion)</span>
+                                        <small class="text-muted d-block">@mec.TipoIdentificacion</small>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                                <td style="text-transform:capitalize;"><strong>@mec.Nombre</strong></td>
+                                <td>@mec.Email</td>
+                                <td>@(string.IsNullOrWhiteSpace(mec.Telefono) ? "—" : Formatos.Telefono(mec.Telefono))</td>
+                                <td>@(mec.EspecialidadNombre ?? "—")</td>
+                                <td class="text-center">
+                                    @if (mec.Activo)
+                                    {
+                                        <span class="badge badge-status-success">Activo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-status-neutral">Inactivo</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                            aria-label="Editar @mec.Nombre"
+                                            disabled="@guardando" @onclick="() => AbrirEditar(mec)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    @if (mec.Activo)
+                                    {
+                                        <button class="btn btn-sm btn-outline-warning" title="Desactivar"
+                                                aria-label="Desactivar @mec.Nombre"
+                                                disabled="@guardando" @onclick="() => ConfirmarDesactivar(mec)">
+                                            <i class="bi bi-pause-circle"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" title="Reactivar"
+                                                aria-label="Reactivar @mec.Nombre"
+                                                disabled="@guardando" @onclick="() => ConfirmarReactivar(mec)">
+                                            <i class="bi bi-play-circle"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @if (!cargando)
     {
-        <button class="btn btn-primary" @onclick="AbrirCrear">
-            <i class="bi bi-plus-circle"></i> Nuevo mecánico
-        </button>
+        <div class="card-footer">
+            <small class="text-muted">
+                Mostrando @MecanicosVisibles.Count de @mecanicos.Count mecánico(s).
+            </small>
+        </div>
     }
 </div>
-
-@if (cargando)
-{
-    <div class="text-center py-4">
-        <div class="spinner-border" role="status"></div>
-    </div>
-}
-else if (!mecanicos.Any())
-{
-    <div class="alert alert-info">
-        @TextoVacio()
-    </div>
-}
-else
-{
-    <table class="table table-striped table-hover align-middle">
-        <thead>
-            <tr>
-                <th>Identificación</th>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Teléfono</th>
-                <th>Especialidad</th>
-                <th class="text-center">Estado</th>
-                <th class="text-end">Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var mec in mecanicos)
-            {
-                <tr class="@(mec.Activo ? "" : "table-secondary")">
-                    <td>
-                        @if (!string.IsNullOrEmpty(mec.Cedula))
-                        {
-                            <span>@Formatos.FormatearIdentificacion(mec.Cedula, mec.TipoIdentificacion)</span>
-                            <small class="text-muted d-block">@mec.TipoIdentificacion</small>
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
-                    </td>
-                    <td style="text-transform:capitalize;"><strong>@mec.Nombre</strong></td>
-                    <td>@mec.Email</td>
-                    <td>@(mec.Telefono ?? "—")</td>
-                    <td>@(mec.EspecialidadNombre ?? "—")</td>
-                    <td class="text-center">
-                        @if (mec.Activo)
-                        {
-                            <span class="badge bg-success">Activo</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary">Inactivo</span>
-                        }
-                    </td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary me-1" title="Editar"
-                                disabled="@guardando" @onclick="() => AbrirEditar(mec)">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        @if (mec.Activo)
-                        {
-                            <button class="btn btn-sm btn-outline-warning" title="Desactivar"
-                                    disabled="@guardando" @onclick="() => ConfirmarDesactivar(mec)">
-                                <i class="bi bi-pause-circle"></i>
-                            </button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-sm btn-outline-success" title="Reactivar"
-                                    disabled="@guardando" @onclick="() => Reactivar(mec)">
-                                <i class="bi bi-play-circle"></i>
-                            </button>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
 
 @* ---------- Modal Crear/Editar ---------- *@
 @if (mostrarModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <EditForm Model="modelo" OnValidSubmit="Guardar" FormName="mecanicoForm">
                     <DataAnnotationsValidator />
                     <div class="modal-header">
                         <h5 class="modal-title">@(esEdicion ? "Editar mecánico" : "Nuevo mecánico")</h5>
-                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CerrarModal"></button>
                     </div>
                     <div class="modal-body">
                         @if (!string.IsNullOrEmpty(mensajeError))
@@ -147,64 +181,64 @@ else
                         }
 
                         <div class="mb-3">
-                            <label class="form-label">Nombre *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Nombre" maxlength="150" autocomplete="off" style="text-transform:capitalize;" autocapitalize="words" />
-                            <ValidationMessage For="() => modelo.Nombre" />
+                            <label class="form-label" for="mecNombre">Nombre *</label>
+                            <InputText id="mecNombre" class="form-control" @bind-Value="modelo.Nombre" maxlength="150" autocomplete="off" style="text-transform:capitalize;" autocapitalize="words" />
+                            <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Email *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Email" type="email" maxlength="200" autocomplete="off" />
-                            <ValidationMessage For="() => modelo.Email" />
+                            <label class="form-label" for="mecEmail">Email *</label>
+                            <InputText id="mecEmail" class="form-control" @bind-Value="modelo.Email" type="email" maxlength="200" autocomplete="off" />
+                            <ValidationMessage For="() => modelo.Email" class="text-danger small" />
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Tipo Identificación</label>
-                                <InputSelect class="form-select" @bind-Value="modelo.TipoIdentificacion">
+                                <label class="form-label" for="mecTipoId">Tipo Identificación</label>
+                                <InputSelect id="mecTipoId" class="form-select" @bind-Value="modelo.TipoIdentificacion">
                                     <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Nacional">Nacional</option>
                                     <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Dimex">DIMEX</option>
                                     <option value="@Mecano.Entidad.Constantes.TipoIdentificacion.Pasaporte">Pasaporte</option>
                                 </InputSelect>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Identificación</label>
-                                <InputText class="form-control" @bind-Value="modelo.Cedula" maxlength="20" placeholder="Ej. 101230123" autocomplete="off" />
-                                <ValidationMessage For="() => modelo.Cedula" />
+                                <label class="form-label" for="mecCedula">Identificación</label>
+                                <InputText id="mecCedula" class="form-control" @bind-Value="modelo.Cedula" maxlength="20" placeholder="Ej. 101230123" autocomplete="off" />
+                                <ValidationMessage For="() => modelo.Cedula" class="text-danger small" />
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="form-label">Teléfono *</label>
-                                <InputText class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20" autocomplete="off" />
-                                <ValidationMessage For="() => modelo.Telefono" />
+                                <label class="form-label" for="mecTelefono">Teléfono *</label>
+                                <InputText id="mecTelefono" class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20" autocomplete="off" />
+                                <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Especialidad *</label>
-                            <InputSelect class="form-select" @bind-Value="modelo.EspecialidadId">
+                            <label class="form-label" for="mecEspecialidad">Especialidad *</label>
+                            <InputSelect id="mecEspecialidad" class="form-select" @bind-Value="modelo.EspecialidadId">
                                 <option value="">Seleccione una especialidad…</option>
                                 @foreach (var esp in especialidades)
                                 {
                                     <option value="@esp.Id">@esp.Nombre</option>
                                 }
                             </InputSelect>
-                            <ValidationMessage For="() => modelo.EspecialidadId" />
+                            <ValidationMessage For="() => modelo.EspecialidadId" class="text-danger small" />
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">@(esEdicion ? "Contraseña" : "Contraseña *")</label>
-                                <InputText type="password" class="form-control"
+                                <label class="form-label" for="mecPassword">@(esEdicion ? "Contraseña" : "Contraseña *")</label>
+                                <InputText id="mecPassword" type="password" class="form-control"
                                            autocomplete="new-password"
                                            placeholder="@PasswordPlaceholder"
                                            ValueChanged="AsignarPassword"
                                            ValueExpression="() => modelo.Password" />
-                                <ValidationMessage For="() => modelo.Password" />
+                                <ValidationMessage For="() => modelo.Password" class="text-danger small" />
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">@(esEdicion ? "Confirmar contraseña" : "Confirmar contraseña *")</label>
-                                <InputText type="password" class="form-control"
+                                <label class="form-label" for="mecConfirmarPassword">@(esEdicion ? "Confirmar contraseña" : "Confirmar contraseña *")</label>
+                                <InputText id="mecConfirmarPassword" type="password" class="form-control"
                                            autocomplete="new-password"
                                            placeholder="@PasswordPlaceholder"
                                            ValueChanged="AsignarConfirmarPassword"
                                            ValueExpression="() => modelo.ConfirmarPassword" />
-                                <ValidationMessage For="() => modelo.ConfirmarPassword" />
+                                <ValidationMessage For="() => modelo.ConfirmarPassword" class="text-danger small" />
                             </div>
                         </div>
                     </div>
@@ -234,7 +268,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Confirmar desactivación</h5>
-                    <button type="button" class="btn-close" @onclick="CancelarDesactivar"></button>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CancelarDesactivar"></button>
                 </div>
                 <div class="modal-body">
                     @if (!string.IsNullOrEmpty(mensajeError))
@@ -245,8 +279,9 @@ else
                     {
                         <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
                         <p class="text-muted small mb-0">
-                            Se marcará como inactivo. Las citas existentes no se modifican y
-                            podrás reactivarlo en cualquier momento.
+                            Se marcará como inactivo, dejará de recibir citas nuevas y no
+                            aparecerá en el tablero de agendado. Las citas existentes no se
+                            modifican y podrás reactivarlo en cualquier momento.
                         </p>
                     }
                 </div>
@@ -257,7 +292,46 @@ else
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Desactivar
+                        <i class="bi bi-pause-circle"></i> Desactivar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ---------- Modal Confirmar Reactivación ---------- *@
+@if (mecanicoAReactivar is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar reactivación</h5>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CancelarReactivar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensajeError))
+                    {
+                        <div class="alert alert-danger">@mensajeError</div>
+                    }
+                    else
+                    {
+                        <p>¿Reactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoAReactivar.Nombre</strong>?</p>
+                        <p class="text-muted small mb-0">
+                            Volverá a aparecer entre los mecánicos activos y podrá recibir
+                            citas nuevas en su especialidad.
+                        </p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelarReactivar">Cancelar</button>
+                    <button class="btn btn-success" @onclick="ReactivarConfirmado" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-play-circle"></i> Reactivar
                     </button>
                 </div>
             </div>

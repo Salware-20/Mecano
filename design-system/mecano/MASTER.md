@@ -150,10 +150,14 @@ nueva de datos debe copiarla.
      - `.form-select.form-select-sm` de **Estado** (`FiltroActivo`: Activos / Inactivos / Todos),
        solo si la entidad tiene un indicador de activo (Clientes, mecánicos, servicios;
        las categorías no lo tienen),
-     - acción primaria «Nuevo …» en la última columna (`d-grid d-md-flex justify-content-md-end`
-       para que ocupe todo el ancho en móvil).
+     - acción primaria «Nuevo …» en la última columna (`text-md-end` con `btn.w-100`, o
+       `d-grid d-md-flex justify-content-md-end`, para que ocupe todo el ancho en móvil).
+       Si el alta depende de datos auxiliares (p. ej. las especialidades de mecánicos), el
+       botón se deshabilita en vez de ocultarse, con `title` que explica el motivo.
    - `.card-body` con uno de tres estados: spinner de carga, `alert alert-info` de vacío, o
      `.table-responsive` con la tabla.
+   - `.card-footer` opcional con el conteo en `.text-muted.small` (y la paginación numerada
+     cuando la lista es paginada, como en `/clientes`). Solo se renderiza cuando terminó la carga.
 
 La búsqueda es **en memoria** (`@oninput` sobre la lista ya cargada) y el filtro de estado
 también: no se vuelve a consultar la base de datos. La lista se carga completa una sola vez

@@ -1,6 +1,7 @@
 using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Categoria;
 using Mecano.Entidad.DTOs.Mecanico;
+using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
 
 namespace Mecano.Components.Pages.Mecanicos;
@@ -15,20 +16,27 @@ namespace Mecano.Components.Pages.Mecanicos;
 // y usar MecanicoClase en lugar de un using plano. Ver PROJECT_STATE.md §11.
 public partial class Mecanicos : ComponentBase
 {
+    // La lista completa (activos + inactivos) se carga una sola vez; el filtro de
+    // estado y la búsqueda se aplican en memoria (patrón de /categorias).
     private List<MecanicoDTO> mecanicos = new();
     private List<CategoriaDTO> especialidades = new();
     private bool cargando = true;
     private bool guardando;
+
+    private string terminoBusqueda = string.Empty;
     private FiltroActivo filtro = FiltroActivo.Activos;
 
     private bool mostrarModal;
     private bool esEdicion;
-    private string? mensajeError;      // Se renderiza dentro del modal abierto.
-    private string? mensajeExito;      // Banner superior descartable (operaciones fuera de modal).
+    private string? mensajeError;       // Se renderiza dentro del modal abierto.
+    private string? mensajeExito;       // Banner superior descartable (operaciones fuera de modal).
     private string? mensajeErrorPagina; // Banner superior de error (carga de datos / atajos).
 
     private ActualizarMecanicoDTO modelo = new();
+
+    // Confirmaciones de estado
     private MecanicoDTO? mecanicoADesactivar;
+    private MecanicoDTO? mecanicoAReactivar;
 
     private string PasswordPlaceholder =>
         esEdicion ? "Conservar la actual" : string.Empty;
@@ -45,7 +53,7 @@ public partial class Mecanicos : ComponentBase
         cargando = true;
         try
         {
-            mecanicos = await MecanicoService.ObtenerTodosAsync(filtro);
+            mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Todos);
         }
         finally
         {
@@ -70,34 +78,69 @@ public partial class Mecanicos : ComponentBase
             mensajeErrorPagina = "No se pudieron cargar las especialidades. Recarga la página.";
     }
 
-    private async Task CambiarFiltro(ChangeEventArgs e)
+    // ~~~ FILTROS (en memoria) ~~~
+
+    private List<MecanicoDTO> MecanicosVisibles
+    {
+        get
+        {
+            IEnumerable<MecanicoDTO> q = filtro switch
+            {
+                FiltroActivo.Inactivos => mecanicos.Where(m => !m.Activo),
+                FiltroActivo.Todos => mecanicos,
+                _ => mecanicos.Where(m => m.Activo)
+            };
+
+            var termino = terminoBusqueda.Trim();
+            if (termino.Length > 0)
+            {
+                q = q.Where(m =>
+                    Contiene(m.Nombre, termino) ||
+                    Contiene(m.Cedula, termino) ||
+                    Contiene(Formatos.FormatearIdentificacion(m.Cedula, m.TipoIdentificacion), termino) ||
+                    Contiene(m.Email, termino) ||
+                    Contiene(m.EspecialidadNombre, termino));
+            }
+
+            return q.ToList();
+        }
+    }
+
+    private static bool Contiene(string? valor, string termino) =>
+        !string.IsNullOrEmpty(valor) && valor.Contains(termino, StringComparison.OrdinalIgnoreCase);
+
+    private void OnBuscarCambio(ChangeEventArgs e) =>
+        terminoBusqueda = e.Value?.ToString() ?? string.Empty;
+
+    private void LimpiarBusqueda() => terminoBusqueda = string.Empty;
+
+    private void CambiarFiltro(ChangeEventArgs e)
     {
         if (Enum.TryParse<FiltroActivo>(e.Value?.ToString(), out var valor))
         {
             filtro = valor;
-            await CargarMecanicos();
         }
     }
 
-    // Etiqueta del contador según el filtro activo.
-    private string TextoEtiquetaFiltro() => filtro switch
+    private string TextoVacio()
     {
-        FiltroActivo.Inactivos => "inactivo(s)",
-        FiltroActivo.Todos => "registrado(s)",
-        _ => "activo(s)"
-    };
+        if (terminoBusqueda.Trim().Length > 0)
+        {
+            return "No se encontraron mecánicos que coincidan con la búsqueda.";
+        }
 
-    private string TextoVacio() => filtro switch
-    {
-        FiltroActivo.Todos => "No hay mecánicos registrados todavía.",
-        FiltroActivo.Inactivos => "No hay mecánicos inactivos.",
-        _ => "No hay mecánicos activos."
-    };
+        return filtro switch
+        {
+            FiltroActivo.Inactivos => "No hay mecánicos inactivos.",
+            FiltroActivo.Todos => "No hay mecánicos registrados todavía.",
+            _ => "No hay mecánicos activos. Cambia el filtro a «Inactivos» o «Todos»."
+        };
+    }
 
     // ~~~ MODAL CREAR / EDITAR ~~~
     private void AbrirCrear()
     {
-        // El botón "Nuevo mecánico" no se renderiza cuando especialidades está
+        // El botón "Nuevo mecánico" se deshabilita cuando especialidades está
         // vacía, así que aquí no hace falta cortar el flujo.
         esEdicion = false;
         modelo = new ActualizarMecanicoDTO(); // Id queda en 0 en creación.
@@ -220,10 +263,12 @@ public partial class Mecanicos : ComponentBase
     }
 
     // ~~~ DESACTIVAR / REACTIVAR ~~~
+
     private void ConfirmarDesactivar(MecanicoDTO mecanico)
     {
         mecanicoADesactivar = mecanico;
         mensajeError = null;
+        mensajeExito = null;
     }
 
     private void CancelarDesactivar()
@@ -261,32 +306,41 @@ public partial class Mecanicos : ComponentBase
         }
     }
 
-    // A diferencia de Clientes —donde reactivar un cliente también reactiva sus
-    // vehículos y por eso existe el modal "Confirmar reactivación"—, aquí
-    // ReactivarAsync solo cambia Activo a true: sin cascada, sin datos que
-    // validar y con la fila ya marcada "Inactivo" a la vista. Se ejecuta directo
-    // y el resultado se informa con el banner de éxito. La asimetría con
-    // Clientes es deliberada, no un olvido.
-    private async Task Reactivar(MecanicoDTO mecanico)
+    private void ConfirmarReactivar(MecanicoDTO mecanico)
     {
+        mecanicoAReactivar = mecanico;
+        mensajeError = null;
+        mensajeExito = null;
+    }
+
+    private void CancelarReactivar()
+    {
+        mecanicoAReactivar = null;
+        mensajeError = null;
+    }
+
+    private async Task ReactivarConfirmado()
+    {
+        if (mecanicoAReactivar is null) return;
+
         guardando = true;
-        mensajeErrorPagina = null;
+        mensajeError = null;
         try
         {
-            if (await MecanicoService.ReactivarAsync(mecanico.Id))
+            if (await MecanicoService.ReactivarAsync(mecanicoAReactivar.Id))
             {
-                mensajeExito = $"Mecánico “{mecanico.Nombre}” reactivado.";
+                mensajeExito = $"Mecánico “{mecanicoAReactivar.Nombre}” reactivado.";
+                mecanicoAReactivar = null;
                 await CargarMecanicos();
             }
             else
             {
-                mensajeErrorPagina = "El mecánico ya no existe.";
-                await CargarMecanicos();
+                mensajeError = "El mecánico ya no está disponible.";
             }
         }
         catch (InvalidOperationException ex)
         {
-            mensajeErrorPagina = ex.Message;
+            mensajeError = ex.Message;
         }
         finally
         {
