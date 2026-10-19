@@ -25,6 +25,15 @@ namespace Mecano.Components.Pages
         protected bool isLoading { get; set; }
 
         /// <summary>
+        /// Controla si la contraseña se muestra en claro. El campo nunca usa type="password"
+        /// (para que el navegador no ofrezca guardarla en equipos compartidos); el ocultado
+        /// se logra con -webkit-text-security.
+        /// </summary>
+        protected bool mostrarPassword { get; set; } = false;
+
+        private void ToggleMostrarPassword() => mostrarPassword = !mostrarPassword;
+
+        /// <summary>
         /// Solo aceptamos rutas locales relativas ("/clientes", "/citas/5?x=1") para evitar
         /// open redirects: rechazamos absolutas ("https://evil.com"), protocol-relative
         /// ("//evil.com") y el truco de barra invertida ("/\evil.com", que algunos
