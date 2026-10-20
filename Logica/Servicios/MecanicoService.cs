@@ -106,6 +106,14 @@ public class MecanicoService : IMecanicoService
             .ToListAsync();
     }
 
+    // ~~~ READ (conteo para el panel) ~~~
+    public async Task<int> ContarActivosAsync()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Mecanico.AsNoTracking().CountAsync(m => m.Activo);
+    }
+
     // ~~~ READ (uno) ~~~
 
     public async Task<MecanicoDTO?> ObtenerDetallePorIdAsync(int id)

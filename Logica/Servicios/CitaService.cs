@@ -78,13 +78,13 @@ public class CitaService : ICitaService
             throw new InvalidOperationException("No se pueden agendar citas en fechas pasadas.");
         }
 
-        if (dto.Fecha.DayOfWeek == DayOfWeek.Sunday)
+        if (HorarioAtencion.EsDiaNoLaboral(dto.Fecha))
         {
             throw new InvalidOperationException("El taller no atiende los domingos.");
         }
 
-        var apertura = new TimeOnly(8, 0);
-        var cierre = new TimeOnly(18, 0);
+        var apertura = HorarioAtencion.Apertura;
+        var cierre = HorarioAtencion.Cierre;
 
         if (dto.HoraInicio < apertura || dto.HoraInicio >= cierre)
         {
@@ -372,7 +372,7 @@ public class CitaService : ICitaService
         var fecha = cita.Fecha;
         var horaInicio = cita.HoraInicio;
         var horaFin = horaInicio.AddMinutes(servicio.DuracionMinutos);
-        var cierre = new TimeOnly(18, 0);
+        var cierre = HorarioAtencion.Cierre;
         if (horaFin > cierre)
             throw new InvalidOperationException("La cita terminaría después del horario de atención (6:00 p. m.).");
 

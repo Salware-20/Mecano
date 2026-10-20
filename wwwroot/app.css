@@ -252,3 +252,28 @@ h1:focus {
     background-color: var(--border-color);
     color: var(--text-secondary);
 }
+
+/* --- Panel de control (KPIs del día) --- */
+/* Pestañas del desglose por estado, más compactas que las nativas de Bootstrap. */
+.nav-tabs-kpi {
+    flex-wrap: wrap;
+}
+
+.nav-tabs-kpi .nav-link {
+    padding: .3rem .6rem;
+    font-size: .875rem;
+}
+
+/* Cifras KPI alineadas columna a columna (números tabulares). */
+.kpi-numero {
+    font-variant-numeric: tabular-nums;
+}
+
+/* La última fila del listado no lleva separador. */
+.kpi-fila:last-child {
+    border-bottom: 0 !important;
+}
+
+.kpi-progreso {
+    height: .75rem;
+}

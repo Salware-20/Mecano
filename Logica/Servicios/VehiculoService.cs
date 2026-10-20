@@ -82,6 +82,14 @@ public class VehiculoService : IVehiculoService
         return (placa, anio);
     }
 
+    // ~~~ READ (conteo para el panel) ~~~
+    public async Task<int> ContarActivosAsync()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Vehiculo.AsNoTracking().CountAsync(v => v.Activo);
+    }
+
     // ~~~ CREATE ~~~
     public async Task<int> CrearAsync(NuevoVehiculoDTO dto)
     {

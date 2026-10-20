@@ -1,8 +1,171 @@
 @page "/"
-@attribute [Authorize]
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Administrador")]
+@using Mecano.Entidad.Clases
+@using Mecano.Entidad.Constantes
+@using Mecano.Entidad.DTOs.Dashboard
+@using Mecano.Entidad.Utilidades
+@inject IDashboardService DashboardService
 
-<PageTitle>Mecano</PageTitle>
+<PageTitle>Panel de control - Mecano</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1><i class="bi bi-speedometer2"></i> Panel de control</h1>
 
-Welcome to your new app.
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="Cargar"></button>
+    </div>
+}
+
+@if (cargando)
+{
+    <div class="text-center py-5" role="status">
+        <div class="spinner-border text-primary" aria-hidden="true"></div>
+        <p class="text-muted mt-2 mb-0">Cargando el resumen del día…</p>
+    </div>
+}
+else if (resumen is not null)
+{
+    <div class="row g-3">
+
+        @* Col-8: citas de hoy desglosadas por estado en pestañas (sin JS de Bootstrap). *@
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-calendar-check" aria-hidden="true"></i> Citas de hoy
+                        <span class="text-muted small">· @FechaLarga</span>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            title="Actualizar resumen" aria-label="Actualizar resumen" @onclick="Cargar">
+                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <span class="fs-2 fw-semibold kpi-numero">@resumen.CitasHoy.Total</span>
+                        <span class="text-muted">cita(s) agendada(s) hoy</span>
+                    </div>
+
+                    <ul class="nav nav-tabs nav-tabs-kpi" role="tablist">
+                        @foreach (var conteo in resumen.CitasHoy.Conteos)
+                        {
+                            <li class="nav-item" role="presentation">
+                                <button type="button"
+                                        class="nav-link @(PestanaActiva == conteo.Estado ? "active" : null)"
+                                        role="tab"
+                                        aria-selected="@(PestanaActiva == conteo.Estado)"
+                                        @onclick="() => SeleccionarPestana(conteo.Estado)">
+                                    @Formatos.NombreEstado(conteo.Estado)
+                                    <span class="badge @Formatos.BadgeEstado(conteo.Estado) ms-1">@conteo.Conteo</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+
+                    <div class="tab-content pt-3" role="tabpanel">
+                        @{
+                            var citasDeLaPestana = resumen.CitasHoy.Citas
+                                .Where(c => c.Estado == PestanaActiva)
+                                .ToList();
+                        }
+                        @if (citasDeLaPestana.Count == 0)
+                        {
+                            <div class="alert alert-info py-2 mb-0 small" role="status">
+                                No hay citas con estado «@Formatos.NombreEstado(PestanaActiva)» hoy.
+                            </div>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var cita in citasDeLaPestana)
+                                {
+                                    <li class="d-flex flex-wrap align-items-baseline gap-2 py-1 border-bottom kpi-fila">
+                                        <span class="fw-semibold kpi-numero">
+                                            @cita.HoraInicio.ToString("HH:mm")–@cita.HoraFin.ToString("HH:mm")
+                                        </span>
+                                        <span>@cita.ClienteNombre</span>
+                                        <span class="text-muted small">@cita.VehiculoDescripcion · @Formatos.Placa(cita.Placa)</span>
+                                        <span class="ms-auto small text-muted">@cita.ServicioNombre</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="citas" class="small">
+                        Ver todas las citas <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        @* Col-4: ocupación del día y recursos del taller. *@
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header">
+                    <i class="bi bi-graph-up" aria-hidden="true"></i> Ocupación del día
+                </div>
+                <div class="card-body">
+                    @if (Ocupacion.Cerrado)
+                    {
+                        <p class="mb-0 text-muted">
+                            <i class="bi bi-door-closed" aria-hidden="true"></i> Taller cerrado hoy (domingo).
+                        </p>
+                    }
+                    else if (Ocupacion.MinutosDisponibles == 0)
+                    {
+                        <p class="mb-0 text-muted">Sin mecánicos activos: no hay capacidad calculable.</p>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="fs-2 fw-semibold kpi-numero">@Ocupacion.Porcentaje&#37;</span>
+                            <span class="badge @ClaseBadgeOcupacion">@EtiquetaOcupacion</span>
+                        </div>
+                        <div class="progress kpi-progreso" role="progressbar"
+                             aria-valuenow="@Ocupacion.Porcentaje" aria-valuemin="0" aria-valuemax="100"
+                             aria-label="Ocupación programada del taller">
+                            <div class="progress-bar @ClaseBarraOcupacion"
+                                 style="width: @Math.Min(100, Ocupacion.Porcentaje)%"></div>
+                        </div>
+                        <p class="small text-muted mb-0 mt-2">
+                            @Formatos.Duracion(Ocupacion.MinutosOcupados) de @Formatos.Duracion(Ocupacion.MinutosDisponibles)
+                            · @Ocupacion.MecanicosEnAgenda mecánico(s) en agenda
+                        </p>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <i class="bi bi-person-gear" aria-hidden="true"></i> Taller y personal
+                </div>
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-baseline py-1">
+                        <span class="small text-muted">Mecánicos activos</span>
+                        <span class="fw-semibold kpi-numero">@TallerPersonal.MecanicosActivos</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-baseline py-1">
+                        <span class="small text-muted">…con citas hoy</span>
+                        <span class="fw-semibold kpi-numero">@TallerPersonal.MecanicosConCitasHoy</span>
+                    </div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between align-items-baseline py-1">
+                        <a href="clientes" class="small">Clientes activos</a>
+                        <span class="fw-semibold kpi-numero">@TallerPersonal.ClientesActivos</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-baseline py-1">
+                        <span class="small text-muted">Vehículos activos</span>
+                        <span class="fw-semibold kpi-numero">@TallerPersonal.VehiculosActivos</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
