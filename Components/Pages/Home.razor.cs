@@ -197,6 +197,12 @@ public partial class Home : ComponentBase, IDisposable
                 }
             }
         },
+        // El tooltip del donut debe seguir el tema: sin configurarlo, ApexCharts usa
+        // su default (siempre oscuro) y quedaría distinto al de la gráfica de barras.
+        Tooltip = new Tooltip
+        {
+            Theme = Tema.IsDark ? Mode.Dark : Mode.Light
+        },
         NoData = new NoData
         {
             Text = "Sin citas en el período",
@@ -217,11 +223,14 @@ public partial class Home : ComponentBase, IDisposable
         Colors = new List<string> { ColorAcentoGrafico },
         Legend = new Legend { Show = false },
         DataLabels = new DataLabels { Enabled = false },
-        // Barras horizontales: el eje de valor (minutos) se configura en Yaxis; con este
-        // formatter sus marcas se leen «45 min», «1 h» o «2 h 30 min» en vez de «45.0».
-        Yaxis = new List<YAxis>
+        // Barras horizontales: ApexCharts dibuja en este modo el eje de VALORES abajo
+        // con la config Xaxis (drawYaxisInversed usa xaxis.labels.formatter para las
+        // marcas), mientras que la config Yaxis formatea los nombres de las categorías
+        // (izquierda y clave del tooltip). Por eso el formatter va aquí: las marcas se
+        // leen «45 min», «1 h» o «2 h 30 min» en vez de «90» o «1.5».
+        Xaxis = new XAxis
         {
-            new YAxis { Labels = new YAxisLabels { Formatter = JsMinutosCorto } }
+            Labels = new XAxisLabels { Formatter = JsMinutosCorto }
         },
         PlotOptions = new PlotOptions
         {
@@ -246,12 +255,12 @@ public partial class Home : ComponentBase, IDisposable
     // está en la lista/leyenda al lado o debajo, así el dato nunca se pierde).
     private string EtiquetaDonut => periodoDatos is null
         ? "Gráfico de distribución de citas por estado"
-        : $"Gráfico de donut: {periodoDatos.TotalCitas} citas del {RangoPeriodo} repartidas por estado; " +
+        : $"Gráfico de donut: {periodoDatos.TotalCitas} citas {RangoPeriodo} repartidas por estado; " +
           "el desglose está en la lista adyacente.";
 
     private string EtiquetaBarra => periodoDatos is null
         ? "Gráfico de carga por mecánico"
-        : $"Gráfico de barras horizontales: tiempo asignado por mecánico activo en el {RangoPeriodo}, " +
+        : $"Gráfico de barras horizontales: tiempo asignado por mecánico activo {RangoPeriodo}, " +
           "en minutos presentados como horas y minutos (por ejemplo, 1 hora 30 minutos); " +
           "el detalle de citas y tiempo está bajo el gráfico.";
 }
