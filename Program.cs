@@ -1,4 +1,6 @@
+using ApexCharts;
 using Mecano.Components;
+using Mecano.Components.Shared;
 using Mecano.Data;
 using Mecano.Endpoints;
 using Mecano.Entidad.Constantes;
@@ -64,6 +66,8 @@ builder.Services.AddScoped<IServicioService, ServicioService>();
 builder.Services.AddScoped<IMecanicoService, MecanicoService>();
 builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddApexCharts(); // Servicio opcional de ApexCharts (localización/globales).
+builder.Services.AddScoped<ThemeState>(); // Tema claro/oscuro compartido en el circuito.
 builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICategoriaService, CategoriaService>();

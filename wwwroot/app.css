@@ -10,6 +10,7 @@
     --border-color: #E2E8F0;
     --primary-accent: #0284C7;
     --primary-hover: #0369A1;
+    --text-inverse: #FFFFFF; /* texto sobre superficies con acento saturado */
     --badge-success-bg: #DCFCE7;
     --badge-success-text: #15803D;
     --badge-warning-bg: #FEF3C7;
@@ -35,6 +36,7 @@ body.dark-mode {
     --border-color: #334155;
     --primary-accent: #38BDF8;
     --primary-hover: #7DD3FC;
+    --text-inverse: #0F172A; /* acentos claros: el texto invertido debe ser oscuro */
     --badge-success-bg: #14532D;
     --badge-success-text: #86EFAC;
     --badge-warning-bg: #78350F;
@@ -276,4 +278,69 @@ h1:focus {
 
 .kpi-progreso {
     height: .75rem;
+}
+
+/* --- Gráficos del panel de control (ApexCharts) --- */
+/* Punto de color de las listas-leyenda visibles junto a los gráficos. */
+.grafico-punto {
+    display: inline-block;
+    width: .65rem;
+    height: .65rem;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+/* Detalle por mecánico bajo la gráfica de barras: números tabulares. */
+.grafico-detalle {
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Enlaces del panel: cascada + cristal --- */
+/* Al pasar el cursor (o con foco de teclado) un relleno cae sobre la forma
+   (degradado de acento, top → bottom) y el borde se enciende; la superficie
+   de cristal (translúcida + blur) queda por debajo del relleno. */
+.enlace-cascada {
+    position: relative;
+    display: inline-block;
+    padding: .15rem .6rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    overflow: hidden;
+    isolation: isolate; /* stacking context: el relleno no se escapa del enlace */
+    text-decoration: none;
+    background: color-mix(in srgb, var(--bg-surface) 65%, transparent);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: color .25s ease, border-color .25s ease;
+}
+
+/* z-index negativo: se pinta sobre el fondo translúcido del propio enlace,
+   pero por debajo de su texto (que es contenido en línea, paso posterior). */
+.enlace-cascada::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, var(--primary-accent), var(--primary-hover));
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform .3s ease-out;
+}
+
+.enlace-cascada:hover,
+.enlace-cascada:focus-visible {
+    color: var(--text-inverse);
+    border-color: var(--primary-accent);
+}
+
+.enlace-cascada:hover::before,
+.enlace-cascada:focus-visible::before {
+    transform: scaleY(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .enlace-cascada,
+    .enlace-cascada::before {
+        transition: none;
+    }
 }

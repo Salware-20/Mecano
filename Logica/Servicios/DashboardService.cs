@@ -108,4 +108,52 @@ public class DashboardService : IDashboardService
             }
         };
     }
+
+    public async Task<ResumenPeriodoDTO> ObtenerResumenPeriodoAsync(DateTime inicio, DateTime fin)
+    {
+        var desde = inicio.Date;
+        var hasta = fin.Date;
+
+        var citas = await _citaService.ObtenerPorRangoAsync(desde, hasta);
+
+        // Canceladas: el donut las muestra (es distribución de estados), pero no
+        // consumen carga mecánica, igual que en la ocupación del día.
+        var efectivas = citas.Where(c => c.Estado != EstadoCita.Cancelado).ToList();
+
+        // Mecánicos activos: los de 0 citas también se listan (se ve quién está ocioso).
+        var mecanicos = await _mecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
+
+        var carga = mecanicos
+            .Select(m =>
+            {
+                var suyas = efectivas
+                    .Where(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == m.Id))
+                    .ToList();
+                return new CargaMecanicoDTO
+                {
+                    MecanicoId = m.Id,
+                    Nombre = m.Nombre,
+                    Citas = suyas.Count,
+                    Minutos = suyas.Sum(c => (int)(c.HoraFin - c.HoraInicio).TotalMinutes)
+                };
+            })
+            .OrderByDescending(c => c.Minutos)
+            .ThenBy(c => c.Nombre)
+            .ToList();
+
+        return new ResumenPeriodoDTO
+        {
+            Inicio = desde,
+            Fin = hasta,
+            TotalCitas = citas.Count,
+            Conteos = Enum.GetValues<EstadoCita>()
+                .Select(estado => new EstadoConteoDTO
+                {
+                    Estado = estado,
+                    Conteo = citas.Count(c => c.Estado == estado)
+                })
+                .ToList(),
+            CargaMecanicos = carga
+        };
+    }
 }

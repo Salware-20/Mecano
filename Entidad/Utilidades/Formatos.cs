@@ -250,5 +250,21 @@ namespace Mecano.Entidad.Utilidades
             EstadoCita.Cancelado => "bg-danger",
             _ => "bg-secondary"
         };
+
+        /// <summary>
+        /// Color hexadecimal de un estado de cita. ESPEJO del mapeo de <see cref="BadgeEstado"/>
+        /// (mismos colores de Bootstrap): los gráficos del panel usan estos valores para que las
+        /// porciones del donut no puedan divergir de las insignias de las listas. Si cambia uno,
+        /// cambia el otro.
+        /// </summary>
+        public static string ColorEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.Pendiente => "#6c757d",  // bg-secondary
+            EstadoCita.Confirmado => "#0d6efd", // bg-primary
+            EstadoCita.EnProceso => "#0dcaf0",  // bg-info
+            EstadoCita.Finalizado => "#198754", // bg-success
+            EstadoCita.Cancelado => "#dc3545",  // bg-danger
+            _ => "#6c757d"
+        };
     }
 }

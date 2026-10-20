@@ -6,6 +6,7 @@
 @using Mecano.Entidad.DTOs.Dashboard
 @using Mecano.Entidad.Utilidades
 @inject IDashboardService DashboardService
+@inject ThemeState Tema
 
 <PageTitle>Panel de control - Mecano</PageTitle>
 
@@ -39,7 +40,8 @@ else if (resumen is not null)
                         <span class="text-muted small">· @FechaLarga</span>
                     </span>
                     <button type="button" class="btn btn-sm btn-outline-secondary"
-                            title="Actualizar resumen" aria-label="Actualizar resumen" @onclick="Cargar">
+                            title="Actualizar resumen y gráficos" aria-label="Actualizar resumen y gráficos"
+                            @onclick="Recargar">
                         <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                     </button>
                 </div>
@@ -97,7 +99,7 @@ else if (resumen is not null)
                     </div>
                 </div>
                 <div class="card-footer">
-                    <a href="citas" class="small">
+                    <a href="citas" class="small enlace-cascada">
                         Ver todas las citas <i class="bi bi-arrow-right" aria-hidden="true"></i>
                     </a>
                 </div>
@@ -157,13 +159,165 @@ else if (resumen is not null)
                     </div>
                     <hr class="my-2">
                     <div class="d-flex justify-content-between align-items-baseline py-1">
-                        <a href="clientes" class="small">Clientes activos</a>
+                        <a href="clientes" class="small enlace-cascada">Clientes activos</a>
                         <span class="fw-semibold kpi-numero">@TallerPersonal.ClientesActivos</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-baseline py-1">
                         <span class="small text-muted">Vehículos activos</span>
                         <span class="fw-semibold kpi-numero">@TallerPersonal.VehiculosActivos</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Fila de gráficos: donut de estados + carga por mecánico (ApexCharts). *@
+    <div class="row g-3 mt-1">
+
+        @* Col-6: distribución de citas del período por estado. *@
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>
+                        <i class="bi bi-pie-chart" aria-hidden="true"></i> Distribución por estado
+                        <span class="text-muted small">· @RangoPeriodo</span>
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Período de los gráficos">
+                        <button type="button"
+                                class="btn btn-outline-secondary @(periodo == PeriodoGrafico.Semana ? "active" : null)"
+                                aria-pressed="@(periodo == PeriodoGrafico.Semana)"
+                                @onclick="() => CambiarPeriodo(PeriodoGrafico.Semana)">Semana</button>
+                        <button type="button"
+                                class="btn btn-outline-secondary @(periodo == PeriodoGrafico.Mes ? "active" : null)"
+                                aria-pressed="@(periodo == PeriodoGrafico.Mes)"
+                                @onclick="() => CambiarPeriodo(PeriodoGrafico.Mes)">Mes</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (cargandoPeriodo)
+                    {
+                        <div class="text-center py-5" role="status">
+                            <div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div>
+                            <span class="visually-hidden">Cargando el período…</span>
+                        </div>
+                    }
+                    else if (mensajeErrorPeriodo is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0" role="alert">
+                            @mensajeErrorPeriodo
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-1" @onclick="Recargar">Reintentar</button>
+                        </div>
+                    }
+                    else if (periodoDatos!.TotalCitas == 0)
+                    {
+                        <div class="alert alert-info py-2 small mb-0" role="status">
+                            No hay citas registradas @RangoPeriodo.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row align-items-center">
+                            <div class="col-7" role="img" aria-label="@EtiquetaDonut">
+                                @* @key: el cambio de tema recrea el chart con la paleta nueva. *@
+                                <ApexChart @key="Tema.IsDark" TItem="EstadoConteoDTO"
+                                           Options="OpcionesDonut()" Height="250">
+                                    <ApexPointSeries TItem="EstadoConteoDTO"
+                                                     Name="Citas"
+                                                     Items="periodoDatos.Conteos"
+                                                     SeriesType="SeriesType.Donut"
+                                                     XValue="e => Formatos.NombreEstado(e.Estado)"
+                                                     YValue="e => e.Conteo" />
+                                </ApexChart>
+                            </div>
+                            <div class="col-5">
+                                @* Leyenda visible con color + conteo + %: además es el
+                                   equivalente en texto del gráfico (accesibilidad). *@
+                                <ul class="list-unstyled mb-0 small">
+                                    @foreach (var conteo in periodoDatos.Conteos.OrderByDescending(c => c.Conteo))
+                                    {
+                                        <li class="d-flex align-items-center gap-2 py-1">
+                                            <span class="grafico-punto" style="background-color: @Formatos.ColorEstado(conteo.Estado)"></span>
+                                            <span>@Formatos.NombreEstado(conteo.Estado)</span>
+                                            <span class="ms-auto kpi-numero">
+                                                <span class="fw-semibold">@conteo.Conteo</span>
+                                                <span class="text-muted"> (@PorcentajeDe(conteo)&#37;)</span>
+                                            </span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* Col-6: horas asignadas por mecánico activo (las canceladas no cuentan). *@
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>
+                        <i class="bi bi-bar-chart" aria-hidden="true"></i> Carga por mecánico
+                        <span class="text-muted small">· @RangoPeriodo</span>
+                    </span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Período de los gráficos">
+                        <button type="button"
+                                class="btn btn-outline-secondary @(periodo == PeriodoGrafico.Semana ? "active" : null)"
+                                aria-pressed="@(periodo == PeriodoGrafico.Semana)"
+                                @onclick="() => CambiarPeriodo(PeriodoGrafico.Semana)">Semana</button>
+                        <button type="button"
+                                class="btn btn-outline-secondary @(periodo == PeriodoGrafico.Mes ? "active" : null)"
+                                aria-pressed="@(periodo == PeriodoGrafico.Mes)"
+                                @onclick="() => CambiarPeriodo(PeriodoGrafico.Mes)">Mes</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (cargandoPeriodo)
+                    {
+                        <div class="text-center py-5" role="status">
+                            <div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div>
+                            <span class="visually-hidden">Cargando el período…</span>
+                        </div>
+                    }
+                    else if (mensajeErrorPeriodo is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0" role="alert">
+                            @mensajeErrorPeriodo
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-1" @onclick="Recargar">Reintentar</button>
+                        </div>
+                    }
+                    else if (!periodoDatos!.CargaMecanicos.Any(c => c.Citas > 0))
+                    {
+                        <div class="alert alert-info py-2 small mb-0" role="status">
+                            Sin citas activas @RangoPeriodo: ningún mecánico tiene carga asignada.
+                        </div>
+                    }
+                    else
+                    {
+                        <div role="img" aria-label="@EtiquetaBarra">
+                            @* Altura dinámica: una fila por mecánico activo, sin que se corten. *@
+                            <ApexChart @key="Tema.IsDark" TItem="CargaMecanicoDTO"
+                                       Options="OpcionesBarra()"
+                                       Height="@(Math.Max(220, 60 + periodoDatos.CargaMecanicos.Count * 40))">
+                                <ApexPointSeries TItem="CargaMecanicoDTO"
+                                                 Name="Horas asignadas"
+                                                 Items="periodoDatos.CargaMecanicos"
+                                                 SeriesType="SeriesType.Bar"
+                                                 XValue="e => e.Nombre"
+                                                 YValue="e => e.Horas" />
+                            </ApexChart>
+                        </div>
+                        @* El tooltip muestra las horas; aquí va el detalle completo. *@
+                        <p class="small text-muted mb-0 mt-1 grafico-detalle">
+                            @foreach (var carga in periodoDatos.CargaMecanicos)
+                            {
+                                <span class="d-inline-block me-3">
+                                    <span class="fw-semibold">@carga.Nombre</span>:
+                                    @carga.Citas cita(s) · @Formatos.Duracion(carga.Minutos)
+                                </span>
+                            }
+                        </p>
+                    }
                 </div>
             </div>
         </div>

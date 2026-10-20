@@ -1,8 +1,11 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
+using ApexCharts;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs.Dashboard;
+using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
 
 namespace Mecano.Components.Pages;
@@ -10,7 +13,7 @@ namespace Mecano.Components.Pages;
 // El panel de control es la página de inicio ("/"): el NavMenu ya apuntaba
 // «Dashboard» a la raíz, así que se reemplaza la Home de plantilla en su lugar.
 // Visible solo para el rol Administrador (decisión de diseño de la primera fase).
-public partial class Home : ComponentBase
+public partial class Home : ComponentBase, IDisposable
 {
     private ResumenDiarioDTO? resumen;
     private bool cargando = true;
@@ -29,7 +32,18 @@ public partial class Home : ComponentBase
     private string FechaLarga =>
         resumen!.Fecha.ToString("dddd, d 'de' MMMM 'de' yyyy", CulturaCr);
 
-    protected override async Task OnInitializedAsync() => await Cargar();
+    protected override async Task OnInitializedAsync()
+    {
+        // El tema lo altera MainLayout (window.mecanoTheme); al cambiar, el panel
+        // se re-renderiza y los charts se recrean con la paleta nueva (@key).
+        Tema.Changed += OnTemaCambiado;
+        await Cargar();
+        await CargarPeriodoAsync();
+    }
+
+    public void Dispose() => Tema.Changed -= OnTemaCambiado;
+
+    private void OnTemaCambiado() => _ = InvokeAsync(StateHasChanged);
 
     private async Task Cargar()
     {
@@ -79,4 +93,146 @@ public partial class Home : ComponentBase
         <= 85 => "bg-success",
         _ => "bg-warning"
     };
+
+    // --- Gráficos del período (semana o mes en curso) ---
+    // Un solo estado compartido por las dos tarjetas: cambiarlo en una cambia las dos.
+    private enum PeriodoGrafico { Semana, Mes }
+
+    private PeriodoGrafico periodo = PeriodoGrafico.Mes; // decisión: mes por defecto
+    private ResumenPeriodoDTO? periodoDatos;
+    private bool cargandoPeriodo = true;
+    private string? mensajeErrorPeriodo;
+
+    private async Task CargarPeriodoAsync()
+    {
+        cargandoPeriodo = true;
+        mensajeErrorPeriodo = null;
+        try
+        {
+            var hoy = DateTime.Today;
+            var lunes = hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7)); // semana lun…dom
+            var inicioMes = new DateTime(hoy.Year, hoy.Month, 1);
+            var (inicio, fin) = periodo == PeriodoGrafico.Semana
+                ? (lunes, lunes.AddDays(6))
+                : (inicioMes, inicioMes.AddMonths(1).AddDays(-1));
+
+            periodoDatos = await DashboardService.ObtenerResumenPeriodoAsync(inicio, fin);
+        }
+        catch (Exception)
+        {
+            periodoDatos = null;
+            mensajeErrorPeriodo = "No se pudo cargar el período de los gráficos.";
+        }
+        finally
+        {
+            cargandoPeriodo = false;
+        }
+    }
+
+    private async Task CambiarPeriodo(PeriodoGrafico nuevo)
+    {
+        if (periodo == nuevo) return;
+        periodo = nuevo;
+        await CargarPeriodoAsync();
+    }
+
+    // Actualiza el resumen del día y el período de los gráficos (botón ⟳).
+    private async Task Recargar()
+    {
+        await Cargar();
+        await CargarPeriodoAsync();
+    }
+
+    private string RangoPeriodo => periodoDatos is null
+        ? string.Empty
+        : $"del {periodoDatos.Inicio:dd/MM} al {periodoDatos.Fin:dd/MM}";
+
+    private string PorcentajeDe(EstadoConteoDTO conteo) =>
+        periodoDatos is null || periodoDatos.TotalCitas == 0
+            ? "0"
+            : (conteo.Conteo * 100.0 / periodoDatos.TotalCitas).ToString("0.#", CulturaCr);
+
+    // ApexCharts no lee variables CSS: colores explícitos según el tema vigente,
+    // tomados de los tokens --text-secondary / --primary-accent de app.css.
+    private string ColorTextoGrafico => Tema.IsDark ? "#94A3B8" : "#64748B";
+    private string ColorAcentoGrafico => Tema.IsDark ? "#38BDF8" : "#0284C7";
+
+    // Orden = orden del enum EstadoCita, igual que la lista Conteos (espejo de Formatos.BadgeEstado).
+    private static List<string> ColoresDonut =>
+        Enum.GetValues<EstadoCita>().Select(Formatos.ColorEstado).ToList();
+
+    // Cada tarjeta lleva su propia instancia de opciones (no se pueden compartir).
+    private ApexChartOptions<EstadoConteoDTO> OpcionesDonut() => new()
+    {
+        Chart = new Chart
+        {
+            ForeColor = ColorTextoGrafico,
+            Toolbar = new Toolbar { Show = false }
+        },
+        Theme = new Theme { Mode = Tema.IsDark ? Mode.Dark : Mode.Light },
+        Colors = ColoresDonut,
+        // La lista visible al lado hace de leyenda accesible (con el % por estado).
+        Legend = new Legend { Show = false },
+        PlotOptions = new PlotOptions
+        {
+            Pie = new PlotOptionsPie
+            {
+                Donut = new PlotOptionsDonut
+                {
+                    Labels = new DonutLabels
+                    {
+                        Show = true,
+                        Total = new DonutLabelTotal { Show = true, Label = "citas" }
+                    }
+                }
+            }
+        },
+        NoData = new NoData
+        {
+            Text = "Sin citas en el período",
+            Align = Align.Center,
+            VerticalAlign = VerticalAlign.Middle,
+            Style = new NoDataStyle { Color = ColorTextoGrafico }
+        }
+    };
+
+    private ApexChartOptions<CargaMecanicoDTO> OpcionesBarra() => new()
+    {
+        Chart = new Chart
+        {
+            ForeColor = ColorTextoGrafico,
+            Toolbar = new Toolbar { Show = false }
+        },
+        Theme = new Theme { Mode = Tema.IsDark ? Mode.Dark : Mode.Light },
+        Colors = new List<string> { ColorAcentoGrafico },
+        Legend = new Legend { Show = false },
+        DataLabels = new DataLabels { Enabled = false },
+        PlotOptions = new PlotOptions
+        {
+            Bar = new PlotOptionsBar { Horizontal = true }
+        },
+        Tooltip = new Tooltip
+        {
+            Theme = Tema.IsDark ? Mode.Dark : Mode.Light
+        },
+        NoData = new NoData
+        {
+            Text = "Sin citas en el período",
+            Align = Align.Center,
+            VerticalAlign = VerticalAlign.Middle,
+            Style = new NoDataStyle { Color = ColorTextoGrafico }
+        }
+    };
+
+    // Etiquetas ARIA de los contenedores de los gráficos (el detalle en texto
+    // está en la lista/leyenda al lado o debajo, así el dato nunca se pierde).
+    private string EtiquetaDonut => periodoDatos is null
+        ? "Gráfico de distribución de citas por estado"
+        : $"Gráfico de donut: {periodoDatos.TotalCitas} citas del {RangoPeriodo} repartidas por estado; " +
+          "el desglose está en la lista adyacente.";
+
+    private string EtiquetaBarra => periodoDatos is null
+        ? "Gráfico de carga por mecánico"
+        : $"Gráfico de barras horizontales: horas asignadas por mecánico activo en el {RangoPeriodo}; " +
+          "el detalle de citas y tiempo está bajo el gráfico.";
 }

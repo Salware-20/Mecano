@@ -2,6 +2,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ThemeState Tema
 
 <div class="page">
     <div class="sidebar">
@@ -86,12 +87,22 @@
     private void ToggleUserMenu() => isUserMenuOpen = !isUserMenuOpen;
     private void CloseUserMenu() => isUserMenuOpen = false;
 
-    private async Task ToggleTheme() => await JS.InvokeVoidAsync("window.mecanoTheme.toggle");
+    private async Task ToggleTheme()
+    {
+        // mecanoTheme.toggle() aplica el cambio en <html> y devuelve true si quedó oscuro;
+        // se refleja en C# (Tema) para que los gráficos del panel se re-rendericen.
+        var oscuro = await JS.InvokeAsync<bool>("window.mecanoTheme.toggle");
+        Tema.Set(oscuro);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // Sincronizar el estado inicial del tema (puede venir de localStorage o del SO).
+            var oscuro = await JS.InvokeAsync<bool>("window.mecanoTheme.isDark");
+            Tema.Set(oscuro);
+
             await JS.InvokeVoidAsync("window.mecanoRedirectFeedback.init", ".nav-scrollable");
 
             /* Aplicar el filtro de oscurecimiento solo cuando el usuario NO está autenticado */

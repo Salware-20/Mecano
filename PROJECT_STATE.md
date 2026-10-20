@@ -84,7 +84,7 @@ Mecano/
 │  │  ├─ InactiveServiceException.cs
 │  │  └─ AppointmentOverlapException.cs
 │  ├─ Utilidades/
-│  │  ├─ Formatos.cs        # Normalización y formateo por tipo de identificación + teléfono/placa/moneda/duración + nombre/badge de estado de cita
+│  │  ├─ Formatos.cs        # Normalización y formateo por tipo de identificación + teléfono/placa/moneda/duración + nombre/badge de estado de cita + ColorEstado (hex espejo de BadgeEstado, para los gráficos)
 │  │  ├─ HorarioAtencion.cs # Horario del taller centralizado: Apertura (8:00), Cierre (18:00), MinutosPorDia (600) y EsDiaNoLaboral (domingo). Lo usan las guardas de CitaService y la ocupación del panel de control
 │  │  └─ Patrones.cs        # Regex + mensajes de DataAnnotations compartidos (nombre, correo, teléfono) para clientes y mecánicos
 │  └─ Constantes/
@@ -114,7 +114,7 @@ Mecano/
 │     ├─ VehiculoService.cs
 │     └─ AdministradorService.cs # Perfil del administrador autenticado (ObtenerPerfilAsync / ActualizarPerfilAsync / CambiarPasswordAsync)
 ├─ wwwroot/
-│  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark) + estilos globales
+│  ├─ app.css               # Tokens CSS "Industrial Clean" (light/dark, incluye --text-inverse) + estilos globales + fila de gráficos (.grafico-punto/.grafico-detalle) + enlaces ".enlace-cascada" (relleno en cascada con foco/mouse + superficie de cristal, guarda prefers-reduced-motion)
 │  └─ js/
 │     ├─ auth.js               # window.authFetch.login/logout (fetch con credentials same-origin) + window.mecanoRedirectFeedback (init/setAuthenticated/assignRedirectClass: oscurece el menú al redirigir a login)
 │     └─ theme.js              # window.mecanoTheme: toggle light/dark + persistencia en localStorage
@@ -123,7 +123,7 @@ Mecano/
 │  ├─ Routes.razor           # Configuración del enrutador
 │  ├─ App.razor              # Raíz HTML con script de framework Blazor
 │  ├─ Layout/
-│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + dropdown de usuario (incluye enlace "Mi Perfil" a `/perfil`) + sidebar + @Body (canvas px-4 py-3). @code: ToggleTheme, ToggleUserMenu/CloseUserMenu, HandleLogout; OnAfterRenderAsync(firstRender) inicializa window.mecanoRedirectFeedback y le pasa el estado de autenticación
+│  │  ├─ MainLayout.razor    # Top-header "Panel de Control" + toggle de tema (light/dark) + dropdown de usuario (incluye enlace "Mi Perfil" a `/perfil`) + sidebar + @Body (canvas px-4 py-3). @code: ToggleTheme (refleja el resultado en ThemeState para los gráficos), ToggleUserMenu/CloseUserMenu, HandleLogout; OnAfterRenderAsync(firstRender) sincroniza ThemeState con window.mecanoTheme.isDark, inicializa window.mecanoRedirectFeedback y le pasa el estado de autenticación
 │  │  ├─ MainLayout.razor.css # Sidebar con var(--bg-sidebar); header con var(--bg-header) y var(--border-color)
 │  │  ├─ LoginLayout.razor   # Layout anónimo sin sidebar: header con marca MECANO + toggle de tema + @Body; lo usan Login.razor y AccesoDenegado.razor
 │  │  ├─ LoginLayout.razor.css # Header y contenedor (.page min-height 100vh); duplica #blazor-error-ui
@@ -132,8 +132,8 @@ Mecano/
 │  │  ├─ ReconnectModal.razor
 │  │  └─ ReconnectModal.razor.css # Modal de reconexión de la plantilla (157 líneas, sin cambios)
 │  ├─ Pages/
-│     ├─ Home.razor          # @page "/", [Authorize(Roles=Administrador)], InteractiveServer. **Panel de control** (KPIs del día): tarjeta "Citas de hoy" (total + desglose por estado en nav-tabs Blazor-puro con badge de conteo y listado hora·cliente·vehículo·servicio), tarjeta "Ocupación del día" (minutos-mecánico ÷ capacidad, barra con role=progressbar y escala baja/óptima/alta, "Taller cerrado" los domingos) y tarjeta "Taller y personal" (mecánicos activos y con citas hoy, clientes y vehículos activos). Botón de recarga en el card-header
-│     ├─ Home.razor.cs       # Code-behind: carga DashboardService.ObtenerResumenDiarioAsync(DateTime.Today), PestanaActiva (arranca en la primera pestaña con citas), FechaLarga con cultura es-CR y helpers de escala/colour de la ocupación
+│     ├─ Home.razor          # @page "/", [Authorize(Roles=Administrador)], InteractiveServer. **Panel de control** (KPIs del día): tarjeta "Citas de hoy" (total + desglose por estado en nav-tabs Blazor-puro con badge de conteo y listado hora·cliente·vehículo·servicio), tarjeta "Ocupación del día" (minutos-mecánico ÷ capacidad, barra con role=progressbar y escala baja/óptima/alta, "Taller cerrado" los domingos) y tarjeta "Taller y personal" (mecánicos activos y con citas hoy, clientes y vehículos activos). Debajo: fila de gráficos ApexCharts 6+6 (donut por estado con leyenda visible + barras horizontales de carga por mecánico) con toggle Semana/Mes y @key por tema. Botón de recarga en el card-header (día + período)
+│     ├─ Home.razor.cs       # Code-behind: carga DashboardService.ObtenerResumenDiarioAsync(DateTime.Today) y ObtenerResumenPeriodoAsync (semana lun–dom / mes en curso, default Mes), PestanaActiva (arranca en la primera pestaña con citas), FechaLarga con cultura es-CR, helpers de escala/colour de la ocupación, opciones ApexCharts por tema (ColoresDonut = Formatos.ColorEstado) y suscripción a ThemeState.Changed (IDisposable)
 │     ├─ AgendarCita.razor  # @page "/agendar", [Authorize(Roles=Administrador)], InteractiveServer. Tablero propio de mecánicos (filas) x días lun-sáb (columnas), sin FullCalendar: cada celda muestra las citas del mecánico ese día y al hacer clic abre el modal de agendado (permite agendar a otro mecánico aunque ya haya una cita en la misma hora). Modal "mecánico primero": el mecánico de la fila llega preseleccionado y se permite **elegir varios mecánicos de la misma especialidad** (lista de checkboxes agrupada por especialidad; al elegir uno, los grupos de otras especialidades quedan deshabilitados). El select de servicios solo ofrece los de esa especialidad (Servicio.CategoriaId == Mecanico.EspecialidadId) y **activos** (se excluyen los servicios desactivados); los horarios en que **cualquiera** de los mecánicos elegidos ya está ocupado se deshabilitan usando las citas de la semana cargada. Un clic en el chip de una cita navega a su detalle (`/citas/{id}`) y detiene la propagación para no disparar el modal de agendado de la celda. El tablero cierra con una leyenda de estados (Pendiente/Confirmado/En Proceso/Finalizado/Cancelado) cuyos swatches reutilizan los mismos tokens `--chip-color` de los chips, por lo que los colores no pueden divergir. Estilos en AgendarCita.razor.css. Los **mecánicos inactivos** se muestran también en el tablero, pero solo si tienen citas no canceladas en la semana visible (`ObtenerTodosAsync(FiltroActivo.Todos)` filtrado por `Activo || citasSemana.SelectMany(c => c.CitaMecanicos.Select(cm => cm.MecanicoId)).Contains(Id)`): su fila se pinta atenuada (clase `tablero-mecanico-inactivo`), lleva un badge `Inactivo` junto al nombre y sus celdas **no** son clicables ni muestran el "+ Agendar" (`PuedeAgendar(dia) && m.Activo`; `AbrirModal` también corta si `!mecanico.Activo`), de modo que no se agendan citas nuevas sobre él; la lista de mecánicos del modal solo ofrece activos. Una cita aparece en la fila de **cada** mecánico asignado (`CitasDe` filtra por `CitaMecanicos.Any(cm => cm.MecanicoId == …)`). Los clientes inactivos siguen apareciendo en la búsqueda y se pueden agendar (contrato legado), pero se advierten visualmente: la fila de resultados se pinta gris con badge `Inactivo`, la tarjeta de cliente seleccionado usa tonos warning, el resumen del modal muestra un `alert-warning` y el chip de una cita de cliente inactivo lleva un ícono de advertencia (`bi-exclamation-circle`) + tooltip "Cliente inactivo".
 │     ├─ AgendarCita.razor.css # Estilos del tablero (grid mecánicos×días, chips por estado, resumen del modal) con tokens Industrial Clean, `color-mix()` y ajuste para dark mode.
 │     ├─ Login.razor         # @page "/login", @layout LoginLayout, [AllowAnonymous], InteractiveServer. El campo de contraseña es un `InputText` con `type="text"` (nunca `password`) y `autocomplete="off"`, ocultado por CSS (`-webkit-text-security: disc`, alternado con `none`), más un botón de ojo dentro de un `input-group` que alterna la visibilidad
@@ -170,6 +170,7 @@ Mecano/
 │        └─ VehiculoDetalle.razor.cs # carga VehiculoService.ObtenerDetallePorIdAsync + CitaService.ObtenerPorVehiculoAsync; AbrirEdicion/GuardarEdicion (ActualizarAsync); GenerarReporte (JS.InvokeVoidAsync("print"))
 │  └─ Shared/
 │     ├─ RedirectToLogin.razor # Redirige a /login cuando no hay auth state
+│     ├─ ThemeState.cs       # Estado del tema (IsDark + evento Changed) compartido en el circuito; lo actualiza MainLayout (toggle y primer render) y lo consume el panel de control para re-renderizar sus gráficos ApexCharts
 │     └─ VehiculoFormModal.razor(.cs) # Modal de crear/editar vehículo compartido por ClienteDetalle y VehiculoDetalle; el dueño aporta estado y acciones (OnGuardar/OnCancelar + ranura FooterIzquierdo p. ej. Eliminar/Transferir)
 ```
 
@@ -203,6 +204,7 @@ Mecano/
 | Mecano | Microsoft.EntityFrameworkCore.Design | 9.0.20 |
 | Mecano | Microsoft.EntityFrameworkCore.Relational | 9.0.20 |
 | Mecano | Pomelo.EntityFrameworkCore.MySql | 9.0.0 |
+| Mecano | Blazor-ApexCharts | 7.0.0 (gráficos del panel de control; MIT, assets `_content` desde el propio servidor, sin CDN ni clave. El JS del RCL es un **módulo ES** que se importa solo: no requiere etiqueta `<script>` en `App.razor`) |
 
 ### Servicios externos
 - **Base de datos**: MySQL 8.0.41 ( configurada en `appsettings.json` como `server=localhost;user=root;password=;database=mecano`)
@@ -216,7 +218,9 @@ Mecano/
 ### Program.cs (contenido completo)
 
 ```csharp
+using ApexCharts;
 using Mecano.Components;
+using Mecano.Components.Shared;
 using Mecano.Data;
 using Mecano.Endpoints;
 using Mecano.Entidad.Constantes;
@@ -275,6 +279,8 @@ builder.Services.AddScoped<IServicioService, ServicioService>();
 builder.Services.AddScoped<IMecanicoService, MecanicoService>();
 builder.Services.AddScoped<ICitaService, CitaService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddApexCharts(); // servicio de ApexCharts (gráficos del panel de control)
+builder.Services.AddScoped<ThemeState>(); // tema claro/oscuro compartido en el circuito
 builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICategoriaService, CategoriaService>();
@@ -559,7 +565,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 | `IMecanicoService` | `MecanicoService` | **Sin uso (heredado de la etapa FullCalendar; candidatos a eliminar):** `ObtenerPorEspecialidadAsync(categoriaId)`<br>`ObtenerDisponiblesAsync(categoriaId, fecha, horaInicio, horaFin)`<br>**Consumido por `AgendarCita` (filas del tablero) y CRUD admin (`Components/Pages/Mecanicos/Mecanicos.razor`):** `ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos)`<br>`ObtenerDetallePorIdAsync(id)`<br>`CrearAsync(dto)` → `int`<br>`ActualizarAsync(dto)` → `bool`<br>`DesactivarAsync(id)`<br>`ReactivarAsync(id)`<br>`ExisteEmailAsync(email, excluirId)` | Scoped |
 | `ICitaService` | `CitaService` | `AgendarCitaAsync(dto)` — guards de agenda (defensa en profundidad, la UI ya los restringe): **todos** los mecánicos de `MecanicosIds` existen y están activos (`InactiveMechanicException`), **comparten especialidad** (`InvalidOperationException`), servicio existe y está activo (`InactiveServiceException`), **vehículo obligatorio** (`InvalidOperationException` si `VehiculoId` es null), fecha ≥ hoy, no domingo, inicio dentro de 08:00–18:00, fin (inicio + duración del servicio) ≤ 18:00, y sin hora ya pasada si es hoy; solape **por cada mecánico asignado** —si alguno está ocupado se rechaza la cita completa y el `AppointmentOverlapException` nombra al mecánico en conflicto— excluyendo `Cancelado`/`Finalizado`; guarda las filas de `CitaMecanico` dentro de una transacción<br>`CancelarCitaAsync(citaId)`<br>`ObtenerPorRangoAsync(inicio, fin)` (incluye `CitaMecanicos`) <br>`ObtenerPorClienteAsync(clienteId)` → `List<CitaDTO>`<br>`ObtenerPorVehiculoAsync(vehiculoId)` → `List<CitaDTO>` (historial completo del vehículo, más recientes primero; reutiliza `ProyeccionListado`)<br>**Listado/detalle:** `BuscarPaginadoAsync(filtro, pagina, tamanioPagina)` → `List<CitaDTO>`<br>`ContarAsync(filtro)` → `int` (comparte `AplicarFiltro` con el listado, para que el total coincida; el filtro por mecánico usa `CitaMecanicos.Any`)<br>`ObtenerDetallePorIdAsync(citaId)` → `CitaDetalleDTO?`<br>**Edición no-agenda:** `ActualizarCitaAsync(dto)` → `bool` (false si no existe; exige cita no cancelado/finalizado; valida servicio/vehículo existen, activos o los actuales (se permite conservar los inactivos actuales), vehículo del mismo cliente; recalcula `HoraFin` desde la duración del nuevo servicio, valida fin ≤ 18:00 y solape **por cada mecánico asignado** excluyendo `Cancelado`/`Finalizado`)<br>**Reprogramación:** `ReprogramarCitaAsync(dto)` → `bool` (false si no existe; exige cita no cancelado/finalizado; valida mecánicos activos y especialidad compartida; conserva el servicio y recalcula `HoraFin` con su duración; fecha ≥ hoy, no domingo, inicio 08:00–18:00, fin ≤ 18:00, sin hora pasada si es hoy; solape **por cada mecánico asignado** excluyendo la propia cita y `Cancelado`/`Finalizado`; **reemplaza** el conjunto de mecánicos) | Scoped |
 | `ICalendarQueryService` | `CalendarQueryService` | `ObtenerEventosAsync(inicio, fin)` | Scoped |
-| `IDashboardService` | `DashboardService` | `ObtenerResumenDiarioAsync(fecha)` → `ResumenDiarioDTO` (KPIs del panel `/`): una lectura de `ICitaService.ObtenerPorRangoAsync(dia, dia)` + `IMecanicoService.ContarActivosAsync()` + `IClienteService.ContarBusquedaAsync(null, Activos)` + `IVehiculoService.ContarActivosAsync()`. Calcula: total de citas y conteo por cada `EstadoCita` (orden del enum, incluyendo los que quedan en 0), listado ordenado por hora, mecánicos distintos con citas no canceladas, y ocupación = Σ(duración × mecánicos asignados) de las citas no canceladas ÷ (mecánicos activos × `HorarioAtencion.MinutosPorDia`); `Cerrado = true` los domingos. DTOs en `Entidad/DTOs/Dashboard/` | Scoped |
+| `IDashboardService` | `DashboardService` | `ObtenerResumenDiarioAsync(fecha)` → `ResumenDiarioDTO` (KPIs del panel `/`): una lectura de `ICitaService.ObtenerPorRangoAsync(dia, dia)` + `IMecanicoService.ContarActivosAsync()` + `IClienteService.ContarBusquedaAsync(null, Activos)` + `IVehiculoService.ContarActivosAsync()`. Calcula: total de citas y conteo por cada `EstadoCita` (orden del enum, incluyendo los que quedan en 0), listado ordenado por hora, mecánicos distintos con citas no canceladas, y ocupación = Σ(duración × mecánicos asignados) de las citas no canceladas ÷ (mecánicos activos × `HorarioAtencion.MinutosPorDia`); `Cerrado = true` los domingos. **`ObtenerResumenPeriodoAsync(inicio, fin)`** → `ResumenPeriodoDTO` para los gráficos del panel: `Conteos` por `EstadoCita` del período (incluye canceladas, orden del enum aunque queden en 0) y `CargaMecanicos` = mecánicos **activos** ordenados por minutos descendentes (los de 0 también, para ver quién está ocioso) sumando duraciones solo de citas **no canceladas**. DTOs en `Entidad/DTOs/Dashboard/` | Scoped |
 | `INotificationService` | `NotificationService` | `NotificarCitaAgendadaAsync(cita)` | Scoped |
 | `IAuthServices` | `AuthServices` | `LoginAsync(email, password)`<br>`RegisterAdminAsync(email, nombre, password)` (delega con `(null, Nacional)`)<br>`RegisterAdminAsync(email, nombre, password, cedula?, tipoIdentificacion)` (normaliza per-tipo, persiste `Cedula` + `TipoIdentificacion`)<br>`EmailExisteAsync(email)` | Scoped |
 | `IAdministradorService` | `AdministradorService` | `ObtenerPerfilAsync(adminId)` → `PerfilAdminDTO?` (proyección `AsNoTracking`: Nombre, Cedula, TipoIdentificacion, `Email`→`Correo`, CorreoNotificaciones)<br>`ActualizarPerfilAsync(adminId, dto)` → `bool` (false si el admin no existe). Persiste Nombre (`Trim`), TipoIdentificacion y Cedula (`Formatos.NormalizarIdentificacion` según el tipo, vacío→`null`, `InvalidOperationException` con el mensaje del tipo si no cuadra) y CorreoNotificaciones (`Trim` + vacío→`null`; unicidad entre admins case-insensitive excluyendo al propio → `InvalidOperationException`). Pensado para cuando el puesto de administrador global pasa a otra persona.<br>`CambiarPasswordAsync(adminId, dto)` → `bool` (false si el admin no existe; verifica la actual con `PasswordHasher.Verify` + fallback legado sin `$`; rechaza nueva == actual; rehashea con `PasswordHasher.Hash`) | Scoped |
@@ -567,7 +573,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 | — | `DbSeeder` | `SeedAsync()` — siembra categorías, servicios, mecánicos, clientes, vehículos, citas, admin global | Scoped |
 
 **Notas de comportamiento relevantes:**
-- **Insignias de estado uniformes:** todas las insignias de estado de cita (`Citas`, `CitaDetalle`, `Clientes`, `ClienteDetalle`, `VehiculoDetalle`) usan la clase `.badge-estado` de `wwwroot/app.css` (ancho fijo 6.5rem y texto centrado); el texto proviene de `Formatos.NombreEstado` ("En Proceso" para `EstadoCita.EnProceso`) y el color de `Formatos.BadgeEstado` (mapeo estado → clase Bootstrap, centralizado para no duplicarlo por pantalla).
+- **Insignias de estado uniformes:** todas las insignias de estado de cita (`Citas`, `CitaDetalle`, `Clientes`, `ClienteDetalle`, `VehiculoDetalle`) usan la clase `.badge-estado` de `wwwroot/app.css` (ancho fijo 6.5rem y texto centrado); el texto proviene de `Formatos.NombreEstado` ("En Proceso" para `EstadoCita.EnProceso`) y el color de `Formatos.BadgeEstado` (mapeo estado → clase Bootstrap, centralizado para no duplicarlo por pantalla). El **donut del panel de control** usa `Formatos.ColorEstado`, espejo hex del mismo mapeo (`#6c757d/#0d6efd/#0dcaf0/#198754/#dc3545`), para que las porciones del gráfico no puedan divergir de las insignias: si cambia uno, cambia el otro.
 - **Ficha de vehículo (`/vehiculos/{id}`):** página `[Authorize]` (Admin + Mecánico) con la información general del vehículo (placa, marca, modelo, año, kilometraje, color, notas, dueño y estado) y el historial completo de sus citas (todas, más recientes primero), cada una con enlace a `/citas/{id}`. Se llega desde cuatro puntos: botón **Ver** de la tabla de vehículos de `ClienteDetalle`, enlace de placa en el listado de `Citas`, tarjeta de vehículo de `CitaDetalle` y placa del panel expandible de `Clientes`. `Kilometraje` (`int?`), `Color` y `Notas` se editan en el modal de vehículo de `ClienteDetalle` y se persisten en `VehiculoService` (antes `Color`/`Notas` existían en la entidad pero no se poblaban desde la UI).
 - **Editar vehículo desde la ficha (`/vehiculos/{id}`):** botón **Editar** visible solo para Administrador (`<AuthorizeView Roles="Administrador">`; los Mecánicos siguen en solo lectura). Abre el modal compartido `VehiculoFormModal` con los campos básicos (Placa, Marca, Modelo, Año, Kilometraje, Color, Notas) — **sin** Eliminar/Transferir — y guarda vía `VehiculoService.ActualizarAsync` (mismo `ActualizarVehiculoDTO`); al éxito recarga la ficha y muestra una alerta de confirmación. La reprogramación de citas (fecha/hora/mecánico) y los cambios de estado siguen siendo operaciones aparte.
 - **Modal de vehículo compartido:** `Components/Shared/VehiculoFormModal.razor(.cs)` centraliza el formulario crear/editar vehículo. El dueño (`ClienteDetalle` o `VehiculoDetalle`) conserva el modelo y el estado (`guardando`, `mensajeError`) y aporta las acciones mediante `OnGuardar`/`OnCancelar`; `ClienteDetalle` además inyecta sus botones Eliminar/Transferir por la ranura `FooterIzquierdo`. Sin cambio de comportamiento en `ClienteDetalle`.
@@ -682,10 +688,12 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 @using Mecano
 @using Mecano.Components
 @using Mecano.Components.Layout
+@using Mecano.Components.Shared
 @using Mecano.Entidad.Clases
 @using Mecano.Entidad.DTOs
 @using Mecano.Entidad.Utilidades
 @using Mecano.Logica.Interfaces
+@using ApexCharts
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 ```
@@ -695,6 +703,8 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 @inherits LayoutComponentBase
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ThemeState Tema
 
 <div class="page">
     <div class="sidebar">
@@ -733,7 +743,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
 </div>
 ```
 
-`@code`: `ToggleTheme` invoca `window.mecanoTheme.toggle`; `ToggleUserMenu`/`CloseUserMenu` controlan el dropdown de usuario (nombre, email, rol, logout); `OnAfterRenderAsync(firstRender)` inicializa `window.mecanoRedirectFeedback` (definido en `auth.js`: oscurece el menú cuando hay redirect pendiente a login) y le pasa el estado de autenticación vía `setAuthenticated`. Ya **no** se llama a `window.mecanoTheme.syncIcons` desde el layout. `HandleLogout` conserva el flujo JS original (`window.authFetch.logout` a `/api/auth/logout` + `NavigateTo("/login", forceLoad: true)`). `RedirectToLogin.razor` invoca `window.mecanoRedirectFeedback.assignRedirectClass` antes de navegar a `/login`.
+`@code`: `ToggleTheme` invoca `window.mecanoTheme.toggle` y refleja el resultado en `ThemeState` (`Tema.Set`) para que los gráficos del panel se re-creen al alternar el tema; `ToggleUserMenu`/`CloseUserMenu` controlan el dropdown de usuario (nombre, email, rol, logout); `OnAfterRenderAsync(firstRender)` sincroniza `ThemeState` con `window.mecanoTheme.isDark` (el tema inicial puede venir de `localStorage` o del SO), inicializa `window.mecanoRedirectFeedback` (definido en `auth.js`: oscurece el menú cuando hay redirect pendiente a login) y le pasa el estado de autenticación vía `setAuthenticated`. Ya **no** se llama a `window.mecanoTheme.syncIcons` desde el layout. `HandleLogout` conserva el flujo JS original (`window.authFetch.logout` a `/api/auth/logout` + `NavigateTo("/login", forceLoad: true)`). `RedirectToLogin.razor` invoca `window.mecanoRedirectFeedback.assignRedirectClass` antes de navegar a `/login`.
 
 #### `LoginLayout.razor`
 
@@ -799,7 +809,7 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
 
 ### Tema "Industrial Clean" (variables CSS + light/dark)
 
-- **Tokens en `wwwroot/app.css`**: `:root` define la paleta light (slate + acento cian-600 `#0284C7`); `[data-bs-theme="dark"], body.dark-mode` la versión dark (slate oscuro `#0F172A`/`#1E293B`, sidebar `#020617`, acento cian-400 `#38BDF8`, badges en contraste suave). Ambos bloques fijan `color-scheme`.
+- **Tokens en `wwwroot/app.css`**: `:root` define la paleta light (slate + acento cian-600 `#0284C7`); `[data-bs-theme="dark"], body.dark-mode` la versión dark (slate oscuro `#0F172A`/`#1E293B`, sidebar `#020617`, acento cian-400 `#38BDF8`, badges en contraste suave). Ambos bloques fijan `color-scheme` y definen `--text-inverse` (texto sobre superficies con acento saturado: blanco en light, `#0F172A` en dark — lo usa el hover de `.enlace-cascada`, porque en dark el acento es claro).
 - **Token `--placeholder-color`** (añadido en `406871a`): `#4a4e69` en `:root` (light) y `#e5e5e5` en `[data-bs-theme="dark"]`. Lo consume `Components/Pages/Login.razor.css` para el placeholder del formulario de login, de modo que el texto atenuado del input se lee bien en ambos temas.
 - **Tema**: `data-bs-theme` se aplica en `<html>` (Bootstrap 5.3.3 lo usa nativamente para tablas/modales/dropdowns/formularios); `body.dark-mode` se añade como gancho de respaldo. Script inline en `<head>` de `App.razor` aplica el tema guardado antes del primer paint (sin flash).
 - **`theme.js`** (`window.mecanoTheme`): `toggle()`/`apply()`/`init()`/`syncIcons()`; persiste en `localStorage` bajo `mecano-theme`; `init()` cae a `prefers-color-scheme` si no hay valor guardado. `syncIcons` alterna `bi-moon-stars`/`bi-sun` en los elementos `.theme-toggle-icon`.
@@ -812,7 +822,7 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
 
 | Ruta (`@page`) | Autorización | Propósito |
 |---|---|---|
-| `/` | `[Authorize(Roles = "Administrador")]` | **Panel de control** (KPIs del día, InteractiveServer; reemplaza la Home de plantilla). Tarjeta **Citas de hoy**: total + desglose por estado en `nav-tabs` implementadas en Blazor puro (sin JS de Bootstrap; `PestanaActiva` + clase `active` + `aria-selected`), cada pestaña con su badge de conteo vía `Formatos.BadgeEstado` y panel con las citas de ese estado (hora, cliente, vehículo·placa, servicio; estado vacío con `alert-info`); arranca en la primera pestaña con citas. Tarjeta **Ocupación del día**: minutos-mecánico reservados ÷ (mecánicos activos × `HorarioAtencion.MinutosPorDia`), barra `role="progressbar"` con escala <50 % baja, 50–85 % óptima, >85 % alta (cubre también >100 %, posible si mecánicos inactivos conservan citas); domingo → «Taller cerrado», sin mecánicos activos → «no hay capacidad calculable». Tarjeta **Taller y personal**: mecánicos activos (y cuántos tienen citas hoy), clientes y vehículos activos |
+| `/` | `[Authorize(Roles = "Administrador")]` | **Panel de control** (KPIs del día, InteractiveServer; reemplaza la Home de plantilla). Tarjeta **Citas de hoy**: total + desglose por estado en `nav-tabs` implementadas en Blazor puro (sin JS de Bootstrap; `PestanaActiva` + clase `active` + `aria-selected`), cada pestaña con su badge de conteo vía `Formatos.BadgeEstado` y panel con las citas de ese estado (hora, cliente, vehículo·placa, servicio; estado vacío con `alert-info`); arranca en la primera pestaña con citas. Tarjeta **Ocupación del día**: minutos-mecánico reservados ÷ (mecánicos activos × `HorarioAtencion.MinutosPorDia`), barra `role="progressbar"` con escala <50 % baja, 50–85 % óptima, >85 % alta (cubre también >100 %, posible si mecánicos inactivos conservan citas); domingo → «Taller cerrado», sin mecánicos activos → «no hay capacidad calculable». Tarjeta **Taller y personal**: mecánicos activos (y cuántos tienen citas hoy), clientes y vehículos activos. **Fila de gráficos** (ApexCharts, debajo de los KPIs, 6+6): **Distribución por estado** (donut con total en el centro, colores de `Formatos.BadgeEstado` vía `Formatos.ColorEstado`, leyenda visible con color·conteo·% que además es el equivalente en texto del gráfico) y **Carga por mecánico** (barras horizontales de horas asignadas, tooltip con horas y detalle «N citas · duración» debajo; solo citas no canceladas). Toggle **Semana/Mes** (default **Mes**) repetido en ambas cabeceras apuntando al mismo estado; vacío con datos → `alert-info`, error → alerta con Reintentar; alturas/colores según tema (`Theme.Mode` + `ForeColor` explícitos, ApexCharts no lee variables CSS) y `@key="Tema.IsDark"` recrea ambos charts al alternar el tema (estado compartido vía `ThemeState`, sincronizado por `MainLayout` en el toggle y en el primer render). Enlaces «Ver todas las citas» y «Clientes activos» con la clase `.enlace-cascada` (efecto cascada + cristal). Botón de recarga (⟳) refresca día **y** período |
 | `/agendar` | `[Authorize(Roles = "Administrador")]` | Tablero mecánicos×días lun–sáb + modal "mecánico primero" (InteractiveServer). Advierte visualmente cuando el cliente buscado/seleccionado está inactivo (fila gris + badge en resultados, tarjeta y resumen del modal en tonos warning, ícono en el chip de la cita). Muestra también los **mecánicos inactivos** que tengan citas no canceladas en la semana visible (fila atenuada + badge `Inactivo`); sus celdas no son clicables y no ofrecen "+ Agendar" |
 | `/citas` | `[Authorize(Roles = "Administrador")]` | Listado paginado de citas con filtros (rango de fechas, mecánico, estado, cliente/placa) y paginación numerada. Marca con badge `Inactivo` las citas de clientes inactivos y con la insignia «Servicio inactivo» las citas cuyo servicio fue desactivado. Enlaza al detalle (InteractiveServer) |
 | `/citas/{Id:int}` | `[Authorize(Roles = "Administrador")]` | Detalle de cita: programación (fecha/horario/duración/estado), cliente, vehículo, servicio, mecánico y notas. La tarjeta de cliente resalta en tonos warning con badge `Inactivo` y un aviso si el cliente está inactivo; la tarjeta de mecánico muestra badge `Inactivo` si el mecánico está inactivo, y la tarjeta de servicio pasa a `border-warning` con insignia `Inactivo` + `alert-warning` si el servicio fue desactivado (no admite citas nuevas; la cita se conserva). Botón **Editar** (modal: vehículo, servicio y notas; oculto si la cita está cancelada o finalizada); **Reprogramar** (modal: fecha/hora/mecánico; solo lista mecánicos activos, con aviso de reasignación si el actual está inactivo) (InteractiveServer) |
@@ -832,6 +842,7 @@ Layout anónimo (sin `NavMenu` ni sidebar) usado por `Login.razor` y `AccesoDene
 
 ### Componentes compartidos en `Shared/`
 - `Components/Shared/RedirectToLogin.razor` — redirige a `/login` cuando `NotAuthorized` detecta usuario anónimo.
+- `Components/Shared/ThemeState.cs` — estado del tema (`IsDark` + evento `Changed`) compartido en el circuito: `MainLayout` lo actualiza en el toggle y en el primer render; `Home.razor.cs` se suscribe (`IDisposable`) y fuerza el re-render de los gráficos con `@key="Tema.IsDark"`.
 - Los componentes de layout están en `Components/Layout/`.
 
 ### Render mode configurado
@@ -1016,6 +1027,7 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Components/Pages/AccesoDenegado.razor` | Sección 7 |
 | `Mecano/Components/Shared/RedirectToLogin.razor` | Sección 7 |
 | `Mecano/Components/Shared/VehiculoFormModal.razor` + `.razor.cs` | Sección 7 |
+| `Mecano/Components/Shared/ThemeState.cs` | Sección 7 (tema compartido para los gráficos) |
 | `Mecano/Endpoints/AuthEndpoints.cs` | Sección 8 |
 | `Mecano/Logica/Servicios/CustomAuthenticationStateProvider.cs` | Secciones 6 y 8 |
 | `Mecano/Data/DbSeeder.cs` | Secciones 4 y 5 |
@@ -1038,7 +1050,7 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 | `Mecano/Components/Pages/Clientes/ClienteDetalle.razor(.cs)` | Sección 7 |
 | `Mecano/Components/Pages/Mecanicos/Mecanicos.razor(.cs)` | Sección 7 |
 | `Mecano/Entidad/DTOs/Mecanico/` (3 DTOs) | Sección 2 y 6 |
-| `Mecano/Entidad/DTOs/Dashboard/` (6 DTOs) | Sección 2, 6 y 7 (`/`) |
+| `Mecano/Entidad/DTOs/Dashboard/` (8 DTOs) | Sección 2, 6 y 7 (`/`) |
 | `Mecano/Logica/Interfaces/IDashboardService.cs` · `Mecano/Logica/Servicios/DashboardService.cs` | Sección 6 |
 | `Mecano/Entidad/Utilidades/HorarioAtencion.cs` | Sección 6 |
 | `Mecano/Components/Pages/Home.razor(.cs)` | Sección 7 (`/`, panel de control) |
@@ -1106,3 +1118,5 @@ Los siguientes archivos fueron incluidos con su contenido completo en las seccio
 18. **Correcciones del login (401 puro + `ReturnUrl`)** — Resuelto y verificado con Playwright: `POST /api/auth/login` con credenciales inválidas vuelve a responder **401** sin cuerpo (se excluyó `/api/*` de `UseStatusCodePagesWithReExecute` en `Program.cs`), y el login respeta `?ReturnUrl` solo si es una ruta local (guardas contra open redirect en `Login.razor.cs`). La verificación se hizo con una segunda instancia del build nuevo en `https://localhost:7299`; pendiente reiniciar la instancia principal (`https://mecano:7224`, hoy bajo el depurador de VS) para cargar los cambios.
 
 19. **Personalización del perfil del Administrador Global (datos de identidad + correo de notificaciones + cambio de contraseña)** — Resuelto: página `/perfil` (`[Authorize(Roles = "Administrador")]`, InteractiveServer) con `AdministradorService` (`ObtenerPerfilAsync`/`ActualizarPerfilAsync`/`CambiarPasswordAsync`), DTOs en `Entidad/DTOs/Perfil/`, columna `Administrador.CorreoNotificaciones` (migración `20261019180239`, DDL aplicado a mano sobre la BD existente) y enlaces "Mi Perfil" en `NavMenu` y en el dropdown de usuario de `MainLayout`. Son **editables** el nombre, el tipo y el número de identificación (para cuando el puesto pasa a otra persona) y el correo de notificaciones; el **correo de login** queda de solo lectura (es la clave de autenticación) y la contraseña se cambia sin invalidar la sesión. Verificado con Playwright en `http://localhost:5023` (nombre/tipo/identificación editables con validación por tipo —"1-0111-0111" se persiste como `101110111`—, correo opcional que se borra → `NULL`, unicidad case-insensitive, guards de contraseña y login real con la contraseña nueva). Pendiente de decisión: no hay envío de correos conectado a `CorreoNotificaciones`; queda persistido y validado para un uso futuro.
+
+20. **Panel de control: KPIs + gráficos** — Resuelto en dos fases (commit `016a876` y la fase de gráficos): `/` reemplaza la Home de plantilla con KPIs del día (citas por estado en nav-tabs Blazor-puro, ocupación por minutos-mecánico, taller y personal) y fila de gráficos **Blazor-ApexCharts 7.0.0** (donut de distribución por estado con total al centro y leyenda visible; barras horizontales de horas asignadas por mecánico activo; toggle Semana/Mes con default Mes; canceladas fuera de la carga pero dentro del donut; colores sincronizados con `Formatos.BadgeEstado` vía `Formatos.ColorEstado`; tema claro/oscuro vía `ThemeState` + `@key` re-crea los charts; enlaces `.enlace-cascada` con relleno en cascada y borde de cristal). **Pendiente — único pase de verificación con Playwright** (headed, ambos temas, credenciales `adminglobal@mecano.cr`): conteos del donut vs BD, detalle «N citas · duración» de la barra, cambio de período, re-render al alternar a dark, contraste de `.enlace-cascada`, y que un Mecánico vea «No tienes permisos» en `/`.
