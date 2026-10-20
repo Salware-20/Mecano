@@ -10,7 +10,7 @@
 
 <PageTitle>Panel de control - Mecano</PageTitle>
 
-<h1><i class="bi bi-speedometer2"></i> Panel de control</h1>
+<h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
 
 @if (!string.IsNullOrEmpty(mensajeError))
 {
@@ -252,7 +252,8 @@ else if (resumen is not null)
             </div>
         </div>
 
-        @* Col-6: horas asignadas por mecánico activo (las canceladas no cuentan). *@
+        @* Col-6: tiempo asignado por mecánico activo, graficado en minutos (las
+           canceladas no cuentan) y presentado como «1 h 30 min» / «1 hora 30 minutos». *@
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -300,14 +301,16 @@ else if (resumen is not null)
                                        Options="OpcionesBarra()"
                                        Height="@(Math.Max(220, 60 + periodoDatos.CargaMecanicos.Count * 40))">
                                 <ApexPointSeries TItem="CargaMecanicoDTO"
-                                                 Name="Horas asignadas"
+                                                 Name="Tiempo asignado"
                                                  Items="periodoDatos.CargaMecanicos"
                                                  SeriesType="SeriesType.Bar"
                                                  XValue="e => e.Nombre"
-                                                 YValue="e => e.Horas" />
+                                                 YValue="e => e.Minutos" />
                             </ApexChart>
                         </div>
-                        @* El tooltip muestra las horas; aquí va el detalle completo. *@
+                        @* El eje y el tooltip muestran el tiempo como «2 h 30 min» / «2 horas
+                           30 minutos» (formatters espejo de Formatos.Duracion); aquí va el
+                           detalle completo por mecánico. *@
                         <p class="small text-muted mb-0 mt-1 grafico-detalle">
                             @foreach (var carga in periodoDatos.CargaMecanicos)
                             {

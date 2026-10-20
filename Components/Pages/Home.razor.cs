@@ -161,6 +161,16 @@ public partial class Home : ComponentBase, IDisposable
     private static List<string> ColoresDonut =>
         Enum.GetValues<EstadoCita>().Select(Formatos.ColorEstado).ToList();
 
+    // Formateadores JS para los valores en minutos. El wrapper convierte estos strings
+    // en funciones reales (reviver '@eval' de blazor-apexcharts.js: evalúa el código y
+    // lo inyecta como formatter). Replican en JS la misma redacción de Formatos.Duracion:
+    // si cambia uno, cambiar el otro. "Corto" para las marcas del eje; "largo" para el tooltip.
+    private const string JsMinutosCorto =
+        "function (m) { m = Math.round(m); if (m < 60) return m + ' min'; var h = Math.floor(m / 60), r = m % 60; return r > 0 ? h + ' h ' + r + ' min' : h + ' h'; }";
+
+    private const string JsMinutosLargo =
+        "function (m) { m = Math.round(m); if (m <= 0) return '0 minutos'; var h = Math.floor(m / 60), r = m % 60; var ph = h === 1 ? 'hora' : 'horas', pr = r === 1 ? 'minuto' : 'minutos'; if (h > 0 && r > 0) return h + ' ' + ph + ' ' + r + ' ' + pr; return h > 0 ? h + ' ' + ph : r + ' ' + pr; }";
+
     // Cada tarjeta lleva su propia instancia de opciones (no se pueden compartir).
     private ApexChartOptions<EstadoConteoDTO> OpcionesDonut() => new()
     {
@@ -207,13 +217,21 @@ public partial class Home : ComponentBase, IDisposable
         Colors = new List<string> { ColorAcentoGrafico },
         Legend = new Legend { Show = false },
         DataLabels = new DataLabels { Enabled = false },
+        // Barras horizontales: el eje de valor (minutos) se configura en Yaxis; con este
+        // formatter sus marcas se leen «45 min», «1 h» o «2 h 30 min» en vez de «45.0».
+        Yaxis = new List<YAxis>
+        {
+            new YAxis { Labels = new YAxisLabels { Formatter = JsMinutosCorto } }
+        },
         PlotOptions = new PlotOptions
         {
             Bar = new PlotOptionsBar { Horizontal = true }
         },
         Tooltip = new Tooltip
         {
-            Theme = Tema.IsDark ? Mode.Dark : Mode.Light
+            Theme = Tema.IsDark ? Mode.Dark : Mode.Light,
+            // «1 hora 30 minutos», como lo diría una persona, no «1.5».
+            Y = new TooltipY { Formatter = JsMinutosLargo }
         },
         NoData = new NoData
         {
@@ -233,6 +251,7 @@ public partial class Home : ComponentBase, IDisposable
 
     private string EtiquetaBarra => periodoDatos is null
         ? "Gráfico de carga por mecánico"
-        : $"Gráfico de barras horizontales: horas asignadas por mecánico activo en el {RangoPeriodo}; " +
+        : $"Gráfico de barras horizontales: tiempo asignado por mecánico activo en el {RangoPeriodo}, " +
+          "en minutos presentados como horas y minutos (por ejemplo, 1 hora 30 minutos); " +
           "el detalle de citas y tiempo está bajo el gráfico.";
 }
