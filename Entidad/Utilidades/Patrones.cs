@@ -28,7 +28,7 @@ namespace Mecano.Entidad.Utilidades
         public const string MensajeNombre = "El nombre solo puede contener letras, espacios, apóstrofos y guiones";
 
         /// <summary>Mensaje de error reutilizable para <see cref="Correo"/>.</summary>
-        public const string MensajeCorreo = "El correo no contiene la extensión .com o .co.cr";
+        public const string MensajeCorreo = "El correo debe tener un formato válido (ej. usuario@dominio.com)";
 
         /// <summary>Mensaje de error reutilizable para el teléfono con formato inválido.</summary>
         public const string MensajeTelefonoFormato = "El teléfono no tiene un formato válido";

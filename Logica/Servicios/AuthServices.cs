@@ -2,10 +2,12 @@ using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs;
 using Mecano.Entidad.Utilidades;
+using Mecano.Logica.Excepciones;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Utilidades;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MySqlConnector;
 
 namespace Mecano.Logica.Servicios
 {
@@ -63,72 +65,90 @@ namespace Mecano.Logica.Servicios
 
         public async Task<AuthenticatedUser?> LoginAsync(string email, string password)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(email);
-            ArgumentException.ThrowIfNullOrWhiteSpace(password);
-
-            var cleanEmail = email.Trim();
-            using var SQL = await _DB.CreateDbContextAsync();
-
-            // 1. Buscamos en Administradores (insensible a mayúsculas/minúsculas y espacios)
-            var admin = await SQL.Administradors.AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Email.ToLower() == cleanEmail.ToLower());
-
-            if (admin is not null)
+            try
             {
-                if (!admin.Activo)
+                ArgumentException.ThrowIfNullOrWhiteSpace(email);
+                ArgumentException.ThrowIfNullOrWhiteSpace(password);
+
+                var cleanEmail = email.Trim();
+                using var SQL = await _DB.CreateDbContextAsync();
+
+                // 1. Buscamos en Administradores (insensible a mayúsculas/minúsculas y espacios)
+                var admin = await SQL.Administradors.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.Email.ToLower() == cleanEmail.ToLower());
+
+                if (admin is not null)
                 {
-                    _logger.LogWarning("Intento de login rechazado: Administrador inactivo ({Email}).", cleanEmail);
-                    return null;
+                    if (!admin.Activo)
+                    {
+                        _logger.LogWarning("Intento de login rechazado: Administrador inactivo ({Email}).", cleanEmail);
+                        return null;
+                    }
+
+                    if (VerifyPassword(password, admin.HashPassword))
+                    {
+                        _logger.LogInformation("Login exitoso como Administrador: {Email}", cleanEmail);
+                        return new AuthenticatedUser(
+                            admin.AdministradorId,
+                            admin.Email,
+                            admin.Nombre,
+                            Entidad.Constantes.Roles.Administrador,
+                            admin.EsAdminGlobal);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Intento de login rechazado: Contraseña incorrecta para Administrador ({Email}).", cleanEmail);
+                        return null;
+                    }
                 }
 
-                if (VerifyPassword(password, admin.HashPassword))
+                // 2. Si no es Administrador, buscamos en Mecánicos
+                var mec = await SQL.Mecanico.AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.Email.ToLower() == cleanEmail.ToLower());
+
+                if (mec is not null)
                 {
-                    _logger.LogInformation("Login exitoso como Administrador: {Email}", cleanEmail);
-                    return new AuthenticatedUser(
-                        admin.AdministradorId,
-                        admin.Email,
-                        admin.Nombre,
-                        Entidad.Constantes.Roles.Administrador,
-                        admin.EsAdminGlobal);
+                    if (!mec.Activo)
+                    {
+                        _logger.LogWarning("Intento de login rechazado: Mecánico inactivo ({Email}).", cleanEmail);
+                        return null;
+                    }
+
+                    if (VerifyPassword(password, mec.HashPassword))
+                    {
+                        _logger.LogInformation("Login exitoso como Mecánico: {Email}", cleanEmail);
+                        return new AuthenticatedUser(
+                            mec.MecanicoId,
+                            mec.Email,
+                            mec.Nombre,
+                            Entidad.Constantes.Roles.Mecanico,
+                            false);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Intento de login rechazado: Contraseña incorrecta para Mecánico ({Email}).", cleanEmail);
+                        return null;
+                    }
                 }
-                else
-                {
-                    _logger.LogWarning("Intento de login rechazado: Contraseña incorrecta para Administrador ({Email}).", cleanEmail);
-                    return null;
-                }
+
+                _logger.LogWarning("Intento de login rechazado: Correo no encontrado en Administradores ni Mecánicos ({Email}).", cleanEmail);
+                return null;
             }
-
-            // 2. Si no es Administrador, buscamos en Mecánicos
-            var mec = await SQL.Mecanico.AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Email.ToLower() == cleanEmail.ToLower());
-
-            if (mec is not null)
+            catch (MySqlException ex)
             {
-                if (!mec.Activo)
-                {
-                    _logger.LogWarning("Intento de login rechazado: Mecánico inactivo ({Email}).", cleanEmail);
-                    return null;
-                }
-
-                if (VerifyPassword(password, mec.HashPassword))
-                {
-                    _logger.LogInformation("Login exitoso como Mecánico: {Email}", cleanEmail);
-                    return new AuthenticatedUser(
-                        mec.MecanicoId,
-                        mec.Email,
-                        mec.Nombre,
-                        Entidad.Constantes.Roles.Mecanico,
-                        false);
-                }
-                else
-                {
-                    _logger.LogWarning("Intento de login rechazado: Contraseña incorrecta para Mecánico ({Email}).", cleanEmail);
-                    return null;
-                }
+                _logger.LogCritical(ex, "Error de conexión a base de datos durante login para {Email}", email?.Trim());
+                throw new ServicioNoDisponibleException("Servicio temporalmente no disponible.", ex);
             }
-
-            _logger.LogWarning("Intento de login rechazado: Correo no encontrado en Administradores ni Mecánicos ({Email}).", cleanEmail);
-            return null;
+            catch (System.Data.Common.DbException ex)
+            {
+                _logger.LogCritical(ex, "Error de conexión a base de datos durante login para {Email}", email?.Trim());
+                throw new ServicioNoDisponibleException("Servicio temporalmente no disponible.", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error inesperado durante login para {Email}", email?.Trim());
+                throw;
+            }
         }
 
         public Task<bool> RegisterAdminAsync(string email, string nombre, string password)

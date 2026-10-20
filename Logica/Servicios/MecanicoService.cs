@@ -148,6 +148,28 @@ public class MecanicoService : IMecanicoService
             throw new InvalidOperationException(
                 $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
 
+        // Validar unicidad de identificación
+        if (cedula != null)
+        {
+            var mecanicoDuplicado = await context.Mecanico
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Cedula == cedula);
+
+            if (mecanicoDuplicado != null)
+            {
+                _logger.LogWarning("Identificación duplicada al crear mecánico: {Cedula} ({Tipo})", cedula, dto.TipoIdentificacion);
+                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+                {
+                    throw new InvalidOperationException($"Ya existe un mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+                }
+                else
+                {
+                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
+                }
+            }
+        }
+
         // Validar que la especialidad exista
         if (!await context.Categorias.AnyAsync(c => c.CategoriaId == dto.EspecialidadId))
             throw new InvalidOperationException("La especialidad seleccionada no existe.");
@@ -189,6 +211,28 @@ public class MecanicoService : IMecanicoService
         if (await ExisteEmailAsync(email, excluirId: dto.Id))
             throw new InvalidOperationException(
                 $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
+
+        // Validar unicidad de identificación excluyendo al propio mecánico
+        if (cedula != null)
+        {
+            var mecanicoDuplicado = await context.Mecanico
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Cedula == cedula && m.MecanicoId != dto.Id);
+
+            if (mecanicoDuplicado != null)
+            {
+                _logger.LogWarning("Identificación duplicada al actualizar mecánico {Id}: {Cedula} ({Tipo})", dto.Id, cedula, dto.TipoIdentificacion);
+                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+                {
+                    throw new InvalidOperationException($"Ya existe otro mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+                }
+                else
+                {
+                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
+                }
+            }
+        }
 
         // Validar que la especialidad exista
         if (!await context.Categorias.AnyAsync(c => c.CategoriaId == dto.EspecialidadId))

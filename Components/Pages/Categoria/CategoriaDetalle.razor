@@ -213,16 +213,29 @@
                                              @oninput="OnDuracionInput" />
                                 <ValidationMessage For="() => modelo.DuracionMinutos" class="text-danger small" />
                                 <small class="text-muted">
-                                    Entre 5 y 480 minutos. Equivale a <strong>@Formatos.Duracion(modelo.DuracionMinutos)</strong>.
+                                    @if (modelo.DuracionMinutos >= 5 && modelo.DuracionMinutos <= 480)
+                                    {
+                                        <span>Entre 5 y 480 minutos. Equivale a <strong>@Formatos.Duracion(modelo.DuracionMinutos)</strong>.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Entre 5 y 480 minutos.</span>
+                                    }
                                 </small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="servPrecio">Precio *</label>
-                                <InputNumber id="servPrecio" class="form-control" @bind-Value="modelo.Precio" />
+                                <InputNumber id="servPrecio" class="form-control" @bind-Value="modelo.Precio" @oninput="OnPrecioInput" />
                                 <ValidationMessage For="() => modelo.Precio" class="text-danger small" />
                                 <small class="text-muted">
-                                    Se mostrará como <strong>@Formatos.Moneda(modelo.Precio)</strong>
-                                    (colones, 2 decimales).
+                                    @if (modelo.Precio < 0)
+                                    {
+                                        <span class="text-warning">El precio no puede ser negativo.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Se mostrará como <strong>@Formatos.Moneda(modelo.Precio)</strong> (colones, 2 decimales).</span>
+                                    }
                                 </small>
                             </div>
                         </div>
