@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Administrador")]
+@using System.Globalization
 @using Mecano.Entidad.Clases
 @using Mecano.Entidad.Constantes
 @using Mecano.Entidad.DTOs.Dashboard
@@ -87,7 +88,7 @@ else if (resumen is not null)
                                 {
                                     <li class="d-flex flex-wrap align-items-baseline gap-2 py-1 border-bottom kpi-fila">
                                         <span class="fw-semibold kpi-numero">
-                                            @cita.HoraInicio.ToString("HH:mm")–@cita.HoraFin.ToString("HH:mm")
+                                            @cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)–@cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                                         </span>
                                         <span>@cita.ClienteNombre</span>
                                         <span class="text-muted small">@cita.VehiculoDescripcion · @Formatos.Placa(cita.Placa)</span>
