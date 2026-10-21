@@ -131,8 +131,7 @@ namespace Mecano.Data
                 var citasDemo = CrearCitasDemo(
                     new[] { servPastillas, servRectificado, servDiagMotor, servAfinado, servAlineado, servAmortiguadores, servAceite, servRevision },
                     new[] { mecCarlos, mecMaria, mecJose, mecAna },
-                    new[] { vehJuan1, vehJuan2, vehLaura, vehRoberto1, vehRoberto2 },
-                    new[] { cita1, cita2, cita3 });
+                    new[] { vehJuan1, vehJuan2, vehLaura, vehRoberto1, vehRoberto2 });
 
                 context.Cita.AddRange(cita1, cita2, cita3);
                 context.Cita.AddRange(citasDemo);
@@ -218,169 +217,141 @@ namespace Mecano.Data
         }
 
         /// <summary>
-        /// 50 citas de demostración para que el panel se pruebe con un taller cargado:
-        /// ~2 citas por día laborable en las dos semanas vecinas y 10 el día actual,
-        /// repartidas en los cinco estados (hoy conviven los cinco a la vez, con la
-        /// historia del día: lo de la mañana ya finalizado y lo de la tarde pendiente).
-        /// Reglas que respeta: horario 08:00–18:00, sin domingos, sin trasapes de mecánico
-        /// ni de vehículo (aunque estén canceladas o finalizadas, para que la agenda se vea
-        /// lógica), mecánico activo de la especialidad del servicio y cliente = dueño del
-        /// vehículo. Determinista (semilla fija): cada recreación de la BD produce las
-        /// mismas citas.
+        /// 50 citas de demostración, escritas a mano como lista literal de filas
+        /// (ventana, día, slot, estado, mecánico, vehículo, servicio): sin aleatoriedad,
+        /// sin barajado y sin búsqueda de huecos — los huecos vienen resueltos por
+        /// construcción. Ventanas de días sin domingo: 10 para el día actual (fecha
+        /// histórica: hoy, o el lunes si hoy es domingo), 24 pasadas (12 días hacia
+        /// atrás) y 16 futuras (8 días hacia adelante). Slots fijos 08:00, 11:00, 13:30 y
+        /// 15:30 con servicios de hasta 120 min: dos slots distintos nunca se trasapan y
+        /// todo cabe antes de las 18:00; el slot 0 usa siempre el servicio corto de la
+        /// especialidad, de modo que la mañana cierra a las 09:00 y deja libre la cita
+        /// base de las 09:00. Dentro de un mismo día y slot cada fila lleva mecánico y
+        /// vehículo distintos (nunca se trasapan), y las filas de hoy dejan libre la cita
+        /// base de las 12:00 (la fila que usa ese mecánico/vehículo a las 11:00 termina a
+        /// las 12:00 exactas). Estados repartidos: 18 Finalizado, 15 Pendiente,
+        /// 8 Confirmado, 7 Cancelado y 2 EnProceso, más las 3 citas base. Determinista:
+        /// cada recreación de la BD produce exactamente las mismas 50 citas.
         /// </summary>
         private static List<Cita> CrearCitasDemo(
             IReadOnlyList<Servicio> servicios,
             IReadOnlyList<Mecanico> mecanicosActivos,
-            IReadOnlyList<Vehiculo> vehiculos,
-            IReadOnlyList<Cita> citasBase)
+            IReadOnlyList<Vehiculo> vehiculos)
         {
-            var rnd = new Random(20261020); // semilla fija: siembra reproducible
             var hoy = DateTime.Today;
-
-            void Barajar<T>(IList<T> lista)
-            {
-                for (int i = lista.Count - 1; i > 0; i--)
-                {
-                    int j = rnd.Next(i + 1);
-                    (lista[i], lista[j]) = (lista[j], lista[i]);
-                }
-            }
-
-            // Ocupación previa: las 3 citas base, para no chocar con ellas.
-            var ocupadoMecanico = mecanicosActivos
-                .ToDictionary(m => m.MecanicoId, _ => new List<(TimeOnly Ini, TimeOnly Fin)>());
-            var ocupadoVehiculo = vehiculos
-                .ToDictionary(v => v.VehiculoId, _ => new List<(TimeOnly Ini, TimeOnly Fin)>());
-
-            foreach (var cita in citasBase)
-            {
-                var tramo = (cita.HoraInicio, cita.HoraFin);
-                foreach (var asignacion in cita.CitaMecanicos)
-                {
-                    if (ocupadoMecanico.ContainsKey(asignacion.MecanicoId))
-                        ocupadoMecanico[asignacion.MecanicoId].Add(tramo);
-                }
-                if (ocupadoVehiculo.ContainsKey(cita.VehiculoId))
-                    ocupadoVehiculo[cita.VehiculoId].Add(tramo);
-            }
-
-            // Si el arranque cae en domingo (taller cerrado) la historia del día se
-            // recorre al lunes: nunca se siembran citas para un día no laborable.
             var fechaHistorica = HorarioAtencion.EsDiaNoLaboral(hoy) ? hoy.AddDays(1) : hoy;
 
-            // Reparto total: 10 (día a día, en orden para que la tarde quede pendiente)
-            // + 24 pasadas (histórico mayormente finalizado) + 16 futuras (casi todas por agendar).
-            var plan = new List<(DateTime Fecha, EstadoCita Estado)>();
-
-            plan.AddRange(new[]
+            // Días de las tres ventanas (los domingos el taller cierra).
+            var diasPasados = new List<DateTime>();
+            for (int i = 1; i <= 14; i++)
             {
-                EstadoCita.Finalizado, EstadoCita.Finalizado, EstadoCita.Cancelado,
-                EstadoCita.EnProceso, EstadoCita.EnProceso,
-                EstadoCita.Confirmado, EstadoCita.Confirmado,
-                EstadoCita.Pendiente, EstadoCita.Pendiente, EstadoCita.Pendiente
-            }.Select(estado => (fechaHistorica, estado)));
+                var fecha = hoy.AddDays(-i);
+                if (!HorarioAtencion.EsDiaNoLaboral(fecha)) diasPasados.Add(fecha);
+            }
 
-            var diasPasados = Enumerable.Range(1, 14).Select(d => hoy.AddDays(-d))
-                .Where(f => !HorarioAtencion.EsDiaNoLaboral(f)).ToList();
-            var diasFuturos = Enumerable.Range(1, 10).Select(d => hoy.AddDays(d))
-                .Where(f => !HorarioAtencion.EsDiaNoLaboral(f)).ToList();
+            var diasFuturos = new List<DateTime>();
+            for (int i = 1; i <= 10; i++)
+            {
+                var fecha = fechaHistorica.AddDays(i);
+                if (!HorarioAtencion.EsDiaNoLaboral(fecha)) diasFuturos.Add(fecha);
+            }
 
-            var pasados = Enumerable.Repeat(EstadoCita.Finalizado, 16)
-                .Concat(Enumerable.Repeat(EstadoCita.Cancelado, 5))
-                .Concat(Enumerable.Repeat(EstadoCita.Pendiente, 3)) // vencidas: nunca se confirmaron
-                .ToList();
-            var futuros = Enumerable.Repeat(EstadoCita.Pendiente, 9)
-                .Concat(Enumerable.Repeat(EstadoCita.Confirmado, 6))
-                .Concat(Enumerable.Repeat(EstadoCita.Cancelado, 1))
-                .ToList();
+            // Slots fijos del día: 0 = 08:00, 1 = 11:00, 2 = 13:30, 3 = 15:30.
+            var slots = new[] { new TimeOnly(8, 0), new TimeOnly(11, 0), new TimeOnly(13, 30), new TimeOnly(15, 30) };
 
-            Barajar(pasados);
-            Barajar(futuros);
-            for (int k = 0; k < pasados.Count; k++)
-                plan.Add((diasPasados[k % diasPasados.Count], pasados[k]));
-            for (int k = 0; k < futuros.Count; k++)
-                plan.Add((diasFuturos[k % diasFuturos.Count], futuros[k]));
+            // Las 50 filas: (ventana, día, slot, estado, mecánico, vehículo, servicio).
+            // ventana: 0 = día actual (fecha histórica), 1 = pasadas, 2 = futuras;
+            // día = índice dentro de esa ventana; mecánico: 0 Carlos, 1 María, 2 José, 3 Ana;
+            // servicio según la especialidad del mecánico: Carlos{0,1} María{2,3}
+            // José{4,5} Ana{6,7} (los pares cortos: 30–60 min; los impares: 90–120 min).
+            (int Ventana, int Dia, int Slot, EstadoCita Estado, int Mec, int Veh, int Serv)[] filas =
+            {
+                // Hoy (10): la mañana ya cerró y la tarde espera administración.
+                (0, 0, 0, EstadoCita.Finalizado, 1, 1, 2),
+                (0, 0, 0, EstadoCita.Finalizado, 2, 2, 4),
+                (0, 0, 0, EstadoCita.Cancelado, 3, 4, 6),
+                (0, 0, 1, EstadoCita.EnProceso, 0, 0, 0),
+                (0, 0, 1, EstadoCita.EnProceso, 1, 1, 3),
+                (0, 0, 1, EstadoCita.Confirmado, 3, 3, 7),
+                (0, 0, 2, EstadoCita.Confirmado, 0, 0, 1),
+                (0, 0, 2, EstadoCita.Pendiente, 2, 2, 5),
+                (0, 0, 3, EstadoCita.Pendiente, 1, 4, 2),
+                (0, 0, 3, EstadoCita.Pendiente, 3, 3, 7),
+
+                // Pasadas (24): dos por día, histórico casi todo finalizado.
+                (1, 0, 0, EstadoCita.Finalizado, 0, 0, 0),
+                (1, 0, 1, EstadoCita.Finalizado, 1, 2, 3),
+                (1, 1, 0, EstadoCita.Finalizado, 1, 1, 2),
+                (1, 1, 1, EstadoCita.Finalizado, 2, 3, 5),
+                (1, 2, 0, EstadoCita.Finalizado, 2, 2, 4),
+                (1, 2, 1, EstadoCita.Cancelado, 3, 4, 7),
+                (1, 3, 0, EstadoCita.Cancelado, 3, 3, 6),
+                (1, 3, 1, EstadoCita.Finalizado, 0, 1, 1),
+                (1, 4, 0, EstadoCita.Finalizado, 0, 4, 0),
+                (1, 4, 1, EstadoCita.Pendiente, 1, 3, 3),
+                (1, 5, 0, EstadoCita.Finalizado, 1, 0, 2),
+                (1, 5, 1, EstadoCita.Finalizado, 2, 4, 5),
+                (1, 6, 0, EstadoCita.Pendiente, 2, 1, 4),
+                (1, 6, 1, EstadoCita.Cancelado, 3, 0, 7),
+                (1, 7, 0, EstadoCita.Finalizado, 3, 2, 6),
+                (1, 7, 1, EstadoCita.Cancelado, 0, 2, 1),
+                (1, 8, 0, EstadoCita.Cancelado, 0, 3, 0),
+                (1, 8, 1, EstadoCita.Finalizado, 1, 0, 3),
+                (1, 9, 0, EstadoCita.Finalizado, 1, 4, 2),
+                (1, 9, 1, EstadoCita.Finalizado, 2, 1, 5),
+                (1, 10, 0, EstadoCita.Finalizado, 2, 0, 4),
+                (1, 10, 1, EstadoCita.Pendiente, 3, 2, 7),
+                (1, 11, 0, EstadoCita.Finalizado, 3, 1, 6),
+                (1, 11, 1, EstadoCita.Finalizado, 0, 4, 1),
+
+                // Futuras (16): dos por día, casi todas por confirmar.
+                (2, 0, 0, EstadoCita.Pendiente, 0, 0, 0),
+                (2, 0, 1, EstadoCita.Confirmado, 1, 3, 3),
+                (2, 1, 0, EstadoCita.Pendiente, 1, 1, 2),
+                (2, 1, 1, EstadoCita.Pendiente, 2, 4, 5),
+                (2, 2, 0, EstadoCita.Confirmado, 2, 2, 4),
+                (2, 2, 1, EstadoCita.Confirmado, 3, 0, 7),
+                (2, 3, 0, EstadoCita.Pendiente, 3, 3, 6),
+                (2, 3, 1, EstadoCita.Pendiente, 0, 1, 1),
+                (2, 4, 0, EstadoCita.Pendiente, 0, 4, 0),
+                (2, 4, 1, EstadoCita.Confirmado, 1, 2, 3),
+                (2, 5, 0, EstadoCita.Confirmado, 1, 0, 2),
+                (2, 5, 1, EstadoCita.Pendiente, 2, 3, 5),
+                (2, 6, 0, EstadoCita.Pendiente, 2, 1, 4),
+                (2, 6, 1, EstadoCita.Confirmado, 3, 4, 7),
+                (2, 7, 0, EstadoCita.Cancelado, 3, 2, 6),
+                (2, 7, 1, EstadoCita.Pendiente, 0, 0, 1),
+            };
 
             var citas = new List<Cita>();
-            var citasPorFecha = new Dictionary<DateTime, int>();
-            int correlativo = 0; // ronda global: reparte el trabajo parejo entre mecánicos y vehículos
-
-            foreach (var (fecha, estado) in plan)
+            foreach (var (ventana, dia, slot, estado, mec, veh, serv) in filas)
             {
-                int ordenDelDia = citasPorFecha.TryGetValue(fecha, out var previas) ? previas : 0;
-                citasPorFecha[fecha] = ordenDelDia + 1;
-
-                var mecanico = mecanicosActivos[correlativo % mecanicosActivos.Count];
-                var vehiculo = vehiculos[correlativo % vehiculos.Count];
-                correlativo++;
-
-                // El servicio sale de la especialidad del mecánico (la UI agrupa así las citas).
-                var deLaCategoria = servicios.Where(s => s.CategoriaId == mecanico.EspecialidadId).ToList();
-                var servicio = deLaCategoria[rnd.Next(deLaCategoria.Count)];
-                var duracion = TimeSpan.FromMinutes(servicio.DuracionMinutos);
-
-                // Hueco escalonado cada 55 min para que el día se vea repartido de 8 a 6;
-                // si el escalón no cabe antes del cierre, se usa el último encaje posible.
-                var desde = HorarioAtencion.Apertura.AddMinutes((ordenDelDia * 55) % 550);
-                if (desde.Add(duracion) > HorarioAtencion.Cierre)
-                    desde = HorarioAtencion.Cierre.Add(-duracion);
-
-                var hueco = BuscarHueco(ocupadoMecanico[mecanico.MecanicoId], ocupadoVehiculo[vehiculo.VehiculoId], duracion, desde)
-                    ?? BuscarHueco(ocupadoMecanico[mecanico.MecanicoId], ocupadoVehiculo[vehiculo.VehiculoId], duracion, HorarioAtencion.Apertura);
-
-                if (hueco is null)
+                var fecha = ventana switch
                 {
-                    // No debería pasar con 4 mecánicos × 10 h: si ocurre, ese día se queda corto.
-                    continue;
-                }
+                    0 => fechaHistorica,
+                    1 => diasPasados[dia],
+                    _ => diasFuturos[dia]
+                };
 
-                var cita = new Cita
+                var mecanico = mecanicosActivos[mec];
+                var vehiculo = vehiculos[veh];
+                var servicio = servicios[serv];
+                var inicio = slots[slot];
+
+                citas.Add(new Cita
                 {
                     ClienteId = vehiculo.ClienteId!.Value, // el cliente es el dueño del vehículo
                     VehiculoId = vehiculo.VehiculoId,
                     ServicioId = servicio.ServicioId,
                     CitaMecanicos = new List<CitaMecanico> { new CitaMecanico { MecanicoId = mecanico.MecanicoId } },
                     Fecha = fecha,
-                    HoraInicio = hueco.Value,
-                    HoraFin = hueco.Value.Add(duracion),
+                    HoraInicio = inicio,
+                    HoraFin = inicio.AddMinutes(servicio.DuracionMinutos),
                     Estado = estado
-                };
-
-                citas.Add(cita);
-                var tramoNuevo = (cita.HoraInicio, cita.HoraFin);
-                ocupadoMecanico[mecanico.MecanicoId].Add(tramoNuevo);
-                ocupadoVehiculo[vehiculo.VehiculoId].Add(tramoNuevo);
+                });
             }
 
             return citas;
-        }
-
-        /// <summary>
-        /// Primer tramo de la duración indicada libre a la vez para el mecánico y el
-        /// vehículo, desde <paramref name="desde"/> y sin salir del horario de atención.
-        /// </summary>
-        private static TimeOnly? BuscarHueco(
-            List<(TimeOnly Ini, TimeOnly Fin)> ocupadoMecanico,
-            List<(TimeOnly Ini, TimeOnly Fin)> ocupadoVehiculo,
-            TimeSpan duracion,
-            TimeOnly desde)
-        {
-            var inicio = desde < HorarioAtencion.Apertura ? HorarioAtencion.Apertura : desde;
-
-            while (inicio.Add(duracion) <= HorarioAtencion.Cierre)
-            {
-                var fin = inicio.Add(duracion);
-                var choque = ocupadoMecanico.Concat(ocupadoVehiculo)
-                    .Where(t => inicio < t.Fin && t.Ini < fin)
-                    .ToList();
-
-                if (choque.Count == 0)
-                    return inicio;
-
-                inicio = choque.Max(t => t.Fin); // salta al final del tramo ocupado
-            }
-
-            return null;
         }
     }
 }
