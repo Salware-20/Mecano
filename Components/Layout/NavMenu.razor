@@ -11,11 +11,33 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <i class="bi bi-speedometer2" aria-hidden="true"></i> Dashboard
-            </NavLink>
-        </div>
+        @* El mecánico solo ve su propio panel y su agenda: nada de dashboard global,
+           agendado, directorio de clientes ni CRUDs de gestión. Los demás (admin y
+           anónimos, que se redirige al login) conservan los enlaces de siempre. *@
+        <AuthorizeView Roles="@Mecano.Entidad.Constantes.Roles.Mecanico">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="mecanico" Match="NavLinkMatch.All">
+                        <i class="bi bi-speedometer2" aria-hidden="true"></i> Panel
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="mecanico/citas">
+                        <i class="bi bi-calendar-check" aria-hidden="true"></i> Mis citas
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="perfil">
+                        <i class="bi bi-person-circle" aria-hidden="true"></i> Mi perfil
+                    </NavLink>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <i class="bi bi-speedometer2" aria-hidden="true"></i> Dashboard
+                    </NavLink>
+                </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="agendar">
                 <i class="bi bi-calendar-plus" aria-hidden="true"></i> Agendar Cita
@@ -42,5 +64,7 @@
                     <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
                 </NavLink>
             </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>

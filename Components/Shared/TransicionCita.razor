@@ -1,0 +1,175 @@
+@using System.Security.Claims
+@using Mecano.Entidad.Constantes
+@inject ICitaService CitaService
+@inject AuthenticationStateProvider AuthenticationState
+
+@*
+    Transiciones de estado de una cita según quién mira (la UI no elige reglas
+    ni identidad: el servicio vuelve a validar todo):
+    - Administración: Confirmar (Pendiente → Confirmado), Cancelar desde cualquier
+      estado no terminal, e Iniciar/Finalizar como respaldo del mecánico.
+    - Mecánico: solo Iniciar (Confirmado → EnProceso) y Finalizar (EnProceso →
+      Finalizado); en Pendiente no hay botones, únicamente el aviso de que
+      administración debe confirmar. Estados terminales no muestran nada.
+    El admin envía mecanicoId = null y el mecánico el id de su propio claim.
+    Se usa en MisCitas y Citas (filas) y en la cabecera de la ficha de la cita.
+*@
+
+@* --- Acción principal según estado y rol --- *@
+@if (Estado == EstadoCita.Pendiente)
+{
+    @if (esAdmin)
+    {
+        <button type="button" class="btn btn-sm btn-success text-nowrap"
+                disabled="@ocupado" title="Pendiente → Confirmado"
+                @onclick="() => Transicionar(EstadoCita.Confirmado)">
+            @if (Trabajando(EstadoCita.Confirmado))
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            }
+            else
+            {
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+            }
+            <span> Confirmar</span>
+        </button>
+    }
+    else
+    {
+        <span class="text-muted d-inline-flex align-items-start gap-1"
+              title="Administración debe confirmar la cita antes de que pueda iniciarla.">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            <span class="small">Pendiente de confirmación por administración</span>
+        </span>
+    }
+}
+else if (Estado == EstadoCita.Confirmado)
+{
+    <button type="button" class="btn btn-sm btn-success text-nowrap"
+            disabled="@ocupado" title="Confirmado → En proceso"
+            @onclick="() => Transicionar(EstadoCita.EnProceso)">
+        @if (Trabajando(EstadoCita.EnProceso))
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <i class="bi bi-play-fill" aria-hidden="true"></i>
+        }
+        <span> Iniciar</span>
+    </button>
+}
+else if (Estado == EstadoCita.EnProceso)
+{
+    <button type="button" class="btn btn-sm btn-primary text-nowrap"
+            disabled="@ocupado" title="En proceso → Finalizado"
+            @onclick="() => Transicionar(EstadoCita.Finalizado)">
+        @if (Trabajando(EstadoCita.Finalizado))
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+        }
+        <span> Finalizar</span>
+    </button>
+}
+
+@* --- Cancelar: exclusivo de administración, en cualquier estado no terminal --- *@
+@if (esAdmin && !EsTerminal)
+{
+    <button type="button" class="btn btn-sm btn-outline-danger text-nowrap"
+            disabled="@ocupado" title="Cualquier estado → Cancelado (no se puede deshacer)"
+            @onclick="() => Transicionar(EstadoCita.Cancelado)">
+        @if (Trabajando(EstadoCita.Cancelado))
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <i class="bi bi-x-circle" aria-hidden="true"></i>
+        }
+        <span> Cancelar</span>
+    </button>
+}
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="text-danger small mt-1" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @error
+    </div>
+}
+
+@code {
+    [Parameter] public int CitaId { get; set; }
+
+    [Parameter] public EstadoCita Estado { get; set; }
+
+    /// <summary>Se dispara tras una transición exitosa para que la página recargue.</summary>
+    [Parameter] public EventCallback CambioRealizado { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    // Por defecto rama de mecánico (fail-closed): sin estado de autenticación
+    // no se muestran acciones de administración.
+    private bool esAdmin;
+
+    private EstadoCita? enCurso;
+    private bool ocupado => enCurso is not null;
+    private string? error;
+
+    private bool EsTerminal =>
+        Estado == EstadoCita.Finalizado || Estado == EstadoCita.Cancelado;
+
+    private bool Trabajando(EstadoCita destino) => enCurso == destino;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            esAdmin = state.User.IsInRole(Roles.Administrador);
+        }
+    }
+
+    private async Task Transicionar(EstadoCita destino)
+    {
+        if (ocupado)
+            return;
+
+        enCurso = destino;
+        error = null;
+        try
+        {
+            int? mecanicoId = null;
+            if (!esAdmin)
+            {
+                // El id sale del claim de sesión: la UI no elige qué mecánico actúa.
+                var state = await AuthenticationState.GetAuthenticationStateAsync();
+                if (!int.TryParse(state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id))
+                {
+                    error = "No se pudo identificar tu cuenta. Vuelve a iniciar sesión.";
+                    return;
+                }
+                mecanicoId = id;
+            }
+
+            await CitaService.TransicionarEstadoAsync(CitaId, destino, mecanicoId);
+            await CambioRealizado.InvokeAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Reglas de negocio del servicio, ya redactadas en español.
+            error = ex.Message;
+        }
+        catch (Exception)
+        {
+            error = "No se pudo actualizar la cita. Inténtalo de nuevo.";
+        }
+        finally
+        {
+            enCurso = null;
+        }
+    }
+}

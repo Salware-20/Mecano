@@ -1,3 +1,4 @@
+using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -61,8 +62,17 @@ namespace Mecano.Components.Pages
                 {
                     // Forzar recarga completa (forceLoad: true) para que el circuito Blazor se inicialice
                     // con la nueva cookie de autenticación ya presente en el navegador.
-                    // Volvemos a ReturnUrl solo si es una ruta local válida; si no, al inicio.
-                    NavigationManager.NavigateTo(EsRutaLocal(ReturnUrl) ? ReturnUrl! : "/", forceLoad: true);
+                    // Destino: ReturnUrl si es una ruta local válida; si no, el panel del rol
+                    // (el mecánico entra a /mecanico y el administrador al dashboard "/").
+                    string destino;
+                    if (EsRutaLocal(ReturnUrl))
+                        destino = ReturnUrl!;
+                    else if (result.Rol == Roles.Mecanico)
+                        destino = "/mecanico";
+                    else
+                        destino = "/";
+
+                    NavigationManager.NavigateTo(destino, forceLoad: true);
                 }
                 else
                 {
@@ -84,6 +94,12 @@ namespace Mecano.Components.Pages
         {
             public bool Ok { get; set; }
             public int Status { get; set; }
+
+            /// <summary>
+            /// Rol devuelto por /api/auth/login (Administrador | Mecanico). Null si el
+            /// servidor no lo envió; el redirect por defecto entonces es el dashboard.
+            /// </summary>
+            public string? Rol { get; set; }
         }
     }
 }

@@ -1,0 +1,172 @@
+@page "/mecanico"
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Mecanico)]
+@rendermode InteractiveServer
+@using System.Globalization
+@using Mecano.Entidad.Constantes
+@inject IDashboardService DashboardService
+
+<PageTitle>Panel del mecánico - Mecano</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="mb-0"><i class="bi bi-speedometer2" aria-hidden="true"></i> Panel del mecánico</h1>
+        @if (resumen is not null)
+        {
+            <div class="text-muted small mt-1">
+                <i class="bi bi-person" aria-hidden="true"></i> <span style="text-transform:capitalize;">@resumen.MecanicoNombre</span>
+                @if (!string.IsNullOrWhiteSpace(resumen.EspecialidadNombre))
+                {
+                    <span>
+                        · <i class="bi bi-wrench" aria-hidden="true"></i>
+                        <span style="text-transform:capitalize;">@resumen.EspecialidadNombre</span>
+                    </span>
+                }
+            </div>
+        }
+    </div>
+    <a class="btn btn-primary" href="mecanico/citas">
+        <i class="bi bi-calendar-check" aria-hidden="true"></i> Mis citas
+    </a>
+</div>
+
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <div class="alert alert-danger d-flex align-items-center" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <div>@mensajeError</div>
+    </div>
+}
+
+@if (cargando)
+{
+    <div class="text-center py-5" role="status">
+        <div class="spinner-border text-primary" aria-hidden="true"></div>
+        <p class="text-muted mt-2 mb-0">Cargando tu panel…</p>
+    </div>
+}
+else if (resumen is not null)
+{
+    <div class="row g-3">
+
+        @* ---------- Citas de hoy con el desglose por estado ---------- *@
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-calendar-check" aria-hidden="true"></i> Citas de hoy</span>
+                    <span class="text-muted small text-capitalize">@FechaLarga</span>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-baseline gap-2 mb-3">
+                        <span class="display-6 fw-semibold">@resumen.CitasHoyTotal</span>
+                        <span class="text-muted">cita(s) hoy</span>
+                    </div>
+                    <ul class="list-unstyled mb-0 panel-estados">
+                        @foreach (var conteo in resumen.CitasHoyPorEstado)
+                        {
+                            <li class="d-flex justify-content-between align-items-center gap-2 py-1">
+                                <span class="badge badge-estado @Formatos.BadgeEstado(conteo.Estado)">@Formatos.NombreEstado(conteo.Estado)</span>
+                                <span class="fw-semibold">@conteo.Conteo</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Ocupación personal de hoy ---------- *@
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <i class="bi bi-clipboard2-pulse" aria-hidden="true"></i> Ocupación de hoy
+                </div>
+                <div class="card-body">
+                    @if (resumen.Cerrado)
+                    {
+                        <div class="alert alert-info mb-0 d-flex align-items-center py-2" role="alert">
+                            <i class="bi bi-cup-straw me-2"></i>
+                            <div>Hoy el taller no abre (domingo). Tu ocupación se calcula de lunes a viernes.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-baseline gap-2">
+                            <span class="display-6 fw-semibold">@resumen.PorcentajeOcupacion%</span>
+                            <span class="text-muted">del día</span>
+                        </div>
+                        <div class="progress my-3" style="height: 10px;" role="progressbar"
+                             aria-valuenow="@resumen.PorcentajeOcupacion" aria-valuemin="0" aria-valuemax="100"
+                             aria-label="Ocupación personal de hoy">
+                            <div class="progress-bar" style="width: @(resumen.PorcentajeOcupacion)%"></div>
+                        </div>
+                        <div class="text-muted small">
+                            <i class="bi bi-clock" aria-hidden="true"></i>
+                            @resumen.MinutosOcupados min de trabajo sobre @resumen.MinutosDisponibles min disponibles (08:00 – 18:00)
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Semana en curso (lun–sáb): resumen ---------- *@
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <i class="bi bi-calendar-week" aria-hidden="true"></i> Esta semana <span class="text-muted small fw-normal">(lun–sáb)</span>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center g-2">
+                        <div class="col-6">
+                            <div class="display-6 fw-semibold">@CitasSemana</div>
+                            <div class="text-muted small">cita(s)</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="display-6 fw-semibold">@(MinutosSemana / 60)h</div>
+                            <div class="text-muted small">@MinutosSemana min de trabajo</div>
+                        </div>
+                    </div>
+                    <hr class="my-3" />
+                    <div class="text-muted small">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        Canceladas no cuentan como ocupación. Los domingos el taller cierra.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Barras de la semana: minutos ocupados por día ---------- *@
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <span><i class="bi bi-bar-chart" aria-hidden="true"></i> Mi carga de la semana</span>
+                    <span class="text-muted small">Minutos ocupados frente a tus @resumen.MinutosDisponibles min diarios</span>
+                </div>
+                <div class="card-body">
+                    <div class="semana-barras">
+                        @foreach (var dia in resumen.Semana)
+                        {
+                            var pct = PorcentajeDia(dia);
+                            <div class="semana-col">
+                                <div class="semana-valor small text-muted text-center">
+                                    @if (dia.TotalCitas > 0)
+                                    {
+                                        <span>@dia.TotalCitas cita(s) · @dia.MinutosOcupados min</span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </div>
+                                <div class="semana-barra-cont">
+                                    <div class="semana-barra rounded-top" style="height: @(Math.Max(pct, dia.TotalCitas > 0 ? 4 : 1))%;"
+                                         title="@dia.Fecha.ToString("dddd dd/MM", CulturaCr): @dia.MinutosOcupados min (@pct%)">
+                                    </div>
+                                </div>
+                                <div class="semana-dia small fw-semibold text-capitalize">@DiaCorto(dia.Fecha)</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

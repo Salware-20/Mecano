@@ -1,12 +1,13 @@
 @page "/"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = "Administrador")]
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador + "," + Mecano.Entidad.Constantes.Roles.Mecanico)]
 @using System.Globalization
 @using Mecano.Entidad.Clases
 @using Mecano.Entidad.Constantes
 @using Mecano.Entidad.DTOs.Dashboard
 @using Mecano.Entidad.Utilidades
 @inject IDashboardService DashboardService
+@inject NavigationManager NavigationManager
 @inject ThemeState Tema
 
 <PageTitle>Panel de control - Mecano</PageTitle>

@@ -10,15 +10,29 @@ window.authFetch = {
                 credentials: 'same-origin'
             });
 
+            // El login responde { message, user: { ..., rol } }. Se extrae el rol para
+            // que la página pueda redirigir según el perfil (mecánico → /mecanico).
+            let rol = null;
+            if (response.ok) {
+                try {
+                    const data = await response.json();
+                    rol = data && data.user ? data.user.rol : null;
+                } catch (parseError) {
+                    console.warn('Login OK pero sin cuerpo JSON:', parseError);
+                }
+            }
+
             return {
                 ok: response.ok,
-                status: response.status
+                status: response.status,
+                rol: rol
             };
         } catch (error) {
             console.error('Error durante el login fetch:', error);
             return {
                 ok: false,
-                status: 500
+                status: 500,
+                rol: null
             };
         }
     },
