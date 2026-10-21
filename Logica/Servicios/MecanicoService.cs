@@ -6,6 +6,7 @@ using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Mecanico;
+using Mecano.Entidad.DTOs.Perfil;
 using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
 using Mecano.Logica.Utilidades;
@@ -314,5 +315,40 @@ public class MecanicoService : IMecanicoService
         return await context.Mecanico.AnyAsync(m =>
             m.Email == normalized &&
             (excluirId == null || m.MecanicoId != excluirId));
+    }
+
+    // ~~~ Perfil del mecánico autenticado ~~~
+    public async Task<bool> CambiarPasswordAsync(int mecanicoId, CambiarPasswordDTO dto)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var mecanico = await context.Mecanico.FindAsync(mecanicoId);
+        if (mecanico is null) return false;
+
+        if (string.IsNullOrWhiteSpace(dto.NuevaPassword))
+            throw new InvalidOperationException("La nueva contraseña es obligatoria.");
+
+        if (!CoincidePassword(dto.PasswordActual, mecanico.HashPassword))
+            throw new InvalidOperationException("La contraseña actual no es correcta.");
+
+        if (dto.NuevaPassword == dto.PasswordActual)
+            throw new InvalidOperationException("La nueva contraseña debe ser diferente a la actual.");
+
+        mecanico.HashPassword = PasswordHasher.Hash(dto.NuevaPassword);
+        await context.SaveChangesAsync();
+
+        _logger.LogInformation("Contraseña actualizada para el mecánico {MecanicoId}.", mecanicoId);
+        return true;
+    }
+
+    /// <summary>
+    /// Verifica la contraseña contra el hash almacenado con el mismo criterio que
+    /// <c>AuthServices.VerifyPassword</c>: PBKDF2 cuando el hash contiene '$';
+    /// comparación directa cuando es el formato legado en texto plano.
+    /// </summary>
+    private static bool CoincidePassword(string password, string hash)
+    {
+        if (string.IsNullOrWhiteSpace(hash)) return false;
+        return hash.Contains('$') ? PasswordHasher.Verify(password, hash) : password == hash;
     }
 }

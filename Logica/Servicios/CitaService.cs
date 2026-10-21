@@ -178,6 +178,12 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"La cita con ID {citaId} no existe.");
         }
 
+        // Un trabajo finalizado no se puede deshacer cancelándolo desde el listado.
+        if (cita.Estado == EstadoCita.Finalizado)
+        {
+            throw new InvalidOperationException("Una cita finalizada no se puede cancelar.");
+        }
+
         cita.Estado = EstadoCita.Cancelado;
         await context.SaveChangesAsync();
     }
@@ -494,6 +500,174 @@ public class CitaService : ICitaService
         _logger.LogInformation("Cita {Id} reprogramada a {Fecha} {Hora} con mecánicos {MecanicosIds}.",
             cita.CitaId, dto.Fecha, dto.HoraInicio, string.Join(", ", mecanicosIds));
         return true;
+    }
+
+    // ~~~ UPDATE (transición de estado) ~~~
+    // El mecánico solo puede iniciar (Confirmado → EnProceso) y finalizar
+    // (EnProceso → Finalizado), y solo si está asignado; confirmar y cancelar son
+    // exclusivos de administración (mecanicoId == null). Los estados terminales
+    // (Finalizado y Cancelado) no se tocan.
+    public async Task<bool> TransicionarEstadoAsync(int citaId, EstadoCita destino, int? mecanicoId)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var cita = await context.Cita
+            .Include(c => c.CitaMecanicos)
+            .FirstOrDefaultAsync(c => c.CitaId == citaId);
+
+        if (cita == null) return false;
+
+        if (cita.Estado == EstadoCita.Finalizado || cita.Estado == EstadoCita.Cancelado)
+        {
+            throw new InvalidOperationException(
+                $"La cita ya está {TextoEstado(cita.Estado)}: su estado no se puede modificar.");
+        }
+
+        var esAdmin = mecanicoId == null;
+
+        if (!esAdmin)
+        {
+            if (destino != EstadoCita.EnProceso && destino != EstadoCita.Finalizado)
+            {
+                throw new InvalidOperationException(
+                    "El mecánico solo puede iniciar o finalizar una cita; confirmar y cancelar son funciones de administración.");
+            }
+
+            if (!cita.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId))
+            {
+                throw new InvalidOperationException(
+                    "Solo el mecánico asignado a la cita puede cambiar su estado.");
+            }
+        }
+
+        var valida = (cita.Estado, destino) switch
+        {
+            (EstadoCita.Pendiente, EstadoCita.Confirmado) => esAdmin,
+            (EstadoCita.Pendiente, EstadoCita.Cancelado) => esAdmin,
+            (EstadoCita.Confirmado, EstadoCita.EnProceso) => true,
+            (EstadoCita.Confirmado, EstadoCita.Cancelado) => esAdmin,
+            (EstadoCita.EnProceso, EstadoCita.Finalizado) => true,
+            (EstadoCita.EnProceso, EstadoCita.Cancelado) => esAdmin,
+            _ => false
+        };
+
+        if (!valida)
+        {
+            throw new InvalidOperationException(
+                $"No se puede pasar una cita de {TextoEstado(cita.Estado)} a {TextoEstado(destino)}.");
+        }
+
+        var origen = cita.Estado;
+        cita.Estado = destino;
+        await context.SaveChangesAsync();
+
+        _logger.LogInformation("Cita {Id}: {Origen} → {Destino} ({Quien}).",
+            cita.CitaId, TextoEstado(origen), TextoEstado(destino),
+            esAdmin ? "administración" : $"mecánico {mecanicoId}");
+        return true;
+    }
+
+    private static string TextoEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Pendiente => "Pendiente",
+        EstadoCita.Confirmado => "Confirmada",
+        EstadoCita.EnProceso => "En proceso",
+        EstadoCita.Finalizado => "Finalizada",
+        EstadoCita.Cancelado => "Cancelada",
+        _ => estado.ToString()
+    };
+
+    // ~~~ VISTA DEL MECÁNICO (proyección restringida) ~~~
+    // Igual que ProyeccionListado pero sin el PII de los colegas (solo nombre) y sin
+    // precio: el listado del mecánico no es un listado de administración.
+    private static readonly Expression<Func<Cita, CitaListaMecanicoDTO>> ProyeccionListaMecanico = c => new CitaListaMecanicoDTO
+    {
+        Id = c.CitaId,
+        Fecha = c.Fecha,
+        HoraInicio = c.HoraInicio,
+        HoraFin = c.HoraFin,
+        Estado = c.Estado,
+        ClienteId = c.ClienteId,
+        ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+        ClienteActivo = c.Cliente != null && c.Cliente.Activo,
+        VehiculoId = c.VehiculoId,
+        VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
+        VehiculoMarca = c.Vehiculo != null ? c.Vehiculo.Marca : null,
+        VehiculoModelo = c.Vehiculo != null ? c.Vehiculo.Modelo : null,
+        VehiculoAnio = c.Vehiculo != null ? c.Vehiculo.Anio : 0,
+        ServicioId = c.ServicioId,
+        ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
+        ServicioDuracionMinutos = c.Servicio != null ? c.Servicio.DuracionMinutos : 0,
+        ServicioActivo = c.Servicio != null && c.Servicio.Activo,
+        MecanicosNombres = c.CitaMecanicos
+            .Select(cm => cm.Mecanico.Nombre)
+            .ToList()
+    };
+
+    public async Task<List<CitaListaMecanicoDTO>> BuscarParaMecanicoAsync(
+        int mecanicoId, FiltroCitasDTO filtro, int pagina, int tamanioPagina)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        // El alcance es innegociable: el filtro de mecánico siempre es el del claim,
+        // pase lo que pase en el resto del DTO que mande la UI.
+        filtro.MecanicoId = mecanicoId;
+
+        return await AplicarFiltro(context.Cita.AsNoTracking(), filtro)
+            // Agenda del mecánico: cronológico ascendente (lo próximo primero).
+            .OrderBy(c => c.Fecha)
+            .ThenBy(c => c.HoraInicio)
+            .Skip((pagina - 1) * tamanioPagina)
+            .Take(tamanioPagina)
+            .Select(ProyeccionListaMecanico)
+            .ToListAsync();
+    }
+
+    public async Task<int> ContarParaMecanicoAsync(int mecanicoId, FiltroCitasDTO filtro)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        filtro.MecanicoId = mecanicoId;
+        return await AplicarFiltro(context.Cita.AsNoTracking(), filtro).CountAsync();
+    }
+
+    public async Task<CitaDetalleMecanicoDTO?> ObtenerDetalleParaMecanicoAsync(int citaId, int mecanicoId)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        // Sin precio ni NotasAdmin, y del cliente solo el nombre: datos de trabajo.
+        // Además, solo citas asignadas al mecánico: teclear una URL no abre citas ajenas.
+        return await context.Cita
+            .AsNoTracking()
+            .Where(c => c.CitaId == citaId
+                && c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId))
+            .Select(c => new CitaDetalleMecanicoDTO
+            {
+                Id = c.CitaId,
+                Fecha = c.Fecha,
+                HoraInicio = c.HoraInicio,
+                HoraFin = c.HoraFin,
+                Estado = c.Estado,
+                FechaCreacion = c.FechaCreacion,
+                ClienteId = c.ClienteId,
+                ClienteNombre = c.Cliente != null ? c.Cliente.NombreCompleto : null,
+                ClienteActivo = c.Cliente != null && c.Cliente.Activo,
+                VehiculoId = c.VehiculoId,
+                VehiculoPlaca = c.Vehiculo != null ? c.Vehiculo.Placa : null,
+                VehiculoMarca = c.Vehiculo != null ? c.Vehiculo.Marca : null,
+                VehiculoModelo = c.Vehiculo != null ? c.Vehiculo.Modelo : null,
+                VehiculoAnio = c.Vehiculo != null ? c.Vehiculo.Anio : 0,
+                VehiculoKilometraje = c.Vehiculo != null ? c.Vehiculo.Kilometraje : null,
+                VehiculoNotas = c.Vehiculo != null ? c.Vehiculo.Notas : null,
+                ServicioId = c.ServicioId,
+                ServicioNombre = c.Servicio != null ? c.Servicio.Nombre : null,
+                ServicioDuracionMinutos = c.Servicio != null ? c.Servicio.DuracionMinutos : 0,
+                ServicioActivo = c.Servicio != null && c.Servicio.Activo,
+                MecanicosNombres = c.CitaMecanicos
+                    .Select(cm => cm.Mecanico.Nombre)
+                    .ToList()
+            })
+            .FirstOrDefaultAsync();
     }
 
     // ~~~ FILTRO COMPARTIDO (listado + conteo) ~~~
