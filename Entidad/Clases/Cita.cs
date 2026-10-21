@@ -7,10 +7,10 @@ namespace Mecano.Entidad.Clases
     public enum EstadoCita
     {
         Pendiente,
-        Confirmada,
+        Confirmado,
         EnProceso,
-        Finalizada,
-        Cancelada
+        Finalizado,
+        Cancelado
     }
 
     public class Cita
@@ -25,10 +25,10 @@ namespace Mecano.Entidad.Clases
         
         public int ServicioId { get; set; }
         public Servicio Servicio { get; set; } = null!;
-        
-        public int MecanicoId { get; set; }
-        public Mecanico Mecanico { get; set; } = null!;
-        
+
+        // Relación N:M: una cita puede tener varios mecánicos de la misma especialidad.
+        public ICollection<CitaMecanico> CitaMecanicos { get; set; } = new List<CitaMecanico>();
+
         public DateTime Fecha { get; set; }
         public TimeOnly HoraInicio { get; set; }
         public TimeOnly HoraFin { get; set; }
@@ -43,6 +43,6 @@ namespace Mecano.Entidad.Clases
         
         public bool OverlapsWith(TimeOnly otherStart, TimeOnly otherEnd) => HoraInicio < otherEnd && otherStart < HoraFin;
         
-        public bool EstaActiva() => Estado != EstadoCita.Cancelada && Estado != EstadoCita.Finalizada;
+        public bool EstaActiva() => Estado != EstadoCita.Cancelado && Estado != EstadoCita.Finalizado;
     }
 }

@@ -9,7 +9,6 @@ public interface IClienteService
     // --- Legado: se conserva la firma porque AgendarCita.razor la consume. ---
     Task<List<Cliente>> BuscarClientesAsync(string? termino, int pagina = 1, int tamanioPagina = 10);
     Task<Cliente?> ObtenerPorIdAsync(int clienteId);
-    Task<int> RegistrarAsync(string cedulaIdentidad, string nombreCompleto, string? telefono, string? correo);
 
     // --- CRUD ---
     /// <summary>

@@ -9,17 +9,23 @@ namespace Mecano.Components.Pages.Categoria
         private bool cargando = true;
         private bool guardando;
 
+        // Modal crear/editar
         private bool mostrarModal;
         private bool esEdicion;
+        private int? idEditando;
         private string? mensajeError;
-
+        private string? mensajeExito;
         private CrearCategoriaDTO modelo = new();
+
+        // Confirmación de borrado
         private CategoriaDTO? categoriaAEliminar;
 
-        protected override async Task OnInitializedAsync()
-        {
-            await CargarCategorias();
-        }
+        // Búsqueda en memoria: la lista completa ya viene cargada.
+        private string terminoBusqueda = string.Empty;
+
+        private bool HayModalAbierto => mostrarModal || categoriaAEliminar is not null;
+
+        protected override async Task OnInitializedAsync() => await CargarCategorias();
 
         private async Task CargarCategorias()
         {
@@ -34,29 +40,62 @@ namespace Mecano.Components.Pages.Categoria
             }
         }
 
+        // ~~~ Búsqueda ~~~
+
+        private List<CategoriaDTO> CategoriasVisibles
+        {
+            get
+            {
+                var termino = terminoBusqueda.Trim();
+                if (termino.Length == 0)
+                {
+                    return categorias.OrderBy(c => c.Nombre).ToList();
+                }
+
+                return categorias
+                    .Where(c =>
+                        c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase) ||
+                        (c.Descripcion?.Contains(termino, StringComparison.OrdinalIgnoreCase) ?? false))
+                    .OrderBy(c => c.Nombre)
+                    .ToList();
+            }
+        }
+
+        private void OnBuscarCambio(ChangeEventArgs e) =>
+            terminoBusqueda = e.Value?.ToString() ?? string.Empty;
+
+        private void LimpiarBusqueda() => terminoBusqueda = string.Empty;
+
+        private string TextoVacio() =>
+            terminoBusqueda.Trim().Length > 0
+                ? "No se encontraron categorías que coincidan con la búsqueda."
+                : "Aún no hay categorías registradas. Crea la primera para agrupar los servicios del taller.";
+
+        // ~~~ Crear / editar ~~~
+
         private void AbrirCrear()
         {
             esEdicion = false;
+            idEditando = null;
             modelo = new CrearCategoriaDTO();
             mensajeError = null;
+            mensajeExito = null;
             mostrarModal = true;
         }
 
-        private void AbrirEditar(CategoriaDTO cat)
+        private void AbrirEditar(CategoriaDTO categoria)
         {
             esEdicion = true;
+            idEditando = categoria.Id;
             modelo = new CrearCategoriaDTO
             {
-                Nombre = cat.Nombre,
-                Descripcion = cat.Descripcion
+                Nombre = categoria.Nombre,
+                Descripcion = categoria.Descripcion
             };
-            // Guardamos el Id en un campo aparte para el update
-            idEditando = cat.Id;
             mensajeError = null;
+            mensajeExito = null;
             mostrarModal = true;
         }
-
-        private int? idEditando;
 
         private void CerrarModal()
         {
@@ -79,10 +118,12 @@ namespace Mecano.Components.Pages.Categoria
                         Nombre = modelo.Nombre,
                         Descripcion = modelo.Descripcion
                     });
+                    mensajeExito = $"Categoría «{modelo.Nombre}» actualizada.";
                 }
                 else
                 {
                     await CategoriaService.CrearAsync(modelo);
+                    mensajeExito = $"Categoría «{modelo.Nombre}» creada.";
                 }
 
                 CerrarModal();
@@ -98,10 +139,13 @@ namespace Mecano.Components.Pages.Categoria
             }
         }
 
-        private void ConfirmarEliminar(CategoriaDTO cat)
+        // ~~~ Eliminar ~~~
+
+        private void ConfirmarEliminar(CategoriaDTO categoria)
         {
-            categoriaAEliminar = cat;
+            categoriaAEliminar = categoria;
             mensajeError = null;
+            mensajeExito = null;
         }
 
         private void CancelarEliminar()
@@ -118,8 +162,10 @@ namespace Mecano.Components.Pages.Categoria
             mensajeError = null;
             try
             {
+                var nombre = categoriaAEliminar.Nombre;
                 await CategoriaService.EliminarAsync(categoriaAEliminar.Id);
                 categoriaAEliminar = null;
+                mensajeExito = $"Categoría «{nombre}» eliminada.";
                 await CargarCategorias();
             }
             catch (InvalidOperationException ex)

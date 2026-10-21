@@ -70,7 +70,7 @@ else
     <div class="card shadow-sm mb-4">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong><i class="bi bi-clock-history"></i> Programación</strong>
-            <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+            <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
         </div>
         <div class="card-body">
             <div class="row g-3">
@@ -100,9 +100,13 @@ else
     <div class="row g-4">
         @* ---------- Cliente ---------- *@
         <div class="col-12 col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header">
+            <div class="card shadow-sm h-100 @(cita.ClienteActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <strong><i class="bi bi-person"></i> Cliente</strong>
+                    @if (!cita.ClienteActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -129,6 +133,14 @@ else
                         <dt class="col-sm-4 text-muted fw-normal small">Correo</dt>
                         <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.ClienteCorreo) ? "-" : cita.ClienteCorreo)</dd>
                     </dl>
+
+                    @if (!cita.ClienteActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este cliente está inactivo. Revise su estado antes de continuar.</div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -145,7 +157,7 @@ else
                         <dd class="col-sm-8">
                             @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
                             {
-                                <span class="badge text-bg-light border">@Formatos.Placa(cita.VehiculoPlaca)</span>
+                                <a class="badge text-bg-light border text-decoration-none" href="vehiculos/@cita.VehiculoId">@Formatos.Placa(cita.VehiculoPlaca)</a>
                             }
                             else
                             {
@@ -168,9 +180,13 @@ else
 
         @* ---------- Servicio ---------- *@
         <div class="col-12 col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header">
+            <div class="card shadow-sm h-100 @(cita.ServicioActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <strong><i class="bi bi-tools"></i> Servicio</strong>
+                    @if (!cita.ServicioActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -183,6 +199,14 @@ else
                         <dt class="col-sm-4 text-muted fw-normal small">Precio</dt>
                         <dd class="col-sm-8 mb-0">@Formatos.Moneda(cita.ServicioPrecio)</dd>
                     </dl>
+
+                    @if (!cita.ServicioActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este servicio fue desactivado: no admite citas nuevas. La cita ya agendada se conserva.</div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -195,11 +219,29 @@ else
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
-                        <dd class="col-sm-8" style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</dd>
+                        <dt class="col-sm-4 text-muted fw-normal small">Mecánico@(cita.Mecanicos.Count > 1 ? "s" : "")</dt>
+                        <dd class="col-sm-8">
+                            @if (cita.Mecanicos.Any())
+                            {
+                                @foreach (var m in cita.Mecanicos)
+                                {
+                                    <div style="text-transform:capitalize;">
+                                        @m.Nombre
+                                        @if (!m.Activo)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        }
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </dd>
 
                         <dt class="col-sm-4 text-muted fw-normal small">Especialidad</dt>
-                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.MecanicoEspecialidadNombre) ? "-" : cita.MecanicoEspecialidadNombre)</dd>
+                        <dd class="col-sm-8 mb-0">@(string.IsNullOrWhiteSpace(cita.Mecanicos.FirstOrDefault()?.EspecialidadNombre) ? "-" : cita.Mecanicos.First().EspecialidadNombre)</dd>
                     </dl>
                 </div>
             </div>
@@ -312,15 +354,49 @@ else
                             El vehículo, el servicio y las notas no se modifican aquí.
                         </p>
 
+                        @if (cita is not null && cita.Mecanicos.Any(m => !m.Activo))
+                        {
+                            <div class="alert alert-warning py-2 small" role="alert">
+                                <i class="bi bi-exclamation-triangle"></i> Hay mecánicos inactivos asignados. Seleccione solo mecánicos activos para reasignar la cita.
+                            </div>
+                        }
+
                         <div class="mb-3">
-                            <label class="form-label">Mecánico *</label>
-                            <InputSelect class="form-select" @bind-Value="modeloReprogramar.MecanicoId">
-                                @foreach (var m in mecanicos)
+                            <label class="form-label">
+                                Mecánicos *
+                                <span class="text-muted small">(puede elegir varios de la misma especialidad)</span>
+                            </label>
+                            <div class="border rounded p-2" style="max-height:220px;overflow-y:auto;">
+                                @foreach (var grupo in MecanicosPorEspecialidad)
                                 {
-                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(m.Activo ? "" : " (inactivo)")</option>
+                                    var habilitado = GrupoHabilitado(grupo.Key);
+                                    <div class="mb-2" style="@(habilitado ? "" : "opacity:.5;")">
+                                        <div class="text-uppercase text-muted small fw-semibold">
+                                            @(string.IsNullOrWhiteSpace(grupo.First().EspecialidadNombre) ? "Sin especialidad" : grupo.First().EspecialidadNombre)
+                                            @if (!habilitado)
+                                            {
+                                                <span class="text-muted small fw-normal">&#32;— misma especialidad requerida</span>
+                                            }
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            @foreach (var m in grupo)
+                                            {
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="rep-mec-@m.Id"
+                                                           checked="@selMecanicosIds.Contains(m.Id)"
+                                                           disabled="@(!habilitado)"
+                                                           @onchange="e => ToggleMecanicoReprogramar(m.Id, e)" />
+                                                    <label class="form-check-label" for="rep-mec-@m.Id" style="text-transform:capitalize;">@m.Nombre</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 }
-                            </InputSelect>
-                            <ValidationMessage For="() => modeloReprogramar.MecanicoId" />
+                            </div>
+                            @if (!selMecanicosIds.Any())
+                            {
+                                <div class="form-text text-danger">Seleccione al menos un mecánico.</div>
+                            }
                         </div>
 
                         <div class="row">

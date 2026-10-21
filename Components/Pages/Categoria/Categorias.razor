@@ -2,67 +2,125 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Administrador")]
 @inject ICategoriaService CategoriaService
-@inject IJSRuntime JS
 
 <PageTitle>Categorías - Mecano</PageTitle>
 
-<h1>Gestión de Categorías</h1>
+<h1><i class="bi bi-tags"></i> Gestión de Categorías</h1>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <p class="text-muted mb-0">@categorias.Count categoría(s) registradas</p>
-    <button class="btn btn-primary" @onclick="AbrirCrear">
-        <i class="bi bi-plus-circle"></i> Nueva categoría
-    </button>
-</div>
-
-@if (cargando)
+@if (!string.IsNullOrEmpty(mensajeExito))
 {
-    <div class="text-center py-4">
-        <div class="spinner-border" role="status"></div>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeExito
+        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
     </div>
 }
-else if (!categorias.Any())
+@if (!string.IsNullOrEmpty(mensajeError) && !HayModalAbierto)
 {
-    <div class="alert alert-info">No hay categorías registradas todavía.</div>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" @onclick="() => mensajeError = null"></button>
+    </div>
 }
-else
-{
-    <table class="table table-striped table-hover align-middle">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Descripción</th>
-                <th class="text-center">Servicios</th>
-                <th class="text-center">Mecánicos</th>
-                <th class="text-end">Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var cat in categorias)
-            {
-                <tr>
-                    <td>@cat.Nombre</td>
-                    <td>@cat.Descripcion</td>
-                    <td class="text-center">@cat.CantidadServicios</td>
-                    <td class="text-center">@cat.CantidadMecanicos</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary me-1"
-                                @onclick="() => AbrirEditar(cat)">
-                            <i class="bi bi-pencil"></i> Editar
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar por nombre o descripción..."
+                           aria-label="Buscar categorías"
+                           value="@terminoBusqueda" @oninput="OnBuscarCambio" />
+                    @if (!string.IsNullOrEmpty(terminoBusqueda))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" title="Limpiar búsqueda"
+                                @onclick="LimpiarBusqueda">
+                            <i class="bi bi-x-lg"></i>
                         </button>
-                        <a class="btn btn-sm btn-outline-primary me-1" href="categorias/@cat.Id">
-                            <i class="bi bi-wrench-adjustable"></i> Servicios
-                        </a>
-                        <button class="btn btn-sm btn-outline-danger"
-                                @onclick="() => ConfirmarEliminar(cat)">
-                            <i class="bi bi-trash"></i> Eliminar
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+                    }
+                </div>
+            </div>
+            <div class="col-md-6 d-grid d-md-flex justify-content-md-end offset-md-1">
+                <button class="btn btn-primary" @onclick="AbrirCrear">
+                    <i class="bi bi-plus-circle"></i> Nueva categoría
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        @if (cargando)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border" role="status"><span class="visually-hidden">Cargando...</span></div>
+            </div>
+        }
+        else if (!CategoriasVisibles.Any())
+        {
+            <div class="alert alert-info mb-0">
+                @TextoVacio()
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th class="text-center">Servicios</th>
+                            <th class="text-center">Mecánicos</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cat in CategoriasVisibles)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@cat.Nombre</td>
+                                <td>@(string.IsNullOrWhiteSpace(cat.Descripcion) ? "-" : cat.Descripcion)</td>
+                                <td class="text-center">
+                                    @if (cat.CantidadServicios > 0)
+                                    {
+                                        <span class="badge badge-status-success">@cat.CantidadServicios</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">0</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (cat.CantidadMecanicos > 0)
+                                    {
+                                        <span class="badge badge-status-neutral">@cat.CantidadMecanicos</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">0</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary me-1" href="categorias/@cat.Id">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                            @onclick="() => AbrirEditar(cat)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" title="Eliminar"
+                                            @onclick="() => ConfirmarEliminar(cat)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
 
 @* ---------- Modal Crear/Editar ---------- *@
 @if (mostrarModal)
@@ -76,7 +134,7 @@ else
                         <h5 class="modal-title">
                             @(esEdicion ? "Editar categoría" : "Nueva categoría")
                         </h5>
-                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                        <button type="button" class="btn-close" @onclick="CerrarModal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
                         @if (!string.IsNullOrEmpty(mensajeError))
@@ -85,14 +143,14 @@ else
                         }
 
                         <div class="mb-3">
-                            <label class="form-label">Nombre *</label>
-                            <InputText class="form-control" @bind-Value="modelo.Nombre" autocomplete="off" style="text-transform:capitalize;" placeholder="Nombre de la categoría (ej. Frenos)" />
-                            <ValidationMessage For="() => modelo.Nombre" />
+                            <label class="form-label" for="catNombre">Nombre *</label>
+                            <InputText id="catNombre" class="form-control" @bind-Value="modelo.Nombre" autocomplete="off" style="text-transform:capitalize;" placeholder="Nombre de la categoría (ej. Frenos)" />
+                            <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Descripción</label>
-                            <InputTextArea class="form-control" @bind-Value="modelo.Descripcion" rows="3" />
-                            <ValidationMessage For="() => modelo.Descripcion" />
+                            <label class="form-label" for="catDescripcion">Descripción</label>
+                            <InputTextArea id="catDescripcion" class="form-control" @bind-Value="modelo.Descripcion" rows="3" placeholder="Detalle opcional de la categoría" />
+                            <ValidationMessage For="() => modelo.Descripcion" class="text-danger small" />
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -121,6 +179,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Confirmar eliminación</h5>
+                    <button type="button" class="btn-close" @onclick="CancelarEliminar" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
                     @if (!string.IsNullOrEmpty(mensajeError))
@@ -134,8 +193,8 @@ else
                     }
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
-                    <button class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
+                    <button type="button" class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
                         Eliminar
                     </button>
                 </div>

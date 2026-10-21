@@ -23,6 +23,9 @@ public interface IMecanicoService
     /// </summary>
     Task<List<MecanicoDTO>> ObtenerTodosAsync(FiltroActivo filtro = FiltroActivo.Activos);
 
+    /// <summary>Total de mecánicos activos (KPI «Taller y personal» del panel de control).</summary>
+    Task<int> ContarActivosAsync();
+
     /// <summary>
     /// Devuelve el detalle de un mecánico por su id, sin filtrar por Activo,
     /// para que la UI pueda mostrar el estado actual y ofrecer reactivar si corresponde.

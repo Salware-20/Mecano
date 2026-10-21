@@ -364,3 +364,9 @@ FodyWeavers.xsd
 
 # Carpeta de Skill 
 .opencode
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Claude
+.claude
+/posibles_mejoras.md

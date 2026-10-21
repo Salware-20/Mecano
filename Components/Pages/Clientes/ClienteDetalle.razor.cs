@@ -195,7 +195,10 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             Placa = veh.Placa, // forma de almacenamiento "ABC123": el input va sin guiones
             Marca = veh.Marca,
             Modelo = veh.Modelo,
-            Anio = veh.Anio
+            Anio = veh.Anio,
+            Kilometraje = veh.Kilometraje,
+            Color = veh.Color,
+            Notas = veh.Notas
         };
         vehiculoEditando = veh;
         mensajeError = null;
@@ -223,7 +226,10 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
                     Placa = modeloVehiculo.Placa,
                     Marca = modeloVehiculo.Marca,
                     Modelo = modeloVehiculo.Modelo,
-                    Anio = modeloVehiculo.Anio
+                    Anio = modeloVehiculo.Anio,
+                    Kilometraje = modeloVehiculo.Kilometraje,
+                    Color = modeloVehiculo.Color,
+                    Notas = modeloVehiculo.Notas
                 });
                 mensajeExito = $"Vehículo “{Formatos.Placa(modeloVehiculo.Placa)}” actualizado correctamente.";
             }
@@ -401,12 +407,12 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         if (cliente is null) return;
         clienteADesactivar = cliente;
 
-        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelada/Finalizada)
+        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelado/Finalizado)
         // Usamos la lista ya cargada en CargarAsync (citas) para evitar query extra.
         citasFuturas = citas.Count(c =>
             c.Fecha >= DateTime.Today
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada);
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado);
 
         mensajeError = null;
     }
@@ -642,15 +648,6 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private bool SinHistoria => cliente is not null
         && cliente.CantidadVehiculos == 0
         && cliente.CantidadCitas == 0;
-    private static string BadgeEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmada => "bg-primary",
-        EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizada => "bg-success",
-        EstadoCita.Cancelada => "bg-danger",
-        _ => "bg-secondary"
-    };
 
     public void Dispose()
     {

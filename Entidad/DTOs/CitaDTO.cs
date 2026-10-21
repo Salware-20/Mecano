@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.DTOs.Mecanico;
 
 namespace Mecano.Entidad.DTOs
 {
@@ -18,6 +21,7 @@ namespace Mecano.Entidad.DTOs
 
         public int ClienteId { get; set; }
         public string? ClienteNombre { get; set; }
+        public bool ClienteActivo { get; set; }
 
         public int VehiculoId { get; set; }
         public string? VehiculoPlaca { get; set; }
@@ -25,7 +29,16 @@ namespace Mecano.Entidad.DTOs
         public int ServicioId { get; set; }
         public string? ServicioNombre { get; set; }
 
-        public int MecanicoId { get; set; }
-        public string? MecanicoNombre { get; set; }
+        /// <summary>
+        /// El servicio de la cita sigue activo. La UI marca la cita cuando el servicio
+        /// fue desactivado después de agendarla (las citas existentes no se cancelan solas).
+        /// </summary>
+        public bool ServicioActivo { get; set; }
+
+        /// <summary>Mecánicos asignados a la cita (misma especialidad).</summary>
+        public List<MecanicoDTO> Mecanicos { get; set; } = new();
+
+        /// <summary>Nombres de los mecánicos separados por coma, para las tablas.</summary>
+        public string MecanicosNombres => string.Join(", ", Mecanicos.Select(m => m.Nombre));
     }
 }

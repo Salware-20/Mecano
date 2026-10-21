@@ -256,15 +256,15 @@ public partial class Clientes : ComponentBase, IDisposable
         citasFuturas = 0;
         mensajeError = null;
 
-        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelada/Finalizada)
+        // Cuenta citas futuras (Fecha >= hoy, Estado no Cancelado/Finalizado)
         // para mostrar la advertencia en el modal de confirmación.
         try
         {
             var citas = await CitaService.ObtenerPorClienteAsync(cliente.Id);
             citasFuturas = citas.Count(c =>
                 c.Fecha >= DateTime.Today
-                && c.Estado != EstadoCita.Cancelada
-                && c.Estado != EstadoCita.Finalizada);
+                && c.Estado != EstadoCita.Cancelado
+                && c.Estado != EstadoCita.Finalizado);
         }
         catch
         {
@@ -458,16 +458,6 @@ public partial class Clientes : ComponentBase, IDisposable
         if (filaExpandidaId == clienteId)
             filaExpandidaId = null;
     }
-
-    private static string BadgeEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmada => "bg-primary",
-        EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizada => "bg-success",
-        EstadoCita.Cancelada => "bg-danger",
-        _ => "bg-secondary"
-    };
 
     private bool SinHistoria(ClienteDTO cliente) => cliente.CantidadVehiculos == 0 && cliente.CantidadCitas == 0;
 

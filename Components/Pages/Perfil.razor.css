@@ -1,0 +1,16 @@
+/* Avatar circular con las iniciales del administrador. */
+.perfil-avatar {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background-color: var(--primary-accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: .05rem;
+    flex: 0 0 auto;
+    user-select: none;
+}

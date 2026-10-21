@@ -64,8 +64,13 @@
                             <ul class="list-group">
                                 @foreach (var c in clientesEncontrados)
                                 {
-                                    <li class="list-group-item list-group-item-action cursor-pointer" @onclick="() => SelectCliente(c)">
-                                        <strong style="text-transform:capitalize;">@c.NombreCompleto</strong> - @Formatos.CedulaNacional(c.CedulaIdentidad)<br />
+                                    <li class="list-group-item list-group-item-action cursor-pointer @(c.Activo ? "" : "list-group-item-secondary")" @onclick="() => SelectCliente(c)">
+                                        <strong style="text-transform:capitalize;">@c.NombreCompleto</strong>
+                                        @if (!c.Activo)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        }
+                                        - @Formatos.CedulaNacional(c.CedulaIdentidad)<br />
                                         <small class="text-muted">@Formatos.Telefono(c.Telefono) | @c.Correo</small>
                                     </li>
                                 }
@@ -76,13 +81,26 @@
             }
             else
             {
-                <div class="card border-success shadow-sm">
+                <div class="card @(selectedCliente.Activo ? "border-success" : "border-warning") shadow-sm">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h5 class="card-title text-success"><i class="bi bi-person-check"></i> Cliente Seleccionado</h5>
-                                <strong style="text-transform:capitalize;">@selectedCliente.NombreCompleto</strong> (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br />
+                                <h5 class="card-title @(selectedCliente.Activo ? "text-success" : "text-warning-emphasis")">
+                                    <i class="bi @(selectedCliente.Activo ? "bi-person-check" : "bi-person-exclamation")"></i> Cliente Seleccionado
+                                </h5>
+                                <strong style="text-transform:capitalize;">@selectedCliente.NombreCompleto</strong>
+                                @if (!selectedCliente.Activo)
+                                {
+                                    <span class="badge bg-secondary ms-1">Inactivo</span>
+                                }
+                                (@Formatos.CedulaNacional(selectedCliente.CedulaIdentidad))<br />
                                 <small>@Formatos.Telefono(selectedCliente.Telefono) | @selectedCliente.Correo</small>
+                                @if (!selectedCliente.Activo)
+                                {
+                                    <div class="text-warning-emphasis small mt-1">
+                                        <i class="bi bi-exclamation-triangle"></i> Cliente inactivo. Se permite agendar, pero verifique su estado.
+                                    </div>
+                                }
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="DeselectCliente">Cambiar</button>
                         </div>
@@ -159,9 +177,13 @@
                     <tbody>
                         @foreach (var m in mecanicos)
                         {
-                            <tr>
+                            <tr class="@(!m.Activo ? "tablero-mecanico-inactivo" : null)">
                                 <th class="col-mecanico tablero-mecanico">
                                     <span class="mecanico-nombre" style="text-transform:capitalize;">@m.Nombre</span>
+                                    @if (!m.Activo)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Inactivo</span>
+                                    }
                                     @if (!string.IsNullOrWhiteSpace(m.EspecialidadNombre))
                                     {
                                         <span class="mecanico-especialidad">@m.EspecialidadNombre</span>
@@ -169,21 +191,27 @@
                                 </th>
                                 @foreach (var dia in DiasSemana)
                                 {
-                                    <td class="@ClaseCelda(dia)" @onclick="() => AbrirModal(m, dia)">
+                                    <td class="@ClaseCelda(m, dia)" @onclick="() => AbrirModal(m, dia)">
                                         @foreach (var c in CitasDe(m.Id, dia))
                                         {
                                             <div class="chip chip-@CssEstado(c.Estado)"
-                                                 title="@c.Servicio?.Nombre · @c.Cliente?.NombreCompleto"
+                                                 title="@TituloChip(c)"
                                                  @onclick="() => IrACita(c.CitaId)"
                                                  @onclick:stopPropagation="true">
                                                 <span class="chip-hora">@c.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
                                                 <span class="chip-cuerpo">
-                                                    <span class="chip-cliente" style="text-transform:capitalize;">@c.Cliente?.NombreCompleto</span>
+                                                    <span class="chip-cliente" style="text-transform:capitalize;">
+                                                        @if (c.Cliente?.Activo == false)
+                                                        {
+                                                            <i class="bi bi-exclamation-circle chip-cliente-inactivo" aria-hidden="true"></i>
+                                                        }
+                                                        @c.Cliente?.NombreCompleto
+                                                    </span>
                                                     <span class="chip-servicio">@c.Servicio?.Nombre</span>
                                                 </span>
                                             </div>
                                         }
-                                        @if (PuedeAgendar(dia))
+                                        @if (PuedeAgendar(dia) && m.Activo)
                                         {
                                             <span class="celda-agregar">
                                                 <i class="bi bi-plus-lg"></i> Agendar
@@ -197,6 +225,16 @@
                 </table>
             </div>
         }
+
+        <!-- Leyenda de estados de cita -->
+        <div class="tablero-leyenda" role="list" aria-label="Leyenda de estados de cita">
+            <span class="leyenda-titulo">Estados:</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-pendiente"></span> Pendiente</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-confirmado"></span> Confirmado</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-proceso"></span> En Proceso</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-finalizado"></span> Finalizado</span>
+            <span class="leyenda-item" role="listitem"><span class="leyenda-swatch chip-cancelado"></span> Cancelado</span>
+        </div>
     </div>
 </div>
 
@@ -216,42 +254,77 @@
                         <div class="text-secondary"><i class="bi bi-calendar-event"></i> @selectedFecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
                         <div class="text-secondary">
                             <i class="bi bi-wrench-adjustable"></i>
-                            @if (MecanicoSeleccionado is not null)
+                            @if (selMecanicosIds.Any())
                             {
-                                <span style="text-transform:capitalize;">@MecanicoSeleccionado.Nombre</span>
+                                <span style="text-transform:capitalize;">@MecanicosSeleccionadosNombres</span>
                             }
                             else
                             {
-                                <span>Seleccione un mecánico</span>
+                                <span>Seleccione al menos un mecánico</span>
                             }
                         </div>
                     </div>
 
+                    @if (selectedCliente is { Activo: false })
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>El cliente seleccionado está inactivo. La cita se puede agendar, pero revise su estado.</div>
+                        </div>
+                    }
+
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label" for="mecanico">Mecánico</label>
-                            <select id="mecanico" class="form-select" value="@selMecanicoId" @onchange="OnMecanicoChanged">
-                                <option value="">Seleccione un mecánico...</option>
-                                @foreach (var m in mecanicos)
+                        <div class="col-12">
+                            <label class="form-label mb-1">
+                                Mecánicos
+                                <span class="text-muted small">(puede elegir varios de la misma especialidad)</span>
+                            </label>
+                            <div class="lista-mecanicos">
+                                @foreach (var grupo in MecanicosPorEspecialidad)
                                 {
-                                    <option value="@m.Id" style="text-transform:capitalize;">@m.Nombre@(string.IsNullOrWhiteSpace(m.EspecialidadNombre) ? "" : $" · {m.EspecialidadNombre}")</option>
+                                    var habilitado = GrupoHabilitado(grupo.Key);
+                                    <div class="grupo-mecanicos @(habilitado ? "" : "grupo-mecanicos-deshabilitado")">
+                                        <div class="grupo-mecanicos-titulo">
+                                            @(string.IsNullOrWhiteSpace(grupo.First().EspecialidadNombre) ? "Sin especialidad" : grupo.First().EspecialidadNombre)
+                                            @if (!habilitado)
+                                            {
+                                                <span class="text-muted small">&#32;— misma especialidad requerida</span>
+                                            }
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-3">
+                                            @foreach (var m in grupo)
+                                            {
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="mec-@m.Id"
+                                                           checked="@selMecanicosIds.Contains(m.Id)"
+                                                           disabled="@(!habilitado)"
+                                                           @onchange="e => ToggleMecanico(m.Id, e)" />
+                                                    <label class="form-check-label" for="mec-@m.Id" style="text-transform:capitalize;">@m.Nombre</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 }
-                            </select>
+                            </div>
+                            @if (!selMecanicosIds.Any())
+                            {
+                                <div class="form-text text-danger">Seleccione al menos un mecánico.</div>
+                            }
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label" for="servicio">Servicio</label>
                             <select id="servicio" class="form-select" value="@citaDto.ServicioId" @onchange="OnServiceChanged"
-                                    disabled="@(selMecanicoId == null || !serviciosDelMecanico.Any())">
+                                    disabled="@(!selMecanicosIds.Any() || !serviciosDelMecanico.Any())">
                                 <option value="0">Seleccione un servicio...</option>
                                 @foreach (var s in serviciosDelMecanico)
                                 {
                                     <option value="@s.ServicioId">@s.Nombre (@Formatos.Moneda(s.Precio))</option>
                                 }
                             </select>
-                            @if (selMecanicoId != null && !serviciosDelMecanico.Any())
+                            @if (selMecanicosIds.Any() && !serviciosDelMecanico.Any())
                             {
-                                <div class="form-text text-danger">Este mecánico no tiene servicios asociados a su especialidad.</div>
+                                <div class="form-text text-danger">Esta especialidad no tiene servicios asociados.</div>
                             }
                         </div>
 
@@ -352,7 +425,7 @@
     private string? errorMessage;
 
     private DateTime selectedFecha;
-    private int? selMecanicoId;
+    private HashSet<int> selMecanicosIds = new();
     private TimeOnly selHora = Apertura;
     private TimeOnly selectedHoraFin;
     private Servicio? selectedServicio;
@@ -382,10 +455,19 @@
         cargando = true;
         try
         {
-            mecanicos = await MecanicoService.ObtenerTodosAsync(FiltroActivo.Activos);
             // La semana visible va de lunes a sábado (el domingo el taller está cerrado).
             var citas = await CitaService.ObtenerPorRangoAsync(semanaInicio, semanaInicio.AddDays(5));
-            citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelada).ToList();
+            citasSemana = citas.Where(c => c.Estado != EstadoCita.Cancelado).ToList();
+
+            // Se muestran los mecánicos activos y, además, los inactivos que aún tienen
+            // citas vigentes en la semana visible: así el administrador no pierde de vista
+            // las citas pendientes de un mecánico dado de baja y puede reasignarlas.
+            var inactivosConCitas = citasSemana
+                .SelectMany(c => c.CitaMecanicos.Select(cm => cm.MecanicoId))
+                .ToHashSet();
+            mecanicos = (await MecanicoService.ObtenerTodosAsync(FiltroActivo.Todos))
+                .Where(m => m.Activo || inactivosConCitas.Contains(m.Id))
+                .ToList();
         }
         finally
         {
@@ -473,15 +555,20 @@
     }
 
     // ~~~ Render del tablero ~~~
+    // Una cita aparece en la fila de CADA mecánico asignado (misma cita, varias filas).
     private List<Cita> CitasDe(int mecanicoId, DateTime dia) =>
         citasSemana
-            .Where(c => c.MecanicoId == mecanicoId && c.Fecha.Date == dia.Date)
+            .Where(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId) && c.Fecha.Date == dia.Date)
             .OrderBy(c => c.HoraInicio)
             .ToList();
 
     // Un clic en el chip de una cita abre su detalle en lugar del modal de agendado
     // (el chip detiene la propagación para no disparar el @onclick de la celda).
     private void IrACita(int citaId) => Nav.NavigateTo($"citas/{citaId}");
+
+    // Tooltip del chip: servicio · cliente, con aviso extra si el cliente está inactivo.
+    private static string TituloChip(Cita cita) =>
+        $"{cita.Servicio?.Nombre} · {cita.Cliente?.NombreCompleto}{(cita.Cliente?.Activo == false ? " · Cliente inactivo" : "")}";
 
     private bool PuedeAgendar(DateTime dia) => selectedCliente != null && dia.Date >= hoy;
 
@@ -493,22 +580,25 @@
         return clases;
     }
 
-    private string ClaseCelda(DateTime dia)
+    private string ClaseCelda(MecanicoDTO mecanico, DateTime dia)
     {
         var clases = "celda-dia";
         if (dia.Date == hoy) clases += " es-hoy";
         if (dia.Date < hoy) clases += " es-pasado";
-        if (PuedeAgendar(dia)) clases += " es-clicable";
+        // Las celdas de un mecánico inactivo no se marcan como clicables: no se
+        // agendan citas nuevas sobre él, solo se visualizan y reasignan las existentes.
+        if (PuedeAgendar(dia) && mecanico.Activo) clases += " es-clicable";
         return clases;
     }
 
     private static string CssEstado(EstadoCita estado) => estado switch
     {
         EstadoCita.Pendiente => "pendiente",
-        EstadoCita.Confirmada => "confirmada",
+        EstadoCita.Confirmado => "confirmado",
         EstadoCita.EnProceso => "proceso",
-        EstadoCita.Finalizada => "finalizada",
-        _ => "cancelada"
+        EstadoCita.Finalizado => "finalizado",
+        EstadoCita.Cancelado => "cancelado",
+        _ => "cancelado"
     };
 
     // ~~~ Modal ~~~ 
@@ -570,13 +660,15 @@
 
     private async Task AbrirModal(MecanicoDTO mecanico, DateTime dia)
     {
-        if (!PuedeAgendar(dia) || selectedCliente == null)
+        // No se agendan citas nuevas sobre un mecánico inactivo (defensa extra a nivel
+        // de UI: sus celdas ya no son clicables en el tablero).
+        if (!PuedeAgendar(dia) || selectedCliente == null || !mecanico.Activo)
         {
             return;
         }
 
         selectedFecha = dia.Date;
-        selMecanicoId = mecanico.Id;
+        selMecanicosIds = new HashSet<int> { mecanico.Id };
         selHora = HoraInicialPorDefecto(dia);
         selectedServicio = null;
         selectedHoraFin = default;
@@ -618,14 +710,28 @@
         citaDto.VehiculoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
     }
 
-    private void OnMecanicoChanged(ChangeEventArgs e)
+    private void ToggleMecanico(int mecanicoId, ChangeEventArgs e)
     {
-        selMecanicoId = int.TryParse(e.Value?.ToString(), out int id) && id > 0 ? id : null;
-        // El servicio depende de la especialidad del mecánico: se reinicia al cambiarlo.
-        selectedServicio = null;
-        selectedHoraFin = default;
-        citaDto.ServicioId = 0;
-        ActualizarServiciosDelMecanico();
+        var especialidadAntes = EspecialidadSeleccionadaId;
+
+        if (e.Value is bool marcado && marcado)
+        {
+            selMecanicosIds.Add(mecanicoId);
+        }
+        else
+        {
+            selMecanicosIds.Remove(mecanicoId);
+        }
+
+        // El servicio depende de la especialidad de los mecánicos elegidos: si cambia
+        // (en la práctica, al pasar de vacío a una especialidad), se reinicia.
+        if (EspecialidadSeleccionadaId != especialidadAntes)
+        {
+            selectedServicio = null;
+            selectedHoraFin = default;
+            citaDto.ServicioId = 0;
+            ActualizarServiciosDelMecanico();
+        }
     }
 
     private void OnServiceChanged(ChangeEventArgs e)
@@ -648,26 +754,44 @@
         }
     }
 
-    private MecanicoDTO? MecanicoSeleccionado =>
-        selMecanicoId is int id ? mecanicos.FirstOrDefault(m => m.Id == id) : null;
+    private List<MecanicoDTO> MecanicosSeleccionados =>
+        mecanicos.Where(m => selMecanicosIds.Contains(m.Id)).OrderBy(m => m.Nombre).ToList();
+
+    private string MecanicosSeleccionadosNombres =>
+        string.Join(", ", MecanicosSeleccionados.Select(m => m.Nombre));
+
+    // Especialidad (compartida) de los mecánicos elegidos; null si aún no hay ninguno.
+    private int? EspecialidadSeleccionadaId =>
+        mecanicos.FirstOrDefault(m => selMecanicosIds.Contains(m.Id))?.EspecialidadId;
+
+    // Agrupación de los mecánicos activos por especialidad, para la lista de checkboxes.
+    private IEnumerable<IGrouping<int, MecanicoDTO>> MecanicosPorEspecialidad =>
+        mecanicos.Where(m => m.Activo)
+            .GroupBy(m => m.EspecialidadId)
+            .OrderBy(g => g.First().EspecialidadNombre);
+
+    // Solo se permite combinar mecánicos de la misma especialidad: una vez elegido uno,
+    // los grupos de otras especialidades quedan deshabilitados.
+    private bool GrupoHabilitado(int especialidadId) =>
+        !selMecanicosIds.Any() || EspecialidadSeleccionadaId == especialidadId;
 
     private void ActualizarServiciosDelMecanico()
     {
-        var mecanico = MecanicoSeleccionado;
-        serviciosDelMecanico = mecanico == null || serviciosActivos == null
+        var especialidadId = EspecialidadSeleccionadaId;
+        serviciosDelMecanico = especialidadId is null || serviciosActivos == null
             ? new List<Servicio>()
-            : serviciosActivos.Where(s => s.CategoriaId == mecanico.EspecialidadId).ToList();
+            : serviciosActivos.Where(s => s.CategoriaId == especialidadId).ToList();
     }
 
     private bool MecanicoOcupado(TimeOnly ini, TimeOnly fin)
     {
-        if (selMecanicoId is not int id)
+        if (!selMecanicosIds.Any())
         {
             return false;
         }
 
         return citasSemana.Any(c =>
-            c.MecanicoId == id
+            c.CitaMecanicos.Any(cm => selMecanicosIds.Contains(cm.MecanicoId))
             && c.Fecha.Date == selectedFecha.Date
             && c.EstaActiva()
             && c.OverlapsWith(ini, fin));
@@ -692,9 +816,9 @@
             modalError = "Seleccione un servicio.";
             return;
         }
-        if (selMecanicoId == null)
+        if (selMecanicosIds.Count == 0)
         {
-            modalError = "Seleccione un mecánico.";
+            modalError = "Seleccione al menos un mecánico.";
             return;
         }
         if (!HoraHabilitada(selHora))
@@ -714,7 +838,7 @@
         citaDto.Fecha = selectedFecha;
         citaDto.HoraInicio = selHora;
         citaDto.ServicioId = selectedServicio.ServicioId;
-        citaDto.MecanicoId = selMecanicoId.Value;
+        citaDto.MecanicosIds = selMecanicosIds.ToList();
 
         isSubmitting = true;
         try
@@ -729,11 +853,15 @@
         }
         catch (Exception ex) when (ex.GetType().Name == "AppointmentOverlapException")
         {
-            modalError = "El mecánico ya tiene una cita en ese horario.";
+            modalError = ex.Message;
         }
         catch (Exception ex) when (ex.GetType().Name == "InactiveMechanicException")
         {
-            modalError = "El mecánico seleccionado no está activo.";
+            modalError = ex.Message;
+        }
+        catch (Exception ex) when (ex.GetType().Name == "InactiveServiceException")
+        {
+            modalError = ex.Message;
         }
         catch (Exception ex)
         {

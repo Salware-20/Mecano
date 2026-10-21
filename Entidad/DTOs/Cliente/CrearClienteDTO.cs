@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Mecano.Entidad.Utilidades;
 
 namespace Mecano.Entidad.DTOs.Cliente
 {
@@ -12,12 +13,16 @@ namespace Mecano.Entidad.DTOs.Cliente
 
         [Required(ErrorMessage = "El nombre es obligatorio")]
         [StringLength(150, MinimumLength = 3)]
+        [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string NombreCompleto { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = Patrones.MensajeTelefonoRequerido)]
+        [Phone(ErrorMessage = Patrones.MensajeTelefonoFormato)]
         [StringLength(20)]
         public string? Telefono { get; set; }
 
         [EmailAddress(ErrorMessage = "El correo no tiene un formato válido")]
+        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
         [StringLength(200)]
         public string? Correo { get; set; }
 

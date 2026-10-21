@@ -1,0 +1,6 @@
+/* CSS for Login component */
+::deep input::placeholder,
+::deep input.form-control::placeholder {
+    color: var(--placeholder-color);
+    opacity: .2 !important;
+}

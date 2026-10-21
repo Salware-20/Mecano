@@ -229,7 +229,7 @@
                                                                 @foreach (var veh in VehiculosDe(cli.Id))
                                                                 {
                                                                     <div class="vehiculo-item d-flex align-items-center gap-2">
-                                                                        <span class="placa-badge">@Formatos.Placa(veh.Placa)</span>
+                                                                        <a class="placa-badge text-decoration-none" href="vehiculos/@veh.VehiculoId">@Formatos.Placa(veh.Placa)</a>
                                                                         <div class="min-w-0 flex-grow-1">
                                                                             <div class="fw-semibold text-truncate">@veh.Marca @veh.Modelo</div>
                                                                             <div class="text-secondary small">
@@ -286,10 +286,16 @@
                                                                                         <span class="text-secondary">-</span>
                                                                                     }
                                                                                 </td>
-                                                                                <td>@(cita.ServicioNombre ?? "-")</td>
-                                                                                <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
+                                                                                <td>
+                                                                                    @(cita.ServicioNombre ?? "-")
+                                                                                    @if (!cita.ServicioActivo)
+                                                                                    {
+                                                                                        <span class="badge bg-secondary ms-1" title="El servicio fue desactivado; no admite citas nuevas.">Servicio inactivo</span>
+                                                                                    }
+                                                                                </td>
+                                                                                <td style="text-transform:capitalize;">@(string.IsNullOrWhiteSpace(cita.MecanicosNombres) ? "-" : cita.MecanicosNombres)</td>
                                                                                 <td class="text-center">
-                                                                                    <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                                                                    <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                                                                 </td>
                                                                             </tr>
                                                                         }
@@ -392,13 +398,13 @@
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" for="cliCedula">Identificación *</label>
-                                    <InputText id="cliCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
+                                    <InputText id="cliCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad" maxlength="20"
                                                placeholder="Número de documento" />
                                     <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label" for="cliNombre">Nombre completo *</label>
-                                    <InputText id="cliNombre" class="form-control" @bind-Value="modelo.NombreCompleto" autocapitalize="words" style="text-transform:capitalize;"
+                                    <InputText id="cliNombre" class="form-control" @bind-Value="modelo.NombreCompleto" autocapitalize="words" maxlength="150" style="text-transform:capitalize;"
                                                placeholder="Nombre y apellidos" />
                                     <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
                                 </div>
@@ -406,14 +412,14 @@
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label" for="cliTelefono">Teléfono</label>
-                                    <InputText id="cliTelefono" class="form-control" @bind-Value="modelo.Telefono"
-                                               placeholder="Ej. 80808080" />
+                                    <label class="form-label" for="cliTelefono">Teléfono *</label>
+                                    <InputText id="cliTelefono" class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20"
+                                               placeholder="Ej. 88888888" />
                                     <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label" for="cliCorreo">Correo</label>
-                                    <InputText id="cliCorreo" class="form-control" @bind-Value="modelo.Correo"
+                                    <InputText id="cliCorreo" class="form-control" @bind-Value="modelo.Correo" type="email" maxlength="200"
                                                placeholder="cliente@correo.com" />
                                     <ValidationMessage For="() => modelo.Correo" class="text-danger small" />
                                 </div>
@@ -421,7 +427,7 @@
 
                             <div class="mb-1">
                                 <label class="form-label" for="cliDireccion">Dirección</label>
-                                <InputTextArea id="cliDireccion" class="form-control" @bind-Value="modelo.Direccion"
+                                <InputTextArea id="cliDireccion" class="form-control" @bind-Value="modelo.Direccion" maxlength="300"
                                                rows="2" placeholder="Dirección opcional" />
                                 <ValidationMessage For="() => modelo.Direccion" class="text-danger small" />
                             </div>

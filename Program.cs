@@ -1,4 +1,6 @@
+using ApexCharts;
 using Mecano.Components;
+using Mecano.Components.Shared;
 using Mecano.Data;
 using Mecano.Endpoints;
 using Mecano.Entidad.Constantes;
@@ -63,11 +65,15 @@ builder.Services.AddScoped<IVehiculoService, VehiculoService>();
 builder.Services.AddScoped<IServicioService, ServicioService>();
 builder.Services.AddScoped<IMecanicoService, MecanicoService>();
 builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddApexCharts(); // Servicio opcional de ApexCharts (localización/globales).
+builder.Services.AddScoped<ThemeState>(); // Tema claro/oscuro compartido en el circuito.
 builder.Services.AddScoped<ICalendarQueryService, CalendarQueryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ICategoriaService, CategoriaService>();
 builder.Services.AddScoped<IComentarioService, ComentarioService>();
 builder.Services.AddScoped<IAuthServices, AuthServices>();
+builder.Services.AddScoped<IAdministradorService, AdministradorService>();
 
 builder.Services.AddScoped<DbSeeder>();
 
@@ -85,7 +91,15 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+// Páginas de estado para el sitio (404, 403, etc.) re-ejecutadas hacia /not-found.
+// Se excluye /api/*: re-ejecutar una respuesta de la API (p. ej. el 401 del login)
+// contra un endpoint de componente Blazor la convertiría en un 400 engañoso
+// ("The request has an incorrect Content-type."), porque Blazor intenta leer el
+// cuerpo del POST como formulario. Los endpoints de API deben responder su propio
+// código/estado sin re-ejecución.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/api"),
+    rama => rama.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();

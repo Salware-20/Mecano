@@ -13,6 +13,9 @@ public interface ICitaService
     Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin);
     Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId);
 
+    /// <summary>Historial completo de citas de un vehículo (pasadas, actuales y programadas), más recientes primero.</summary>
+    Task<List<CitaDTO>> ObtenerPorVehiculoAsync(int vehiculoId);
+
     // --- READ (listado y detalle) ---
     /// <summary>Listado paginado de citas filtrado por <see cref="FiltroCitasDTO"/>.</summary>
     Task<List<CitaDTO>> BuscarPaginadoAsync(FiltroCitasDTO filtro, int pagina, int tamanioPagina);

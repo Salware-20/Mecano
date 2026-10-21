@@ -34,6 +34,31 @@ public class VehiculoService : IVehiculoService
         return await query.AsNoTracking().ToListAsync();
     }
 
+    // ~~~ READ (detalle por id) ~~~
+    public async Task<VehiculoDetalleDTO?> ObtenerDetallePorIdAsync(int id)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Vehiculo
+            .AsNoTracking()
+            .Where(v => v.VehiculoId == id)
+            .Select(v => new VehiculoDetalleDTO
+            {
+                Id = v.VehiculoId,
+                Placa = v.Placa,
+                Marca = v.Marca,
+                Modelo = v.Modelo,
+                Anio = v.Anio,
+                Kilometraje = v.Kilometraje,
+                Color = v.Color,
+                Notas = v.Notas,
+                Activo = v.Activo,
+                ClienteId = v.ClienteId,
+                ClienteNombre = v.Cliente != null ? v.Cliente.NombreCompleto : null
+            })
+            .FirstOrDefaultAsync();
+    }
+
     /// <summary>
     /// Normaliza y valida los campos con invariante antes de persistir. Se ejecuta antes
     /// de la comprobación de unicidad: el índice único de Placa compara cadenas crudas,
@@ -55,6 +80,14 @@ public class VehiculoService : IVehiculoService
         }
 
         return (placa, anio);
+    }
+
+    // ~~~ READ (conteo para el panel) ~~~
+    public async Task<int> ContarActivosAsync()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Vehiculo.AsNoTracking().CountAsync(v => v.Activo);
     }
 
     // ~~~ CREATE ~~~
@@ -82,6 +115,9 @@ public class VehiculoService : IVehiculoService
             Marca = dto.Marca.Trim(),
             Modelo = dto.Modelo.Trim(),
             Anio = anio,
+            Kilometraje = dto.Kilometraje,
+            Color = string.IsNullOrWhiteSpace(dto.Color) ? null : dto.Color.Trim(),
+            Notas = string.IsNullOrWhiteSpace(dto.Notas) ? null : dto.Notas.Trim(),
             Activo = true
         };
 
@@ -111,6 +147,9 @@ public class VehiculoService : IVehiculoService
         vehiculo.Marca = dto.Marca.Trim();
         vehiculo.Modelo = dto.Modelo.Trim();
         vehiculo.Anio = anio;
+        vehiculo.Kilometraje = dto.Kilometraje;
+        vehiculo.Color = string.IsNullOrWhiteSpace(dto.Color) ? null : dto.Color.Trim();
+        vehiculo.Notas = string.IsNullOrWhiteSpace(dto.Notas) ? null : dto.Notas.Trim();
 
         await context.SaveChangesAsync();
         return true;
@@ -153,13 +192,13 @@ public class VehiculoService : IVehiculoService
             throw new InvalidOperationException("El cliente destino no está activo.");
         }
 
-        // Bloquear si hay citas futuras (Fecha >= hoy y Estado no Cancelada/Finalizada)
+        // Bloquear si hay citas futuras (Fecha >= hoy y Estado no Cancelado/Finalizado)
         var hoy = DateTime.Today;
         var citasFuturas = await context.Cita.CountAsync(c =>
             c.VehiculoId == vehiculoId
             && c.Fecha >= hoy
-            && c.Estado != EstadoCita.Cancelada
-            && c.Estado != EstadoCita.Finalizada);
+            && c.Estado != EstadoCita.Cancelado
+            && c.Estado != EstadoCita.Finalizado);
 
         if (citasFuturas > 0)
         {

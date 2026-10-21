@@ -138,14 +138,4 @@ public partial class Citas : ComponentBase
         HayFiltros()
             ? "No se encontraron citas que coincidan con los filtros."
             : "No hay citas registradas todavía.";
-
-    private static string BadgeEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Pendiente => "bg-secondary",
-        EstadoCita.Confirmada => "bg-primary",
-        EstadoCita.EnProceso => "bg-info text-dark",
-        EstadoCita.Finalizada => "bg-success",
-        EstadoCita.Cancelada => "bg-danger",
-        _ => "bg-secondary"
-    };
 }

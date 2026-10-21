@@ -10,6 +10,7 @@
     --border-color: #E2E8F0;
     --primary-accent: #0284C7;
     --primary-hover: #0369A1;
+    --text-inverse: #FFFFFF; /* texto sobre superficies con acento saturado */
     --badge-success-bg: #DCFCE7;
     --badge-success-text: #15803D;
     --badge-warning-bg: #FEF3C7;
@@ -19,6 +20,7 @@
     --nav-active-bg: rgba(2, 132, 199, 0.18);
     --nav-hover-bg: rgba(255, 255, 255, 0.08);
     color-scheme: light;
+    --placeholder-color: #4a4e69;
 }
 
 [data-bs-theme="dark"],
@@ -34,6 +36,7 @@ body.dark-mode {
     --border-color: #334155;
     --primary-accent: #38BDF8;
     --primary-hover: #7DD3FC;
+    --text-inverse: #0F172A; /* acentos claros: el texto invertido debe ser oscuro */
     --badge-success-bg: #14532D;
     --badge-success-text: #86EFAC;
     --badge-warning-bg: #78350F;
@@ -43,6 +46,7 @@ body.dark-mode {
     --nav-active-bg: rgba(56, 189, 248, 0.18);
     --nav-hover-bg: rgba(255, 255, 255, 0.06);
     color-scheme: dark;
+    --placeholder-color: #e5e5e5;
 }
 
 html, body {
@@ -101,6 +105,15 @@ h1:focus {
 .badge-status-danger {
     background-color: var(--badge-danger-bg);
     color: var(--badge-danger-text);
+}
+
+/* Ancho uniforme para las insignias de estado de cita: Pendiente, Confirmado,
+   En Proceso, Finalizado y Cancelado miden igual sin importar el largo del texto. */
+.badge-estado {
+    display: inline-block;
+    min-width: 6.5rem;
+    max-width: 6.5rem;
+    text-align: center;
 }
 
 .valid.modified:not([type=checkbox]) {
@@ -195,4 +208,139 @@ h1:focus {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+/* --- Impresión: reporte de citas (Generar Reporte -> window.print) --- */
+@media print {
+    /* Fuerza un tema claro legible incluso si el usuario está en modo oscuro */
+    :root,
+    [data-bs-theme="dark"],
+    [data-bs-theme="light"],
+    body.dark-mode {
+        color-scheme: light;
+        --bg-app: #FFFFFF;
+        --bg-surface: #FFFFFF;
+        --text-primary: #212529;
+        --text-secondary: #495057;
+        --border-color: #CED4DA;
+        /* Tokens de Bootstrap que el tema oscuro deja en tonos claros */
+        --bs-body-bg: #FFFFFF;
+        --bs-body-color: #212529;
+        --bs-emphasis-color: #000000;
+        --bs-border-color: #CED4DA;
+    }
+
+    html,
+    body {
+        background: #FFFFFF !important;
+        color: #212529 !important;
+    }
+
+    /* Conserva los colores de las insignias de estado al imprimir */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Tarjetas planas, con borde discreto en lugar de sombra */
+    .card {
+        box-shadow: none !important;
+        border: 1px solid var(--border-color) !important;
+    }
+}
+
+/* --- Insignias neutras (estados sin carga semántica de éxito/error) --- */
+.badge-status-neutral {
+    background-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+/* --- Panel de control (KPIs del día) --- */
+/* Pestañas del desglose por estado, más compactas que las nativas de Bootstrap. */
+.nav-tabs-kpi {
+    flex-wrap: wrap;
+}
+
+.nav-tabs-kpi .nav-link {
+    padding: .3rem .6rem;
+    font-size: .875rem;
+}
+
+/* Cifras KPI alineadas columna a columna (números tabulares). */
+.kpi-numero {
+    font-variant-numeric: tabular-nums;
+}
+
+/* La última fila del listado no lleva separador. */
+.kpi-fila:last-child {
+    border-bottom: 0 !important;
+}
+
+.kpi-progreso {
+    height: .75rem;
+}
+
+/* --- Gráficos del panel de control (ApexCharts) --- */
+/* Punto de color de las listas-leyenda visibles junto a los gráficos. */
+.grafico-punto {
+    display: inline-block;
+    width: .65rem;
+    height: .65rem;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+/* Detalle por mecánico bajo la gráfica de barras: números tabulares. */
+.grafico-detalle {
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Enlaces del panel: cascada + cristal --- */
+/* Al pasar el cursor (o con foco de teclado) un relleno cae sobre la forma
+   (degradado de acento, top → bottom) y el borde se enciende; la superficie
+   de cristal (translúcida + blur) queda por debajo del relleno. */
+.enlace-cascada {
+    position: relative;
+    display: inline-block;
+    padding: .15rem .6rem;
+    border: 1px solid var(--border-color);
+    border-radius: .5rem;
+    overflow: hidden;
+    isolation: isolate; /* stacking context: el relleno no se escapa del enlace */
+    text-decoration: none;
+    background: color-mix(in srgb, var(--bg-surface) 65%, transparent);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: color .25s ease, border-color .25s ease;
+}
+
+/* z-index negativo: se pinta sobre el fondo translúcido del propio enlace,
+   pero por debajo de su texto (que es contenido en línea, paso posterior). */
+.enlace-cascada::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, var(--primary-accent), var(--primary-hover));
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform .3s ease-out;
+}
+
+.enlace-cascada:hover,
+.enlace-cascada:focus-visible {
+    color: var(--text-inverse);
+    border-color: var(--primary-accent);
+}
+
+.enlace-cascada:hover::before,
+.enlace-cascada:focus-visible::before {
+    transform: scaleY(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .enlace-cascada,
+    .enlace-cascada::before {
+        transition: none;
+    }
 }

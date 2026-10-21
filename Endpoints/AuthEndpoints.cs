@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Mecano.Entidad.DTOs;
+using Mecano.Logica.Excepciones;
 using Mecano.Logica.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -21,51 +22,64 @@ namespace Mecano.Endpoints
             {
                 var logger = loggerFactory.CreateLogger("Mecano.Endpoints.AuthEndpoints");
 
-                if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                try
                 {
-                    logger.LogWarning("Intento de inicio de sesión con campos vacíos.");
-                    return Results.Unauthorized();
+                    if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                    {
+                        logger.LogWarning("Intento de inicio de sesión con campos vacíos.");
+                        return Results.Unauthorized();
+                    }
+
+                    var user = await authService.LoginAsync(request.Email, request.Password);
+                    if (user is null)
+                    {
+                        // Seguridad: Logueamos el intento fallido sin incluir la contraseña ni revelar detalles al cliente
+                        logger.LogWarning("Intento fallido de inicio de sesión para el email: {Email}", request.Email);
+                        return Results.Unauthorized();
+                    }
+
+                    // Construcción de los Claims requeridos
+                    var claims = new List<Claim>
+                    {
+                        new(ClaimTypes.NameIdentifier, user.id.ToString()),
+                        new(ClaimTypes.Name, user.nombre),
+                        new(ClaimTypes.Email, user.email),
+                        new(ClaimTypes.Role, user.rol)
+                    };
+
+                    // Incluir claim EsAdminGlobal SOLO si es Global Admin
+                    if (user.esAdminGlobal)
+                    {
+                        claims.Add(new Claim("EsAdminGlobal", "true"));
+                    }
+
+                    var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                    var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
+
+                    var authProperties = new AuthenticationProperties
+                    {
+                        IsPersistent = true,
+                        ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+                    };
+
+                    await http.SignInAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme,
+                        claimsPrincipal,
+                        authProperties);
+
+                    logger.LogInformation("Usuario autenticado exitosamente: {Email} (Rol: {Rol})", user.email, user.rol);
+                    return Results.Ok(new { message = "Autenticación exitosa", user = new { user.id, user.nombre, user.email, user.rol } });
                 }
-
-                var user = await authService.LoginAsync(request.Email, request.Password);
-                if (user is null)
+                catch (ServicioNoDisponibleException ex)
                 {
-                    // Seguridad: Logueamos el intento fallido sin incluir la contraseña ni revelar detalles al cliente
-                    logger.LogWarning("Intento fallido de inicio de sesión para el email: {Email}", request.Email);
-                    return Results.Unauthorized();
+                    logger.LogError(ex, "Servicio no disponible durante el intento de inicio de sesión para el email: {Email}", request.Email);
+                    return Results.StatusCode(503);
                 }
-
-                // Construcción de los Claims requeridos
-                var claims = new List<Claim>
+                catch (Exception ex)
                 {
-                    new(ClaimTypes.NameIdentifier, user.id.ToString()),
-                    new(ClaimTypes.Name, user.nombre),
-                    new(ClaimTypes.Email, user.email),
-                    new(ClaimTypes.Role, user.rol)
-                };
-
-                // Incluir claim EsAdminGlobal SOLO si es Global Admin
-                if (user.esAdminGlobal)
-                {
-                    claims.Add(new Claim("EsAdminGlobal", "true"));
+                    logger.LogError(ex, "Error inesperado durante el intento de inicio de sesión para el email: {Email}", request.Email);
+                    return Results.StatusCode(500);
                 }
-
-                var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-
-                var authProperties = new AuthenticationProperties
-                {
-                    IsPersistent = true,
-                    ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
-                };
-
-                await http.SignInAsync(
-                    CookieAuthenticationDefaults.AuthenticationScheme,
-                    claimsPrincipal,
-                    authProperties);
-
-                logger.LogInformation("Usuario autenticado exitosamente: {Email} (Rol: {Rol})", user.email, user.rol);
-                return Results.Ok(new { message = "Autenticación exitosa", user = new { user.id, user.nombre, user.email, user.rol } });
             });
 
             group.MapPost("/logout", async (HttpContext http) =>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Mecano.Entidad.Clases;
 
 namespace Mecano.Entidad.Utilidades
 {
@@ -24,18 +25,59 @@ namespace Mecano.Entidad.Utilidades
         public const int LargoTelefono = 8;
         public const int LargoPlaca = 6;
 
-        // Cultura fija para toda la app: el precio es colón costarricense sin importar
-        // el navegador o el servidor. es-CR de .NET da "₡35 000,00" (símbolo ₡ U+20A1,
-        // coma decimal, espacio no-cortable U+00A0 como separador de miles).
-        private static readonly CultureInfo EsCr = new("es-CR");
+        // Formato fijo para toda la app: el precio es colón costarricense sin importar
+        // el navegador o el servidor. A diferencia de es-CR de .NET (que da "₡35 000,00"
+        // con espacio no-cortable U+00A0), aquí el separador de miles es punto y el
+        // decimal es coma: "₡35.000" o "₡35.000,50".
+        //
+        // Se construye una sola vez a nivel de estático porque NumberFormatInfo es un
+        // objeto mutable: clonarlo en cada llamada a Moneda() generaría basura (GC) sin
+        // ninguna ganancia. Al ser readonly y no exponerse nunca, se usa solo como lectura.
+        private static readonly NumberFormatInfo FormatoMonedaCR = CrearFormatoMonedaCR();
+
+        private static NumberFormatInfo CrearFormatoMonedaCR()
+        {
+            var nfi = (NumberFormatInfo)new CultureInfo("es-CR").NumberFormat.Clone();
+            nfi.CurrencyGroupSeparator = ".";
+            nfi.NumberGroupSeparator = ".";
+            nfi.CurrencyDecimalSeparator = ",";
+            nfi.NumberDecimalSeparator = ",";
+            nfi.CurrencySymbol = "₡";
+            return nfi;
+        }
 
         /// <summary>
-        /// Formatea un monto como moneda costarricense: 35000 → "₡35 000,00".
-        /// Siempre 2 decimales y siempre con la cultura es-CR (no depende de la cultura
-        /// del circuito), para que el resultado sea idéntico en cualquier navegador o
+        /// Formatea un monto como moneda costarricense con decimales dinámicos:
+        /// 35000 → "₡35.000" (sin decimales si el monto es entero) y
+        /// 35000.5 → "₡35.000,50". El formato es fijo (no depende de la cultura del
+        /// circuito), para que el resultado sea idéntico en cualquier navegador o
         /// servidor. Uso exclusivamente de presentación: nunca para parsear ni persistir.
         /// </summary>
-        public static string Moneda(decimal monto) => monto.ToString("C2", EsCr);
+        public static string Moneda(decimal monto) =>
+            monto.ToString(monto % 1 == 0 ? "C0" : "C2", FormatoMonedaCR);
+
+        /// <summary>
+        /// Presenta una duración en minutos de forma legible en español, con singular/plural
+        /// correctos y omitiendo la parte cero: 60 → "1 hora", 120 → "2 horas",
+        /// 90 → "1 hora 30 minutos", 45 → "45 minutos", 1 → "1 minuto",
+        /// 0 o negativo → "0 minutos". Solo presentación.
+        /// </summary>
+        public static string Duracion(int minutos)
+        {
+            if (minutos <= 0)
+                return "0 minutos";
+
+            var horas = minutos / 60;
+            var resto = minutos % 60;
+
+            var textoHoras = horas == 1 ? "1 hora" : $"{horas} horas";
+            var textoMinutos = resto == 1 ? "1 minuto" : $"{resto} minutos";
+
+            if (horas > 0 && resto > 0)
+                return $"{textoHoras} {textoMinutos}";
+
+            return horas > 0 ? textoHoras : textoMinutos;
+        }
 
         /// <summary>
         /// Elimina todo carácter que no sea un dígito. Devuelve cadena vacía si el input es null.
@@ -184,5 +226,45 @@ namespace Mecano.Entidad.Utilidades
 
             return $"{normalizada[..3]}-{normalizada[3..]}";
         }
+
+        /// <summary>
+        /// Nombre legible de un estado de cita para la UI. El identificador del enum no
+        /// admite espacios (EnProceso), así que el "En Proceso" es solo de presentación.
+        /// </summary>
+        public static string NombreEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.EnProceso => "En Proceso",
+            _ => estado.ToString()
+        };
+
+        /// <summary>
+        /// Clases de color de Bootstrap para la insignia de un estado de cita. Centralizado
+        /// aquí para que las pantallas no dupliquen el mapeo estado → color.
+        /// </summary>
+        public static string BadgeEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.Pendiente => "bg-secondary",
+            EstadoCita.Confirmado => "bg-primary",
+            EstadoCita.EnProceso => "bg-info text-dark",
+            EstadoCita.Finalizado => "bg-success",
+            EstadoCita.Cancelado => "bg-danger",
+            _ => "bg-secondary"
+        };
+
+        /// <summary>
+        /// Color hexadecimal de un estado de cita. ESPEJO del mapeo de <see cref="BadgeEstado"/>
+        /// (mismos colores de Bootstrap): los gráficos del panel usan estos valores para que las
+        /// porciones del donut no puedan divergir de las insignias de las listas. Si cambia uno,
+        /// cambia el otro.
+        /// </summary>
+        public static string ColorEstado(EstadoCita estado) => estado switch
+        {
+            EstadoCita.Pendiente => "#6c757d",  // bg-secondary
+            EstadoCita.Confirmado => "#0d6efd", // bg-primary
+            EstadoCita.EnProceso => "#0dcaf0",  // bg-info
+            EstadoCita.Finalizado => "#198754", // bg-success
+            EstadoCita.Cancelado => "#dc3545",  // bg-danger
+            _ => "#6c757d"
+        };
     }
 }

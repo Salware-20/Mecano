@@ -25,6 +25,23 @@ public class MecanicoService : IMecanicoService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Normaliza y valida el teléfono del mecánico con la misma regla que
+    /// <c>ClienteService</c>: se guarda solo con dígitos y debe tener exactamente
+    /// <see cref="Formatos.LargoTelefono"/> dígitos. El teléfono es obligatorio.
+    /// </summary>
+    private static string NormalizarTelefono(string? telefono)
+    {
+        var tel = Formatos.SoloDigitos(telefono);
+        if (tel.Length != Formatos.LargoTelefono)
+        {
+            throw new InvalidOperationException(
+                $"El teléfono debe tener exactamente {Formatos.LargoTelefono} dígitos.");
+        }
+
+        return tel;
+    }
+
     // ~~~ Métodos existentes — consumidos por AgendarCita. No modificar. ~~~
 
     public async Task<List<Mecanico>> ObtenerPorEspecialidadAsync(int categoriaId)
@@ -42,11 +59,11 @@ public class MecanicoService : IMecanicoService
 
         var busyMechanicIds = await context.Cita
             .Where(c => c.Fecha.Date == fecha.Date
-                && c.Estado != EstadoCita.Cancelada
-                && c.Estado != EstadoCita.Finalizada
+                && c.Estado != EstadoCita.Cancelado
+                && c.Estado != EstadoCita.Finalizado
                 && c.HoraInicio < horaFin
                 && horaInicio < c.HoraFin)
-            .Select(c => c.MecanicoId)
+            .SelectMany(c => c.CitaMecanicos.Select(cm => cm.MecanicoId))
             .Distinct()
             .ToListAsync();
 
@@ -89,6 +106,14 @@ public class MecanicoService : IMecanicoService
             .ToListAsync();
     }
 
+    // ~~~ READ (conteo para el panel) ~~~
+    public async Task<int> ContarActivosAsync()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        return await context.Mecanico.AsNoTracking().CountAsync(m => m.Activo);
+    }
+
     // ~~~ READ (uno) ~~~
 
     public async Task<MecanicoDTO?> ObtenerDetallePorIdAsync(int id)
@@ -124,12 +149,34 @@ public class MecanicoService : IMecanicoService
         var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
             ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
             : null;
-        var telefono = dto.Telefono?.Trim();
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         // Validar unicidad de email en Administradores y Mecánicos
         if (await ExisteEmailAsync(email))
             throw new InvalidOperationException(
                 $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
+
+        // Validar unicidad de identificación
+        if (cedula != null)
+        {
+            var mecanicoDuplicado = await context.Mecanico
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Cedula == cedula);
+
+            if (mecanicoDuplicado != null)
+            {
+                _logger.LogWarning("Identificación duplicada al crear mecánico: {Cedula} ({Tipo})", cedula, dto.TipoIdentificacion);
+                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+                {
+                    throw new InvalidOperationException($"Ya existe un mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+                }
+                else
+                {
+                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
+                }
+            }
+        }
 
         // Validar que la especialidad exista
         if (!await context.Categorias.AnyAsync(c => c.CategoriaId == dto.EspecialidadId))
@@ -166,12 +213,34 @@ public class MecanicoService : IMecanicoService
         var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
             ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
             : null;
-        var telefono = dto.Telefono?.Trim();
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         // Validar unicidad de email excluyendo al propio mecánico
         if (await ExisteEmailAsync(email, excluirId: dto.Id))
             throw new InvalidOperationException(
                 $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
+
+        // Validar unicidad de identificación excluyendo al propio mecánico
+        if (cedula != null)
+        {
+            var mecanicoDuplicado = await context.Mecanico
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Cedula == cedula && m.MecanicoId != dto.Id);
+
+            if (mecanicoDuplicado != null)
+            {
+                _logger.LogWarning("Identificación duplicada al actualizar mecánico {Id}: {Cedula} ({Tipo})", dto.Id, cedula, dto.TipoIdentificacion);
+                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
+                {
+                    throw new InvalidOperationException($"Ya existe otro mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+                }
+                else
+                {
+                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
+                }
+            }
+        }
 
         // Validar que la especialidad exista
         if (!await context.Categorias.AnyAsync(c => c.CategoriaId == dto.EspecialidadId))

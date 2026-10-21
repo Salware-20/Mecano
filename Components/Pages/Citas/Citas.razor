@@ -42,14 +42,14 @@
                     <option value="">Todos</option>
                     @foreach (var e in EstadosCita)
                     {
-                        <option value="@e">@e</option>
+                        <option value="@e">@Formatos.NombreEstado(e)</option>
                     }
                 </select>
             </div>
             <div class="col-6 col-lg-2">
-                <label class="form-label mb-1" for="citasBuscar">Cliente o placa</label>
+                <label class="form-label mb-1" for="citasBuscar">Cliente ó placa</label>
                 <input id="citasBuscar" type="text" class="form-control form-control-sm"
-                       placeholder="Nombre o placa..." @bind="terminoBusqueda" @bind:event="oninput"
+                       placeholder="Jos.. ó ABC1.." @bind="terminoBusqueda" @bind:event="oninput"
                        @onkeyup="OnBuscarKeyUp" />
             </div>
             <div class="col-6 col-lg-2 d-flex gap-2">
@@ -99,8 +99,8 @@
                             <tr>
                                 <td class="text-nowrap">@cita.Fecha.ToString("dd/MM/yyyy")</td>
                                 <td class="text-nowrap">
-                                    @cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
-                                    - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                                    @cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+                                    - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                                 </td>
                                 <td>
                                     @if (cita.ClienteId > 0 && !string.IsNullOrWhiteSpace(cita.ClienteNombre))
@@ -108,6 +108,10 @@
                                         <a href="clientes/@cita.ClienteId" class="text-decoration-none" style="text-transform:capitalize;">
                                             @cita.ClienteNombre
                                         </a>
+                                        @if (!cita.ClienteActivo)
+                                        {
+                                            <span class="badge bg-secondary ms-1">Inactivo</span>
+                                        }
                                     }
                                     else
                                     {
@@ -117,17 +121,23 @@
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
                                     {
-                                        <span>@Formatos.Placa(cita.VehiculoPlaca)</span>
+                                        <a href="vehiculos/@cita.VehiculoId" class="text-decoration-none">@Formatos.Placa(cita.VehiculoPlaca)</a>
                                     }
                                     else
                                     {
                                         <span class="text-secondary">-</span>
                                     }
                                 </td>
-                                <td>@(cita.ServicioNombre ?? "-")</td>
-                                <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
+                                <td>
+                                    @(cita.ServicioNombre ?? "-")
+                                    @if (!cita.ServicioActivo)
+                                    {
+                                        <span class="badge bg-secondary ms-1" title="El servicio fue desactivado; no admite citas nuevas.">Servicio inactivo</span>
+                                    }
+                                </td>
+                                <td style="text-transform:capitalize;">@(string.IsNullOrWhiteSpace(cita.MecanicosNombres) ? "-" : cita.MecanicosNombres)</td>
                                 <td class="text-center">
-                                    <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                    <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                 </td>
                                 <td class="text-end">
                                     <a class="btn btn-sm btn-outline-primary" href="citas/@cita.Id">

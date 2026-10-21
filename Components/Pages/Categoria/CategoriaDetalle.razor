@@ -1,6 +1,7 @@
 @page "/categorias/{Id:int}"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Administrador")]
+@using Mecano.Entidad.Constantes
 @inject ICategoriaService CategoriaService
 @inject IServicioService ServicioService
 
@@ -13,14 +14,17 @@
     </ol>
 </nav>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-        <h1 class="mb-1"><i class="bi bi-wrench-adjustable"></i> @(categoria?.Nombre ?? "Categoría")</h1>
+        <h1 class="mb-0"><i class="bi bi-wrench-adjustable"></i> @(categoria?.Nombre ?? "Categoría")</h1>
         @if (!string.IsNullOrWhiteSpace(categoria?.Descripcion))
         {
             <p class="text-muted mb-0">@categoria.Descripcion</p>
         }
-        <small class="text-muted">@servicios.Count servicio(s) registrado(s)</small>
+        else if (!cargando && categoria is not null)
+        {
+            <p class="text-muted mb-0">@servicios.Count servicio(s) registrado(s)</p>
+        }
     </div>
     <a class="btn btn-outline-secondary" href="categorias">
         <i class="bi bi-arrow-left"></i> Volver
@@ -31,38 +35,78 @@
 {
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         @mensajeExito
-        <button type="button" class="btn-close" @onclick="() => mensajeExito = null"></button>
+        <button type="button" class="btn-close" @onclick="() => mensajeExito = null" aria-label="Cerrar"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(mensajeError) && !HayModalAbierto)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" @onclick="() => mensajeError = null" aria-label="Cerrar"></button>
     </div>
 }
 
 <div class="card shadow-sm">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="chkInactivos"
-                   @bind="mostrarInactivos" @bind:after="CargarAsync" />
-            <label class="form-check-label" for="chkInactivos">Mostrar inactivos</label>
+    <div class="card-header">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Buscar servicio..."
+                           aria-label="Buscar servicios"
+                           value="@terminoBusqueda" @oninput="OnBuscarCambio" />
+                    @if (!string.IsNullOrEmpty(terminoBusqueda))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" title="Limpiar búsqueda"
+                                @onclick="LimpiarBusqueda">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 text-nowrap" for="selServiciosEstado">Estado</label>
+                    <select id="selServiciosEstado" class="form-select form-select-sm"
+                            value="@filtro" @onchange="CambiarFiltro">
+                        <option value="@FiltroActivo.Activos">Activos</option>
+                        <option value="@FiltroActivo.Inactivos">Inactivos</option>
+                        <option value="@FiltroActivo.Todos">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-4 d-grid d-md-flex justify-content-md-end">
+                <button class="btn btn-primary" @onclick="AbrirCrear">
+                    <i class="bi bi-plus-circle"></i> Nuevo servicio
+                </button>
+            </div>
         </div>
-        <button class="btn btn-primary" @onclick="AbrirCrear">
-            <i class="bi bi-plus-circle"></i> Nuevo servicio
-        </button>
     </div>
+
     <div class="card-body">
         @if (cargando)
         {
             <div class="text-center py-4">
-                <div class="spinner-border" role="status"></div>
+                <div class="spinner-border" role="status"><span class="visually-hidden">Cargando...</span></div>
             </div>
         }
         else if (categoria is null)
         {
-            <div class="alert alert-warning mb-0">La categoría no existe o fue eliminada.</div>
+            <div class="alert alert-warning mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>La categoría no existe o fue eliminada.</span>
+                <a class="btn btn-sm btn-outline-secondary" href="categorias">Volver a categorías</a>
+            </div>
         }
-        else if (!servicios.Any())
+        else if (!ServiciosVisibles.Any())
         {
-            <div class="alert alert-info mb-0">
-                @(mostrarInactivos
-                    ? "Esta categoría no tiene servicios registrados."
-                    : "Esta categoría no tiene servicios activos. Use “Mostrar inactivos” para ver los desactivados.")
+            <div class="alert alert-info mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>@TextoVacio()</span>
+                @if (servicios.Count == 0)
+                {
+                    <button class="btn btn-sm btn-primary" @onclick="AbrirCrear">
+                        <i class="bi bi-plus-circle"></i> Nuevo servicio
+                    </button>
+                }
             </div>
         }
         else
@@ -80,40 +124,42 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var s in servicios)
+                        @foreach (var s in ServiciosVisibles)
                         {
                             <tr class="@(s.Activo ? "" : "table-secondary")">
-                                <td><strong>@s.Nombre</strong></td>
-                                <td class="text-muted">@s.Descripcion</td>
-                                <td class="text-center">@s.DuracionMinutos min</td>
+                                <td class="fw-semibold">@s.Nombre</td>
+                                <td>@(string.IsNullOrWhiteSpace(s.Descripcion) ? "-" : s.Descripcion)</td>
+                                <td class="text-center">@Formatos.Duracion(s.DuracionMinutos)</td>
                                 <td class="text-end">@Formatos.Moneda(s.Precio)</td>
                                 <td class="text-center">
                                     @if (s.Activo)
                                     {
-                                        <span class="badge bg-success">Activo</span>
+                                        <span class="badge badge-status-success">Activo</span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-secondary">Inactivo</span>
+                                        <span class="badge badge-status-neutral">Inactivo</span>
                                     }
                                 </td>
                                 <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                            @onclick="() => AbrirEditar(s)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     @if (s.Activo)
                                     {
-                                        <button class="btn btn-sm btn-outline-primary me-1"
-                                                @onclick="() => AbrirEditar(s)">
-                                            <i class="bi bi-pencil"></i> Editar
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => ConfirmarEliminar(s)">
-                                            <i class="bi bi-trash"></i> Eliminar
+                                        <button class="btn btn-sm btn-outline-warning" title="Desactivar servicio"
+                                                aria-label="Desactivar @s.Nombre"
+                                                @onclick="() => ConfirmarDesactivar(s)">
+                                            <i class="bi bi-pause-circle"></i>
                                         </button>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-sm btn-outline-success"
-                                                @onclick="() => Reactivar(s)" disabled="@guardando">
-                                            <i class="bi bi-arrow-counterclockwise"></i> Reactivar
+                                        <button class="btn btn-sm btn-outline-success" title="Reactivar servicio"
+                                                aria-label="Reactivar @s.Nombre"
+                                                @onclick="() => ConfirmarReactivar(s)">
+                                            <i class="bi bi-play-circle"></i>
                                         </button>
                                     }
                                 </td>
@@ -138,7 +184,7 @@
                         <h5 class="modal-title">
                             @(esEdicion ? "Editar servicio" : "Nuevo servicio")
                         </h5>
-                        <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                        <button type="button" class="btn-close" @onclick="CerrarModal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
                         @if (!string.IsNullOrEmpty(mensajeError))
@@ -164,18 +210,32 @@
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="servDuracion">Duración (minutos) *</label>
                                 <InputNumber id="servDuracion" class="form-control" @bind-Value="modelo.DuracionMinutos"
-                                             min="5" max="480" step="5" />
+                                             @oninput="OnDuracionInput" />
                                 <ValidationMessage For="() => modelo.DuracionMinutos" class="text-danger small" />
-                                <small class="text-muted">Entre 5 y 480 minutos.</small>
+                                <small class="text-muted">
+                                    @if (modelo.DuracionMinutos >= 5 && modelo.DuracionMinutos <= 480)
+                                    {
+                                        <span>Entre 5 y 480 minutos. Equivale a <strong>@Formatos.Duracion(modelo.DuracionMinutos)</strong>.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Entre 5 y 480 minutos.</span>
+                                    }
+                                </small>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label" for="servPrecio">Precio *</label>
-                                <InputNumber id="servPrecio" class="form-control" @bind-Value="modelo.Precio"
-                                             min="0" step="0.01" />
+                                <InputNumber id="servPrecio" class="form-control" @bind-Value="modelo.Precio" @oninput="OnPrecioInput" />
                                 <ValidationMessage For="() => modelo.Precio" class="text-danger small" />
                                 <small class="text-muted">
-                                    Se mostrará como <strong>@Formatos.Moneda(modelo.Precio)</strong>
-                                    (colones, 2 decimales).
+                                    @if (modelo.Precio < 0)
+                                    {
+                                        <span class="text-warning">El precio no puede ser negativo.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Se mostrará como <strong>@Formatos.Moneda(modelo.Precio)</strong> (colones, 2 decimales).</span>
+                                    }
                                 </small>
                             </div>
                         </div>
@@ -208,15 +268,15 @@
     </div>
 }
 
-@* ---------- Modal Confirmar Eliminación ---------- *@
-@if (servicioAEliminar is not null)
+@* ---------- Modal Confirmar Desactivación ---------- *@
+@if (servicioADesactivar is not null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Desactivar servicio</h5>
-                    <button type="button" class="btn-close" @onclick="CancelarEliminar"></button>
+                    <button type="button" class="btn-close" @onclick="CancelarDesactivar" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body">
                     @if (!string.IsNullOrEmpty(mensajeError))
@@ -225,7 +285,7 @@
                     }
                     else
                     {
-                        <p>¿Desactivar el servicio <strong>@servicioAEliminar.Nombre</strong>?</p>
+                        <p>¿Desactivar el servicio <strong>@servicioADesactivar.Nombre</strong>?</p>
                         <p class="text-muted small mb-0">
                             El servicio dejará de aparecer al agendar citas. Las citas ya registradas se conservan
                             y podrás reactivarlo en cualquier momento.
@@ -233,9 +293,43 @@
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
-                    <button type="button" class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>
+                    <button type="button" class="btn btn-warning" @onclick="DesactivarConfirmado" disabled="@guardando">
                         Desactivar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ---------- Modal Confirmar Reactivación ---------- *@
+@if (servicioAReactivar is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reactivar servicio</h5>
+                    <button type="button" class="btn-close" @onclick="CancelarReactivar" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensajeError))
+                    {
+                        <div class="alert alert-danger">@mensajeError</div>
+                    }
+                    else
+                    {
+                        <p>¿Reactivar el servicio <strong>@servicioAReactivar.Nombre</strong>?</p>
+                        <p class="text-muted small mb-0">
+                            El servicio volverá a estar disponible para agendar citas.
+                        </p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelarReactivar">Cancelar</button>
+                    <button type="button" class="btn btn-success" @onclick="ReactivarConfirmado" disabled="@guardando">
+                        Reactivar
                     </button>
                 </div>
             </div>

@@ -182,6 +182,9 @@ else
                                     <td>@veh.Modelo</td>
                                     <td class="text-center">@veh.Anio</td>
                                     <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-secondary me-1" href="vehiculos/@veh.VehiculoId">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
                                         <AuthorizeView Roles="Administrador" Context="authCtx">
                                             <button class="btn btn-sm btn-outline-primary"
                                                     @onclick="() => AbrirEditarVehiculo(veh)">
@@ -231,10 +234,16 @@ else
                                 <tr>
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
-                                    <td>@(cita.ServicioNombre ?? "-")</td>
-                                    <td style="text-transform:capitalize;">@(cita.MecanicoNombre ?? "-")</td>
                                     <td>
-                                        <span class="badge @BadgeEstado(cita.Estado)">@cita.Estado</span>
+                                        @(cita.ServicioNombre ?? "-")
+                                        @if (!cita.ServicioActivo)
+                                        {
+                                            <span class="badge bg-secondary ms-1" title="El servicio fue desactivado; no admite citas nuevas.">Servicio inactivo</span>
+                                        }
+                                    </td>
+                                    <td style="text-transform:capitalize;">@(string.IsNullOrWhiteSpace(cita.MecanicosNombres) ? "-" : cita.MecanicosNombres)</td>
+                                    <td>
+                                        <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
                                     </td>
                                 </tr>
                             }
@@ -460,13 +469,13 @@ else
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label" for="detCedula">Identificación *</label>
-                                        <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad"
+                                        <InputText id="detCedula" class="form-control" @bind-Value="modelo.CedulaIdentidad" maxlength="20"
                                                    placeholder="Número de documento" />
                                         <ValidationMessage For="() => modelo.CedulaIdentidad" class="text-danger small" />
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label" for="detNombre">Nombre completo *</label>
-                                        <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto"
+                                        <InputText id="detNombre" class="form-control" @bind-Value="modelo.NombreCompleto" maxlength="150"
                                                autocapitalize="words" style="text-transform:capitalize;"
                                                    placeholder="Nombre y apellidos" />
                                         <ValidationMessage For="() => modelo.NombreCompleto" class="text-danger small" />
@@ -475,14 +484,14 @@ else
 
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="detTelefono">Teléfono</label>
-                                        <InputText id="detTelefono" class="form-control" @bind-Value="modelo.Telefono"
-                                                   placeholder="Ej. 8888-0000" />
+                                        <label class="form-label" for="detTelefono">Teléfono *</label>
+                                        <InputText id="detTelefono" class="form-control" @bind-Value="modelo.Telefono" type="tel" inputmode="numeric" maxlength="20"
+                                                   placeholder="Ej. 88888888" />
                                         <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label" for="detCorreo">Correo</label>
-                                        <InputText id="detCorreo" class="form-control" @bind-Value="modelo.Correo"
+                                        <InputText id="detCorreo" class="form-control" @bind-Value="modelo.Correo" type="email" maxlength="200"
                                                    placeholder="cliente@correo.com" />
                                         <ValidationMessage For="() => modelo.Correo" class="text-danger small" />
                                     </div>
@@ -490,7 +499,7 @@ else
 
                                 <div class="mb-1">
                                     <label class="form-label" for="detDireccion">Dirección</label>
-                                    <InputTextArea id="detDireccion" class="form-control" @bind-Value="modelo.Direccion"
+                                    <InputTextArea id="detDireccion" class="form-control" @bind-Value="modelo.Direccion" maxlength="300"
                                                    rows="2" placeholder="Dirección opcional" />
                                     <ValidationMessage For="() => modelo.Direccion" class="text-danger small" />
                                 </div>
@@ -515,84 +524,26 @@ else
 
         @if (mostrarModalVehiculo)
         {
-            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <EditForm Model="modeloVehiculo" OnValidSubmit="GuardarVehiculo" FormName="vehiculoForm">
-                            <DataAnnotationsValidator />
-                            <div class="modal-header">
-                                <h5 class="modal-title">
-                                    @(vehiculoEditando is not null ? "Editar vehículo" : "Nuevo vehículo")
-                                </h5>
-                                <button type="button" class="btn-close" @onclick="CerrarModalVehiculo"></button>
-                            </div>
-                            <div class="modal-body">
-                                @if (!string.IsNullOrEmpty(mensajeError))
-                                {
-                                    <div class="alert alert-danger">@mensajeError</div>
-                                }
-
-                                <div class="mb-3">
-                                    <label class="form-label" for="vehPlaca">Placa *</label>
-                                    <InputText id="vehPlaca" class="form-control" @bind-Value="modeloVehiculo.Placa"
-                                               placeholder="Ej. ABC123" />
-                                    <ValidationMessage For="() => modeloVehiculo.Placa" class="text-danger small" />
-                                    <div class="form-text">6 caracteres alfanuméricos, sin guiones.</div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehMarca">Marca *</label>
-                                        <InputText id="vehMarca" class="form-control" @bind-Value="modeloVehiculo.Marca"
-                                                   placeholder="Ej. Toyota" />
-                                        <ValidationMessage For="() => modeloVehiculo.Marca" class="text-danger small" />
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label" for="vehModelo">Modelo *</label>
-                                        <InputText id="vehModelo" class="form-control" @bind-Value="modeloVehiculo.Modelo"
-                                                   placeholder="Ej. Corolla" />
-                                        <ValidationMessage For="() => modeloVehiculo.Modelo" class="text-danger small" />
-                                    </div>
-                                </div>
-
-                                <div class="mb-1">
-                                    <label class="form-label" for="vehAnio">Año *</label>
-                                    <InputNumber id="vehAnio" class="form-control" @bind-Value="modeloVehiculo.Anio"
-                                                 placeholder="Ej. 2020" />
-                                    <ValidationMessage For="() => modeloVehiculo.Anio" class="text-danger small" />
-                                </div>
-                            </div>
-                            <div class="modal-footer justify-content-between">
-                                <div>
-                                    @if (vehiculoEditando is not null)
-                                    {
-                                        <button type="button" class="btn btn-outline-danger me-1"
-                                                @onclick="ConfirmarEliminarVehiculo">
-                                            <i class="bi bi-trash"></i> Eliminar
-                                        </button>
-                                        <button type="button" class="btn btn-outline-primary"
-                                                @onclick="AbrirTransferencia">
-                                            <i class="bi bi-arrow-left-right"></i> Transferir
-                                        </button>
-                                    }
-                                </div>
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-secondary" @onclick="CerrarModalVehiculo">
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" class="btn btn-primary" disabled="@guardando">
-                                        @if (guardando)
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-1"></span>
-                                        }
-                                        Guardar
-                                    </button>
-                                </div>
-                            </div>
-                        </EditForm>
-                    </div>
-                </div>
-            </div>
+            <VehiculoFormModal Model="modeloVehiculo"
+                               EsEdicion="vehiculoEditando is not null"
+                               Guardando="guardando"
+                               MensajeError="@mensajeError"
+                               OnGuardar="GuardarVehiculo"
+                               OnCancelar="CerrarModalVehiculo">
+                <FooterIzquierdo>
+                    @if (vehiculoEditando is not null)
+                    {
+                        <button type="button" class="btn btn-outline-danger me-1"
+                                @onclick="ConfirmarEliminarVehiculo">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                        <button type="button" class="btn btn-outline-primary"
+                                @onclick="AbrirTransferencia">
+                            <i class="bi bi-arrow-left-right"></i> Transferir
+                        </button>
+                    }
+                </FooterIzquierdo>
+            </VehiculoFormModal>
         }
 
         @if (clienteADesactivar is not null)
