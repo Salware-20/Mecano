@@ -1,9 +1,11 @@
 using System.Globalization;
+using System.Security.Claims;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs;
 using Mecano.Entidad.DTOs.Mecanico;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Mecano.Components.Pages.Citas;
 
@@ -17,7 +19,16 @@ public partial class CitaDetalle : ComponentBase
     [Parameter]
     public int Id { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
     private CitaDetalleDTO? cita;
+
+    // --- Vista del mecánico: proyección restringida de la misma cita ---
+    private CitaDetalleMecanicoDTO? citaMec;
+    private bool esAdmin;
+    private int mecanicoId;
+
     private bool cargando = true;
 
     // --- Edición (Fase 2: vehículo, servicio y notas) ---
@@ -46,11 +57,52 @@ public partial class CitaDetalle : ComponentBase
         mensajeExito = null;
         try
         {
-            cita = await CitaService.ObtenerDetallePorIdAsync(Id);
+            // La bifurcación sale del claim de la sesión (por defecto, rama restringida:
+            // si no hubiera estado de autenticación no se cargaría ningún DTO admin).
+            esAdmin = false;
+            cita = null;
+            citaMec = null;
+
+            if (AuthState is not null)
+            {
+                var state = await AuthState;
+                esAdmin = state.User.IsInRole(Roles.Administrador);
+                if (!esAdmin)
+                {
+                    mecanicoId = int.TryParse(
+                        state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+                }
+            }
+
+            if (esAdmin)
+            {
+                cita = await CitaService.ObtenerDetallePorIdAsync(Id);
+            }
+            else
+            {
+                // El servicio exige que la cita esté asignada al mecánico: teclear
+                // una URL a mano no abre citas ajenas.
+                citaMec = mecanicoId == 0
+                    ? null
+                    : await CitaService.ObtenerDetalleParaMecanicoAsync(Id, mecanicoId);
+            }
         }
         finally
         {
             cargando = false;
+        }
+    }
+
+    /// <summary>Recarga la rama correspondiente (tras Iniciar/Finalizar en la cabecera).</summary>
+    private async Task Recargar()
+    {
+        if (esAdmin)
+        {
+            cita = await CitaService.ObtenerDetallePorIdAsync(Id);
+        }
+        else if (mecanicoId != 0)
+        {
+            citaMec = await CitaService.ObtenerDetalleParaMecanicoAsync(Id, mecanicoId);
         }
     }
 

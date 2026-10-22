@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
 using Mecano.Entidad.DTOs.Mecanico;
+using Mecano.Entidad.DTOs.Perfil;
 
 namespace Mecano.Logica.Interfaces;
 
@@ -65,4 +66,14 @@ public interface IMecanicoService
     /// la comprobación (para permitir guardar el mismo email en una actualización).
     /// </summary>
     Task<bool> ExisteEmailAsync(string email, int? excluirId = null);
+
+    // --- Perfil del mecánico autenticado ---
+    /// <summary>
+    /// Cambia la contraseña del mecánico autenticado. Misma regla que
+    /// <c>AdministradorService.CambiarPasswordAsync</c>: verifica la contraseña actual
+    /// (PBKDF2 o legado en texto plano) y exige que la nueva sea distinta. Devuelve
+    /// false si el mecánico no existe; lanza <see cref="InvalidOperationException"/>
+    /// si la actual no coincide o la nueva no cumple.
+    /// </summary>
+    Task<bool> CambiarPasswordAsync(int mecanicoId, CambiarPasswordDTO dto);
 }

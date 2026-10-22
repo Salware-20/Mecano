@@ -1,5 +1,5 @@
 @page "/citas/{Id:int}"
-@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador + "," + Mecano.Entidad.Constantes.Roles.Mecanico)]
 @rendermode InteractiveServer
 @using System.Globalization
 @using Mecano.Entidad.Constantes
@@ -12,26 +12,48 @@
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="citas">Citas</a></li>
+        <li class="breadcrumb-item">
+            <a href="@(esAdmin ? "citas" : "mecanico/citas")">@(esAdmin ? "Citas" : "Mis citas")</a>
+        </li>
         <li class="breadcrumb-item active" aria-current="page">Cita #@Id</li>
     </ol>
 </nav>
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="mb-0"><i class="bi bi-calendar-event"></i> Cita #@Id</h1>
-    <div class="d-flex flex-wrap gap-2">
-        @if (cita is not null && EsEditable(cita.Estado))
+    <h1 class="mb-0"><i class="bi bi-calendar-event" aria-hidden="true"></i> Cita #@Id</h1>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        @if (esAdmin)
         {
-            <button class="btn btn-primary" @onclick="AbrirEditar">
-                <i class="bi bi-pencil"></i> Editar
-            </button>
-            <button class="btn btn-outline-primary" @onclick="AbrirReprogramar">
-                <i class="bi bi-calendar-week"></i> Reprogramar
-            </button>
+            @if (cita is not null && EsEditable(cita.Estado))
+            {
+                @* Transiciones de estado (Confirmar/Cancelar y el respaldo de
+                   Iniciar/Finalizar); editar y reprogramar siguen abajo. *@
+                <TransicionCita CitaId="@Id" Estado="@cita.Estado" CambioRealizado="Recargar" />
+                <button class="btn btn-primary" @onclick="AbrirEditar">
+                    <i class="bi bi-pencil" aria-hidden="true"></i> Editar
+                </button>
+                <button class="btn btn-outline-primary" @onclick="AbrirReprogramar">
+                    <i class="bi bi-calendar-week" aria-hidden="true"></i> Reprogramar
+                </button>
+            }
+            <a class="btn btn-outline-secondary" href="citas">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+            </a>
         }
-        <a class="btn btn-outline-secondary" href="citas">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
+        else
+        {
+            @* Solo transiciones de mecánico (Iniciar/Finalizar) o el aviso de
+               pendiente; editar y reprogramar son de administración. *@
+            @if (citaMec is not null)
+            {
+                <TransicionCita CitaId="@Id"
+                                        Estado="@citaMec.Estado"
+                                        CambioRealizado="Recargar" />
+            }
+            <a class="btn btn-outline-secondary" href="mecanico/citas">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver
+            </a>
+        }
     </div>
 </div>
 
@@ -43,20 +65,7 @@
         </div>
     </div>
 }
-else if (cita is null)
-{
-    <div class="card shadow-sm">
-        <div class="card-body text-center py-5">
-            <i class="bi bi-calendar-x display-4 text-muted"></i>
-            <h2 class="h5 mt-3">Cita no encontrada</h2>
-            <p class="text-muted">La cita con ID @Id no existe o fue eliminada.</p>
-            <a class="btn btn-primary" href="citas">
-                <i class="bi bi-arrow-left"></i> Volver a citas
-            </a>
-        </div>
-    </div>
-}
-else
+else if (esAdmin && cita is not null)
 {
     @if (!string.IsNullOrWhiteSpace(mensajeExito))
     {
@@ -264,6 +273,177 @@ else
                     }
                 </div>
             </div>
+        </div>
+    </div>
+}
+else if (!esAdmin && citaMec is not null)
+{
+    @* ============ Vista del mecánico ============
+       Misma ficha con la proyección restringida: del cliente solo el nombre,
+       sin cédula/teléfono/correo, sin precio del servicio y sin NotasAdmin.
+       Las transiciones (Iniciar/Finalizar) viven en la cabecera. *@
+
+    @* ---------- Programación ---------- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong><i class="bi bi-clock-history" aria-hidden="true"></i> Programación</strong>
+            <span class="badge badge-estado @Formatos.BadgeEstado(citaMec.Estado)">@Formatos.NombreEstado(citaMec.Estado)</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Fecha</label>
+                    <div>@citaMec.Fecha.ToString("dddd dd 'de' MMMM 'de' yyyy", EsCr)</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Horario</label>
+                    <div>
+                        @citaMec.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                        - @citaMec.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Duración estimada</label>
+                    <div>@citaMec.ServicioDuracionMinutos min</div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label text-muted small mb-0">Registrada</label>
+                    <div>@citaMec.FechaCreacion.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        @* ---------- Cliente (solo nombre) ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100 @(citaMec.ClienteActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <strong><i class="bi bi-person" aria-hidden="true"></i> Cliente</strong>
+                    @if (!citaMec.ClienteActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Nombre</dt>
+                        <dd class="col-sm-8 mb-0" style="text-transform:capitalize;">@(citaMec.ClienteNombre ?? "-")</dd>
+                    </dl>
+
+                    @if (!citaMec.ClienteActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este cliente está inactivo. Tenlo en cuenta al atender la cita.</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Vehículo (datos de trabajo) ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-car-front" aria-hidden="true"></i> Vehículo</strong>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Placa</dt>
+                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(citaMec.VehiculoPlaca) ? "-" : Formatos.Placa(citaMec.VehiculoPlaca))</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Marca</dt>
+                        <dd class="col-sm-8">@(citaMec.VehiculoMarca ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Modelo</dt>
+                        <dd class="col-sm-8">@(citaMec.VehiculoModelo ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Año</dt>
+                        <dd class="col-sm-8">@(citaMec.VehiculoAnio > 0 ? citaMec.VehiculoAnio.ToString() : "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Kilometraje</dt>
+                        <dd class="col-sm-8 mb-0">@(citaMec.VehiculoKilometraje is int km ? $"{km:N0} km" : "-")</dd>
+                    </dl>
+
+                    @if (!string.IsNullOrWhiteSpace(citaMec.VehiculoNotas))
+                    {
+                        <hr class="my-3" />
+                        <label class="form-label text-muted small mb-1">Notas del vehículo</label>
+                        <p class="mb-0" style="white-space:pre-wrap;">@citaMec.VehiculoNotas</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Servicio (sin precio) ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100 @(citaMec.ServicioActivo ? "" : "border-warning")">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <strong><i class="bi bi-tools" aria-hidden="true"></i> Servicio</strong>
+                    @if (!citaMec.ServicioActivo)
+                    {
+                        <span class="badge bg-secondary">Inactivo</span>
+                    }
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4 text-muted fw-normal small">Servicio</dt>
+                        <dd class="col-sm-8">@(citaMec.ServicioNombre ?? "-")</dd>
+
+                        <dt class="col-sm-4 text-muted fw-normal small">Duración</dt>
+                        <dd class="col-sm-8 mb-0">@citaMec.ServicioDuracionMinutos min</dd>
+                    </dl>
+
+                    @if (!citaMec.ServicioActivo)
+                    {
+                        <div class="alert alert-warning d-flex align-items-center py-2 mb-0 mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>Este servicio fue desactivado: no admite citas nuevas. La cita ya agendada se conserva.</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Mecánicos asignados (solo nombres) ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-wrench-adjustable" aria-hidden="true"></i> Mecánico@(citaMec.MecanicosNombres.Count > 1 ? "s" : "")</strong>
+                </div>
+                <div class="card-body">
+                    @if (citaMec.MecanicosNombres.Count > 0)
+                    {
+                        @foreach (var nombre in citaMec.MecanicosNombres)
+                        {
+                            <div style="text-transform:capitalize;">@nombre</div>
+                        }
+                    }
+                    else
+                    {
+                        <span>-</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-calendar-x display-4 text-muted" aria-hidden="true"></i>
+            <h2 class="h5 mt-3">Cita no encontrada</h2>
+            <p class="text-muted">
+                @(esAdmin
+                    ? $"La cita con ID {Id} no existe o fue eliminada."
+                    : $"La cita con ID {Id} no existe o no está asignada a tu cuenta.")
+            </p>
+            <a class="btn btn-primary" href="@(esAdmin ? "citas" : "mecanico/citas")">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                @(esAdmin ? "Volver a citas" : "Volver a mis citas")
+            </a>
         </div>
     </div>
 }

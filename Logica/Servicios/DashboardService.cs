@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
+using Mecano.Entidad.DTOs;
 using Mecano.Entidad.DTOs.Dashboard;
 using Mecano.Entidad.Utilidades;
 using Mecano.Logica.Interfaces;
@@ -154,6 +155,68 @@ public class DashboardService : IDashboardService
                 })
                 .ToList(),
             CargaMecanicos = carga
+        };
+    }
+
+    public async Task<ResumenMecanicoDTO> ObtenerResumenMecanicoAsync(int mecanicoId)
+    {
+        var hoy = DateTime.Today;
+
+        // Semana laborable en curso: lunes a sábado (los domingos el taller cierra).
+        var lunes = hoy.AddDays(hoy.DayOfWeek == DayOfWeek.Sunday ? -6 : -(int)hoy.DayOfWeek + 1);
+        var sabado = lunes.AddDays(5);
+
+        // Una sola lectura de la semana; el filtro por mecánico se aplica en memoria
+        // sobre el grafo que ya trae cliente, vehículo y mecánicos.
+        var citasSemana = (await _citaService.ObtenerPorRangoAsync(lunes, sabado))
+            .Where(c => c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId))
+            .ToList();
+
+        var suyasHoy = citasSemana.Where(c => c.Fecha.Date == hoy).ToList();
+
+        // El mecánico no ve su propia ocupación contada por terceros: los minutos son
+        // solo su tiempo, sin multiplicar por cuántos colegas compartan la cita.
+        var minutosOcupados = suyasHoy
+            .Where(c => c.Estado != EstadoCita.Cancelado)
+            .Sum(c => (int)(c.HoraFin - c.HoraInicio).TotalMinutes);
+
+        var cerrado = HorarioAtencion.EsDiaNoLaboral(hoy);
+
+        var mecanico = await _mecanicoService.ObtenerDetallePorIdAsync(mecanicoId);
+
+        return new ResumenMecanicoDTO
+        {
+            MecanicoId = mecanicoId,
+            MecanicoNombre = mecanico?.Nombre,
+            EspecialidadNombre = mecanico?.EspecialidadNombre,
+            Fecha = hoy,
+            Cerrado = cerrado,
+            CitasHoyTotal = suyasHoy.Count,
+            CitasHoyPorEstado = Enum.GetValues<EstadoCita>()
+                .Select(estado => new EstadoConteoDTO
+                {
+                    Estado = estado,
+                    Conteo = suyasHoy.Count(c => c.Estado == estado)
+                })
+                .ToList(),
+            MinutosOcupados = minutosOcupados,
+            MinutosDisponibles = cerrado ? 0 : HorarioAtencion.MinutosPorDia,
+            Semana = Enumerable.Range(0, 6) // lunes..sábado
+                .Select(i => lunes.AddDays(i))
+                .Select(dia =>
+                {
+                    var delDia = citasSemana.Where(c => c.Fecha.Date == dia).ToList();
+                    return new CargaDiaMecanicoDTO
+                    {
+                        Fecha = dia,
+                        TotalCitas = delDia.Count,
+                        MinutosOcupados = delDia
+                            .Where(c => c.Estado != EstadoCita.Cancelado)
+                            .Sum(c => (int)(c.HoraFin - c.HoraInicio).TotalMinutes),
+                        Cerrado = HorarioAtencion.EsDiaNoLaboral(dia)
+                    };
+                })
+                .ToList()
         };
     }
 }

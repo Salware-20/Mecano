@@ -1,6 +1,6 @@
 @page "/clientes"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @implements IDisposable
 @using Mecano.Entidad.Constantes
 @using System.Globalization

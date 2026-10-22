@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Mecano.Entidad.Constantes;
+using Mecano.Entidad.DTOs.Mecanico;
 using Mecano.Entidad.DTOs.Perfil;
 using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
@@ -15,7 +17,12 @@ namespace Mecano.Components.Pages
         private ActualizarPerfilAdminDTO perfilModel = new();
         private CambiarPasswordDTO passwordModel = new();
 
+        // --- Vista del mecánico: su ficha (solo lectura) ---
+        private MecanicoDTO? perfilMec;
+
         private int adminId;
+        private int mecanicoId;
+        private bool esAdmin;
         private bool esAdminGlobal;
 
         private bool cargando = true;
@@ -39,9 +46,16 @@ namespace Mecano.Components.Pages
             if (AuthState is not null)
             {
                 var state = await AuthState;
+                // Bifurcación por rol desde el claim de sesión; por defecto rama
+                // restringida (esAdmin = false) por si el estado no llegara.
+                esAdmin = state.User.IsInRole(Roles.Administrador);
                 adminId = int.TryParse(
                     state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
                 esAdminGlobal = state.User.FindFirst("EsAdminGlobal")?.Value == "true";
+
+                // En el rol Mecánico, el NameIdentifier ES el MecanicoId (así lo emite
+                // el login): el mismo claim sirve para identificar la cuenta.
+                mecanicoId = esAdmin ? 0 : adminId;
             }
 
             await CargarPerfil();
@@ -52,16 +66,25 @@ namespace Mecano.Components.Pages
             cargando = true;
             try
             {
-                perfil = await AdministradorService.ObtenerPerfilAsync(adminId);
-                if (perfil is not null)
+                if (esAdmin)
                 {
-                    perfilModel = new ActualizarPerfilAdminDTO
+                    perfil = await AdministradorService.ObtenerPerfilAsync(adminId);
+                    if (perfil is not null)
                     {
-                        Nombre               = perfil.Nombre,
-                        Cedula               = perfil.Cedula,
-                        TipoIdentificacion   = perfil.TipoIdentificacion,
-                        CorreoNotificaciones = perfil.CorreoNotificaciones
-                    };
+                        perfilModel = new ActualizarPerfilAdminDTO
+                        {
+                            Nombre               = perfil.Nombre,
+                            Cedula               = perfil.Cedula,
+                            TipoIdentificacion   = perfil.TipoIdentificacion,
+                            CorreoNotificaciones = perfil.CorreoNotificaciones
+                        };
+                    }
+                }
+                else
+                {
+                    perfilMec = mecanicoId == 0
+                        ? null
+                        : await MecanicoService.ObtenerDetallePorIdAsync(mecanicoId);
                 }
             }
             finally
@@ -72,19 +95,28 @@ namespace Mecano.Components.Pages
 
         // ~~~ Presentación ~~~
 
+        /// <summary>Nombre visible según el rol (admin DTO o ficha del mecánico).</summary>
+        private string? NombreCuenta => esAdmin ? perfil?.Nombre : perfilMec?.Nombre;
+
         /// <summary>Iniciales del nombre para el avatar circular (máx. 2 letras).</summary>
         private string Iniciales()
         {
-            if (string.IsNullOrWhiteSpace(perfil?.Nombre))
+            if (string.IsNullOrWhiteSpace(NombreCuenta))
                 return "?";
 
-            var partes = perfil.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var partes = NombreCuenta.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             return partes.Length == 1
                 ? partes[0][..1].ToUpperInvariant()
                 : $"{partes[0][..1]}{partes[^1][..1]}".ToUpperInvariant();
         }
 
-        private string EtiquetaRol() => esAdminGlobal ? "Administrador Global" : "Administrador";
+        private string EtiquetaRol()
+        {
+            if (!esAdmin)
+                return "Mecánico";
+
+            return esAdminGlobal ? "Administrador Global" : "Administrador";
+        }
 
         private void TogglePasswordActual() => mostrarPasswordActual = !mostrarPasswordActual;
         private void TogglePasswordNueva() => mostrarPasswordNueva = !mostrarPasswordNueva;
@@ -94,6 +126,11 @@ namespace Mecano.Components.Pages
 
         private async Task GuardarPerfil()
         {
+            // La edición del perfil es exclusiva del administrador (la ficha del
+            // mecánico es de solo lectura); guardia por si se invocara de otro modo.
+            if (!esAdmin)
+                return;
+
             guardandoPerfil = true;
             mensajeExitoPerfil = null;
             mensajeErrorPerfil = null;
@@ -154,7 +191,13 @@ namespace Mecano.Components.Pages
 
             try
             {
-                if (await AdministradorService.CambiarPasswordAsync(adminId, passwordModel))
+                // Mismo DTO de cambio de contraseña en ambos roles, pero con el
+                // servicio que corresponde: el mecánico no toca la tabla de cuentas.
+                var guardado = esAdmin
+                    ? await AdministradorService.CambiarPasswordAsync(adminId, passwordModel)
+                    : await MecanicoService.CambiarPasswordAsync(mecanicoId, passwordModel);
+
+                if (guardado)
                 {
                     mensajeExitoPassword = "Contraseña actualizada correctamente.";
                     passwordModel = new CambiarPasswordDTO();

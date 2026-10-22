@@ -1,6 +1,6 @@
 @page "/vehiculos/{Id:int}"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador)]
 @using System.Globalization
 @inject IVehiculoService VehiculoService
 @inject ICitaService CitaService

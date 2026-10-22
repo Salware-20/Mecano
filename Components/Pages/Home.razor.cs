@@ -7,6 +7,7 @@ using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs.Dashboard;
 using Mecano.Entidad.Utilidades;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace Mecano.Components.Pages;
 
@@ -32,8 +33,23 @@ public partial class Home : ComponentBase, IDisposable
     private string FechaLarga =>
         resumen!.Fecha.ToString("dddd, d 'de' MMMM 'de' yyyy", CulturaCr);
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        // El dashboard global es de administración: un mecánico que llegue a "/" a mano
+        // (o por un link viejo) va a su panel en lugar de un aviso de "sin permisos".
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            if (state.User.IsInRole(Mecano.Entidad.Constantes.Roles.Mecanico))
+            {
+                NavigationManager.NavigateTo("/mecanico");
+                return;
+            }
+        }
+
         // El tema lo altera MainLayout (window.mecanoTheme); al cambiar, el panel
         // se re-renderiza y los charts se recrean con la paleta nueva (@key).
         Tema.Changed += OnTemaCambiado;

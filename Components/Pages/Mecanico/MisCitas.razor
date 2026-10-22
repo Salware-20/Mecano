@@ -1,0 +1,213 @@
+@page "/mecanico/citas"
+@attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Mecanico)]
+@rendermode InteractiveServer
+@using System.Globalization
+@using Mecano.Entidad.Constantes
+@inject ICitaService CitaService
+
+<PageTitle>Mis citas - Mecano</PageTitle>
+
+<h1 class="mb-3"><i class="bi bi-calendar-check" aria-hidden="true"></i> Mis citas</h1>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-lg-2">
+                <label class="form-label mb-1" for="misCitasDesde">Desde</label>
+                <input id="misCitasDesde" type="date" class="form-control form-control-sm" @bind="desde" />
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label mb-1" for="misCitasHasta">Hasta</label>
+                <input id="misCitasHasta" type="date" class="form-control form-control-sm" @bind="hasta" />
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label mb-1" for="misCitasEstado">Estado</label>
+                <select id="misCitasEstado" class="form-select form-select-sm" @bind="filtroEstado">
+                    <option value="">Todos</option>
+                    @foreach (var e in EstadosCita)
+                    {
+                        <option value="@e">@Formatos.NombreEstado(e)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-lg-4">
+                <label class="form-label mb-1" for="misCitasBuscar">Cliente ó placa</label>
+                <input id="misCitasBuscar" type="text" class="form-control form-control-sm"
+                       placeholder="Jos.. ó ABC1.." @bind="terminoBusqueda" @bind:event="oninput"
+                       @onkeyup="OnBuscarKeyUp" />
+            </div>
+            <div class="col-6 col-lg-2 d-flex gap-2">
+                <button class="btn btn-sm btn-primary flex-grow-1" @onclick="AplicarFiltros">
+                    <i class="bi bi-funnel" aria-hidden="true"></i> Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="LimpiarFiltros"
+                        disabled="@(!HayFiltros())" title="Limpiar filtros" aria-label="Limpiar filtros">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(mensajeError))
+        {
+            <div class="alert alert-danger d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <div>@mensajeError</div>
+            </div>
+        }
+
+        @if (cargando)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+        }
+        else if (!citas.Any())
+        {
+            <div class="alert alert-info mb-0">@TextoVacio()</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Cliente</th>
+                            <th>Vehículo</th>
+                            <th>Servicio</th>
+                            <th>Mecánicos</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cita in citas)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td class="text-nowrap">
+                                    @cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+                                    - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+                                </td>
+                                <td>
+                                    @* Solo el nombre del cliente: sin enlaces al directorio ni PII. *@
+                                    <span style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</span>
+                                    @if (!cita.ClienteActivo)
+                                    {
+                                        <span class="badge bg-secondary ms-1">Inactivo</span>
+                                    }
+                                </td>
+                                <td>
+                                    @* Placa como texto: el mecánico no navega fichas de vehículo. *@
+                                    @if (!string.IsNullOrWhiteSpace(cita.VehiculoPlaca))
+                                    {
+                                        @Formatos.Placa(cita.VehiculoPlaca)
+                                    }
+                                    else
+                                    {
+                                        <span class="text-secondary">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @(cita.ServicioNombre ?? "-")
+                                    @if (!cita.ServicioActivo)
+                                    {
+                                        <span class="badge bg-secondary ms-1" title="El servicio fue desactivado; no admite citas nuevas.">Servicio inactivo</span>
+                                    }
+                                </td>
+                                <td style="text-transform:capitalize;">
+                                    @(cita.MecanicosNombres.Count > 0 ? string.Join(", ", cita.MecanicosNombres) : "-")
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge badge-estado @Formatos.BadgeEstado(cita.Estado)">@Formatos.NombreEstado(cita.Estado)</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex flex-wrap gap-2 align-items-center justify-content-end">
+                                        <a class="btn btn-sm btn-outline-primary" href="citas/@cita.Id">
+                                            <i class="bi bi-eye" aria-hidden="true"></i> Ver
+                                        </a>
+                                        <TransicionCita CitaId="@cita.Id"
+                                                        Estado="@cita.Estado"
+                                                        CambioRealizado="RecargarTrasTransicion" />
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @* ---------- Paginación numerada ---------- *@
+    @if (!cargando && totalRegistros > 0)
+    {
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <small class="text-muted">
+                Página @paginaActual de @totalPaginas — @totalRegistros cita(s)
+            </small>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:auto;"
+                        value="@tamanioPagina" @onchange="CambiarTamanioPagina">
+                    @foreach (var t in TamaniosPagina)
+                    {
+                        <option value="@t">@t por página</option>
+                    }
+                </select>
+
+                @if (totalPaginas > 1)
+                {
+                    <nav aria-label="Paginación de mis citas">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(paginaActual == 1 ? "disabled" : "")">
+                                <button class="page-link" type="button" @onclick="PaginaAnterior">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </button>
+                            </li>
+
+                            @if (MostrarElipsisAntes())
+                            {
+                                <li class="page-item">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(1)">1</button>
+                                </li>
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+
+                            @foreach (var p in PaginasVisibles())
+                            {
+                                <li class="page-item @(p == paginaActual ? "active" : "")">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(p)">@p</button>
+                                </li>
+                            }
+
+                            @if (MostrarElipsisDespues())
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                                <li class="page-item">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(totalPaginas)">@totalPaginas</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(paginaActual == totalPaginas ? "disabled" : "")">
+                                <button class="page-link" type="button" @onclick="PaginaSiguiente">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // Enter en el buscador aplica los filtros sin tener que pulsar el botón.
+    private Task OnBuscarKeyUp(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? AplicarFiltros() : Task.CompletedTask;
+}
