@@ -74,6 +74,7 @@ builder.Services.AddScoped<ICategoriaService, CategoriaService>();
 builder.Services.AddScoped<IComentarioService, ComentarioService>();
 builder.Services.AddScoped<IAuthServices, AuthServices>();
 builder.Services.AddScoped<IAdministradorService, AdministradorService>();
+builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
 
 builder.Services.AddScoped<DbSeeder>();
 

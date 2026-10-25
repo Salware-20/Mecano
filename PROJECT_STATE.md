@@ -8,8 +8,8 @@
 | **Propósito** | Aplicación de taller mecánico para agendar citas, gestionar clientes, vehículos, servicios y mecánicos. |
 | **Stack principal** | .NET 10.0 (SDK Web), Blazor Server (Interactive Server), Entity Framework Core 9.0, MySQL 8.0 (Pomelo EF Provider) |
 | **Estado general** | Prototipo / MVP — gestión operativa de citas, clientes, vehículos, categorías y servicios, con autenticación por cookies y autorización por roles implementadas. |
-| **Páginas Blazor** | 17 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Citas,Mecanico,Mecanicos,Vehiculos}; además Components/Shared/RedirectToLogin.razor, Components/Shared/TransicionCita.razor(.cs) (botonera de transiciones dual por rol) y Components/Shared/VehiculoFormModal.razor(.cs) (formulario de vehículo compartido) y Layout (MainLayout, LoginLayout, NavMenu, ReconnectModal); Login y AccesoDenegado usan LoginLayout (sin menú lateral). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). `wwwroot/js/auth.js` alberga además `window.mecanoRedirectFeedback` (oscurece/anima el menú al redirigir a login; lo invocan `MainLayout` y `RedirectToLogin`) y la extracción del rol en el login (para redirigir al mecánico a `/mecanico`). |
-| **Entidades de dominio** | 10 clases: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, CitaMecanico (unión N:M Cita↔Mecanico), Comentario (nota interna por cliente) y NotificacionLog. `Cliente`, `Mecanico` y `Administrador` llevan `TipoIdentificacion` (enum `Nacional=1, Dimex=2, Pasaporte=3`; commit `8ec693b`). |
+| **Páginas Blazor** | 17 páginas (.razor) entre Components/Pages y Components/Pages/{Categoria,Clientes,Citas,Mecanico,Mecanicos,Vehiculos}; además Components/Shared/RedirectToLogin.razor, Components/Shared/TransicionCita.razor(.cs) (botonera de transiciones dual por rol) y Components/Shared/VehiculoFormModal.razor(.cs) (formulario de vehículo compartido) y Layout (MainLayout, LoginLayout, NavMenu, ReconnectModal); Login y AccesoDenegado usan LoginLayout (sin menú lateral). Estilo global "Industrial Clean" con variables CSS light/dark (`wwwroot/app.css` + `wwwroot/js/theme.js`). `wwwroot/js/auth.js` alberga además `window.mecanoRedirectFeedback` (oscurece/anima el menú al redirigir a login; lo invocan `MainLayout` y `RedirectToLogin`) y la extracción del rol en el login (para redirigir al mecánico a `/mecanico`). Funcionalidad de **contacto por WhatsApp/correo** añadida en las fichas de cliente (`/clientes/{id}`) y cita (`/citas/{id}`) mediante `Entidad/Utilidades/WhatsAppHelper.cs` y `wwwroot/js/whatsapp.js` (`window.mecanoWhatsApp.copiarTexto`). |
+| **Entidades de dominio** | 11 clases: Administrador, Mecanico, Cliente, Vehiculo, Servicio, Categoria, Cita, CitaMecanico (unión N:M Cita↔Mecanico), Comentario (nota interna por cliente), NotificacionLog y AuditoriaLog (registro de auditoría). `Cliente`, `Mecanico` y `Administrador` llevan `TipoIdentificacion` (enum `Nacional=1, Dimex=2, Pasaporte=3`; commit `8ec693b`). |
 | **Invariante de datos** | La identificación se normaliza **por tipo** vía `Formatos.NormalizarIdentificacion` y se presenta vía `Formatos.FormatearIdentificacion`: `Nacional` = 9 dígitos (`101110111` ↔ `1-0111-0111`); `DIMEX` = 11–12 dígitos, display crudo; `Pasaporte` = alfanumérico ≤20 (solo `Trim`, preserva mayúsculas), display crudo. `Cliente.Telefono`/`Mecanico.Telefono` (8 dígitos; el del mecánico obligatorio desde las regulaciones de entrada, ver Sección 5.1) y `Vehiculo.Placa` (6 caracteres, mayúsculas sin guiones, ej. `ABC123`) mantienen su invariante. El formato legible se aplica en presentación vía `Entidad/Utilidades/Formatos.cs`. Ver Sección 5.1. Los precios (`Servicio.Precio`) se presentan como colones vía `Formatos.Moneda` (formato fijo: punto de miles, coma decimal, decimales dinámicos) y las duraciones (`Servicio.DuracionMinutos`) de forma legible vía `Formatos.Duracion` (`90` → `1 hora 30 minutos`). |
 | ** Keep “YAGNI” and “KISS” in mind ** | I don't want a project with a super-complex backend |
 ---
@@ -301,6 +301,7 @@ builder.Services.AddScoped<ICategoriaService, CategoriaService>();
 builder.Services.AddScoped<IComentarioService, ComentarioService>();
 builder.Services.AddScoped<IAuthServices, AuthServices>();
 builder.Services.AddScoped<IAdministradorService, AdministradorService>();
+builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
 builder.Services.AddScoped<DbSeeder>();
 
 var app = builder.Build();
@@ -501,6 +502,7 @@ namespace Mecano.Data
 | Comentario | `DbSet<Comentario>` | Nota interna de la ficha del cliente (`Texto` ≤1000, `AutorNombre`/`AutorTipo` como instantánea del usuario que la escribió); FK a Cliente con Cascade |
 | Mecanico | `DbSet<Mecanico>` | Usuario con credenciales (email/hash password) |
 | NotificacionLog | `DbSet<NotificacionLog>` | Log de notificaciones enviadas |
+| AuditoriaLog | `DbSet<AuditoriaLog>` | Registro de auditoría de acciones |
 | Servicio | `DbSet<Servicio>` | Servicios ofrecidos por el taller |
 | Vehiculo | `DbSet<Vehiculo>` | Pertenece a un Cliente; soft delete vía `Activo`; placa única normalizada (ABC123) |
 
@@ -687,6 +689,7 @@ Constantes `LargoCedulaNacional = 9`, `LargoDimexMin = 11`, `LargoDimexMax = 12`
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="js/auth.js"></script>
     <script src="js/theme.js"></script>
+    <script src="js/whatsapp.js"></script>
 </body>
 </html>
 ```

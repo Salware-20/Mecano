@@ -35,8 +35,12 @@ public partial class Mecanicos : ComponentBase
     private ActualizarMecanicoDTO modelo = new();
 
     // Confirmaciones de estado
+    [Inject] private Mecano.Logica.Interfaces.IAuditoriaService AuditoriaService { get; set; } = null!;
+    [Inject] private Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
+
     private MecanicoDTO? mecanicoADesactivar;
     private MecanicoDTO? mecanicoAReactivar;
+    private string motivoDesactivacion = string.Empty;
 
     private string PasswordPlaceholder =>
         esEdicion ? "Conservar la actual" : string.Empty;
@@ -267,6 +271,7 @@ public partial class Mecanicos : ComponentBase
     private void ConfirmarDesactivar(MecanicoDTO mecanico)
     {
         mecanicoADesactivar = mecanico;
+        motivoDesactivacion = string.Empty;
         mensajeError = null;
         mensajeExito = null;
     }
@@ -274,6 +279,7 @@ public partial class Mecanicos : ComponentBase
     private void CancelarDesactivar()
     {
         mecanicoADesactivar = null;
+        motivoDesactivacion = string.Empty;
         mensajeError = null;
     }
 
@@ -281,14 +287,30 @@ public partial class Mecanicos : ComponentBase
     {
         if (mecanicoADesactivar is null) return;
 
+        if (string.IsNullOrWhiteSpace(motivoDesactivacion))
+        {
+            mensajeError = "Debe indicar el motivo de desactivación.";
+            return;
+        }
+
         guardando = true;
         mensajeError = null;
         try
         {
-            if (await MecanicoService.DesactivarAsync(mecanicoADesactivar.Id))
+            if (await MecanicoService.DesactivarAsync(mecanicoADesactivar.Id, motivoDesactivacion))
             {
                 mensajeExito = $"Mecánico “{mecanicoADesactivar.Nombre}” desactivado.";
+                try
+                {
+                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                    var user = authState.User;
+                    var userId = user.Identity?.Name ?? "Administrador";
+                    var userName = user.FindFirst("name")?.Value ?? user.Identity?.Name ?? userId;
+                    await AuditoriaService.RegistrarAsync("DESACTIVAR", "Mecanico", mecanicoADesactivar.Id.ToString(), $"Motivo: {motivoDesactivacion.Trim()}", userId, userName);
+                }
+                catch { }
                 mecanicoADesactivar = null;
+                motivoDesactivacion = string.Empty;
                 await CargarMecanicos();
             }
             else
@@ -330,6 +352,15 @@ public partial class Mecanicos : ComponentBase
             if (await MecanicoService.ReactivarAsync(mecanicoAReactivar.Id))
             {
                 mensajeExito = $"Mecánico “{mecanicoAReactivar.Nombre}” reactivado.";
+                try
+                {
+                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                    var user = authState.User;
+                    var userId = user.Identity?.Name ?? "Administrador";
+                    var userName = user.FindFirst("name")?.Value ?? user.Identity?.Name ?? userId;
+                    await AuditoriaService.RegistrarAsync("REACTIVAR", "Mecanico", mecanicoAReactivar.Id.ToString(), "Reactivación de mecánico", userId, userName);
+                }
+                catch { }
                 mecanicoAReactivar = null;
                 await CargarMecanicos();
             }

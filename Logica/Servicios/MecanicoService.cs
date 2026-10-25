@@ -102,7 +102,8 @@ public class MecanicoService : IMecanicoService
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
-                Activo             = m.Activo
+                Activo             = m.Activo,
+                MotivoDesactivacion = m.MotivoDesactivacion
             })
             .ToListAsync();
     }
@@ -134,7 +135,8 @@ public class MecanicoService : IMecanicoService
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
-                Activo             = m.Activo
+                Activo             = m.Activo,
+                MotivoDesactivacion = m.MotivoDesactivacion
             })
             .FirstOrDefaultAsync();
     }
@@ -272,14 +274,18 @@ public class MecanicoService : IMecanicoService
 
     // ~~~ DESACTIVAR / REACTIVAR ~~~
 
-    public async Task<bool> DesactivarAsync(int id)
+    public async Task<bool> DesactivarAsync(int id, string motivoDesactivacion)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
         var mecanico = await context.Mecanico.FindAsync(id);
         if (mecanico is null) return false;
 
+        if (string.IsNullOrWhiteSpace(motivoDesactivacion))
+            throw new InvalidOperationException("Debe indicar el motivo de desactivación.");
+
         mecanico.Activo = false;
+        mecanico.MotivoDesactivacion = motivoDesactivacion.Trim();
         await context.SaveChangesAsync();
         return true;
     }
@@ -292,6 +298,7 @@ public class MecanicoService : IMecanicoService
         if (mecanico is null) return false;
 
         mecanico.Activo = true;
+        // Se conserva MotivoDesactivacion como histórico según requerimiento
         await context.SaveChangesAsync();
         return true;
     }

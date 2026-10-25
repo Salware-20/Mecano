@@ -52,8 +52,9 @@ public interface IMecanicoService
     /// <summary>
     /// Establece Activo = false. Devuelve false si el mecánico no existe.
     /// Las citas existentes conservan su MecanicoId (no se tocan).
+    /// Requiere un motivo de desactivación.
     /// </summary>
-    Task<bool> DesactivarAsync(int id);
+    Task<bool> DesactivarAsync(int id, string motivoDesactivacion);
 
     /// <summary>
     /// Establece Activo = true. Devuelve false si el mecánico no existe.

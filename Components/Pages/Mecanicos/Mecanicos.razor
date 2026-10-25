@@ -107,7 +107,15 @@
                                         <span>—</span>
                                     }
                                 </td>
-                                <td style="text-transform:capitalize;"><strong>@mec.Nombre</strong></td>
+                                <td style="text-transform:capitalize;">
+                                    <strong>@mec.Nombre</strong>
+                                    @if (!mec.Activo && !string.IsNullOrWhiteSpace(mec.MotivoDesactivacion))
+                                    {
+                                        <div class="small text-muted" title="@mec.MotivoDesactivacion">
+                                            <i class="bi bi-info-circle"></i> Motivo: @mec.MotivoDesactivacion
+                                        </div>
+                                    }
+                                </td>
                                 <td>@mec.Email</td>
                                 <td>@(string.IsNullOrWhiteSpace(mec.Telefono) ? "—" : Formatos.Telefono(mec.Telefono))</td>
                                 <td>@(mec.EspecialidadNombre ?? "—")</td>
@@ -275,15 +283,17 @@
                     {
                         <div class="alert alert-danger">@mensajeError</div>
                     }
-                    else
-                    {
-                        <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
-                        <p class="text-muted small mb-0">
-                            Se marcará como inactivo, dejará de recibir citas nuevas y no
-                            aparecerá en el tablero de agendado. Las citas existentes no se
-                            modifican y podrás reactivarlo en cualquier momento.
-                        </p>
-                    }
+                    <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
+                    <p class="text-muted small">
+                        Se marcará como inactivo, dejará de recibir citas nuevas y no
+                        aparecerá en el tablero de agendado. Las citas existentes no se
+                        modifican y podrás reactivarlo en cualquier momento.
+                    </p>
+                    <div class="mb-0">
+                        <label class="form-label">Motivo de desactivación *</label>
+                        <textarea class="form-control" rows="3" @bind="motivoDesactivacion" maxlength="500" placeholder="Indique el motivo de la desactivación..."></textarea>
+                        <small class="text-muted">Este motivo quedará registrado y se mostrará en la ficha del mecánico.</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>

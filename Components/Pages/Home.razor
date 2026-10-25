@@ -234,13 +234,15 @@ else if (resumen is not null)
                             <div class="col-5">
                                 @* Leyenda visible con color + conteo + %: además es el
                                    equivalente en texto del gráfico (accesibilidad). *@
-                                <ul class="list-unstyled mb-0 small">
+                                <ul class="list-unstyled mb-0 small d-flex flex-column w-100">
                                     @foreach (var conteo in periodoDatos.Conteos.OrderByDescending(c => c.Conteo))
                                     {
-                                        <li class="d-flex align-items-center gap-2 py-1">
-                                            <span class="grafico-punto" style="background-color: @Formatos.ColorEstado(conteo.Estado)"></span>
-                                            <span>@Formatos.NombreEstado(conteo.Estado)</span>
-                                            <span class="ms-auto kpi-numero">
+                                        <li class="d-flex align-items-center gap-2 py-2 w-100 justify-content-between border-bottom">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="grafico-punto" style="background-color: @Formatos.ColorEstado(conteo.Estado)"></span>
+                                                <span>@Formatos.NombreEstado(conteo.Estado)</span>
+                                            </div>
+                                            <span class="kpi-numero text-end">
                                                 <span class="fw-semibold">@conteo.Conteo</span>
                                                 <span class="text-muted"> (@PorcentajeDe(conteo)&#37;)</span>
                                             </span>

@@ -34,6 +34,9 @@ namespace Mecano.Entidad.Clases
 
         public bool Activo { get; set; } = true;
 
+        [MaxLength(500)]
+        public string? MotivoDesactivacion { get; set; }
+
         public ICollection<CitaMecanico> CitaMecanicos { get; } = new List<CitaMecanico>();
     }
 }
