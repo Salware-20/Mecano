@@ -5,7 +5,8 @@ namespace Mecano.Entidad.DTOs.Mecanico
 {
     /// <summary>
     /// DTO de escritura para actualizar un mecánico existente.
-    /// Las reglas de validación son espejo de <see cref="CrearMecanicoDTO"/>.
+    /// En creación se usa <see cref="CrearMecanicoDTO"/>. Este DTO se usa en
+    /// edición: el correo de acceso no se modifica; se muestra de solo lectura.
     /// Password y ConfirmarPassword son opcionales: si se dejan vacíos, el servicio
     /// conserva el hash actual sin modificarlo.
     /// </summary>
@@ -19,12 +20,26 @@ namespace Mecano.Entidad.DTOs.Mecanico
         [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string Nombre { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "El correo es obligatorio")]
+        /// <summary>
+        /// Correo de acceso (solo lectura en UI). Se compone como alias@mecano.cr.
+        /// </summary>
         [StringLength(200, ErrorMessage = "El correo no puede superar 200 caracteres")]
-        [EmailAddress(ErrorMessage = "El correo no tiene un formato válido")]
-        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
-        public string Email { get; set; } = string.Empty;
+        public string? Email { get; set; }
 
+        private string _aliasCorreo = string.Empty;
+
+        /// <summary>
+        /// Alias del correo corporativo. Solo se usa en creación a través del formulario.
+        /// </summary>
+        [StringLength(CorreoCorporativo.LargoMaximoAlias, ErrorMessage = "El alias no puede superar 64 caracteres.")]
+        [RegularExpression(Patrones.AliasCorreo, ErrorMessage = Patrones.MensajeAliasCorreo)]
+        public string AliasCorreo
+        {
+            get => _aliasCorreo;
+            set => _aliasCorreo = CorreoCorporativo.NormalizarAlias(value);
+        }
+
+        [Required(ErrorMessage = "La identificación es obligatoria.")]
         [StringLength(20, ErrorMessage = "La cédula no puede superar 20 caracteres")]
         public string? Cedula { get; set; }
 

@@ -39,5 +39,24 @@ namespace Mecano.Entidad.Utilidades
             !string.IsNullOrEmpty(alias) &&
             alias.Length <= LargoMaximoAlias &&
             Regex.IsMatch(alias, Patrones.AliasCorreo);
+
+        /// <summary>
+        /// Normaliza y revalida un alias para usarlo desde los servicios. Lanza
+        /// <see cref="InvalidOperationException"/> con un mensaje apto para la UI
+        /// cuando está vacío, excede el largo o no cumple el patrón.
+        /// </summary>
+        public static string NormalizarYValidarAlias(string? alias)
+        {
+            var valor = NormalizarAlias(alias);
+
+            if (string.IsNullOrWhiteSpace(valor))
+                throw new InvalidOperationException("El alias de correo es obligatorio.");
+            if (valor.Length > LargoMaximoAlias)
+                throw new InvalidOperationException($"El alias no puede superar {LargoMaximoAlias} caracteres.");
+            if (!EsAliasValido(valor))
+                throw new InvalidOperationException(Patrones.MensajeAliasCorreo);
+
+            return valor;
+        }
     }
 }

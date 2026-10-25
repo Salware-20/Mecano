@@ -194,9 +194,25 @@
                             <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="mecEmail">Email *</label>
-                            <InputText id="mecEmail" class="form-control" @bind-Value="modelo.Email" type="email" maxlength="200" autocomplete="off" />
-                            <ValidationMessage For="() => modelo.Email" class="text-danger small" />
+                            <label class="form-label" for="mecEmail">Correo de inicio de sesión</label>
+                            @if (!esEdicion)
+                            {
+                                <div class="input-group">
+                                    <InputText id="mecAliasCorreo" class="form-control" @bind-Value="modelo.AliasCorreo"
+                                               maxlength="@CorreoCorporativo.LargoMaximoAlias" autocomplete="off" autocapitalize="none" spellcheck="false"
+                                               aria-describedby="mecAliasCorreoHelp" />
+                                    <span class="input-group-text">@CorreoCorporativo.Dominio</span>
+                                </div>
+                                <ValidationMessage For="() => modelo.AliasCorreo" class="text-danger small" />
+                                <div id="mecAliasCorreoHelp" class="form-text">
+                                    Solo el alias; el dominio @CorreoCorporativo.Dominio es fijo. No incluyas @@, espacios ni dominios externos.
+                                </div>
+                            }
+                            else
+                            {
+                                <input id="mecEmail" class="form-control bg-body-secondary" value="@modelo.Email" readonly />
+                                <div class="form-text">El correo de acceso no se puede modificar desde esta pantalla.</div>
+                            }
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">

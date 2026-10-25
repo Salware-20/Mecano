@@ -30,6 +30,21 @@ public class AdministradorService : IAdministradorService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Normaliza y valida el teléfono del administrador con el mismo invariante
+    /// que Cliente y Mecánico: se guarda solo con dígitos y debe tener exactamente
+    /// <see cref="Formatos.LargoTelefono"/> dígitos. El teléfono es obligatorio.
+    /// </summary>
+    private static string NormalizarTelefono(string? telefono)
+    {
+        var tel = Formatos.SoloDigitos(telefono);
+        if (tel.Length != Formatos.LargoTelefono)
+            throw new InvalidOperationException(
+                $"El teléfono debe tener exactamente {Formatos.LargoTelefono} dígitos.");
+
+        return tel;
+    }
+
     public async Task<PerfilAdminDTO?> ObtenerPerfilAsync(int adminId)
     {
         await using var context = await _factory.CreateDbContextAsync();
@@ -43,6 +58,7 @@ public class AdministradorService : IAdministradorService
                 Nombre               = a.Nombre,
                 Cedula               = a.Cedula,
                 TipoIdentificacion   = a.TipoIdentificacion,
+                Telefono             = a.Telefono,
                 Correo               = a.Email,
                 CorreoNotificaciones = a.CorreoNotificaciones
             })
@@ -57,9 +73,8 @@ public class AdministradorService : IAdministradorService
         if (admin is null) return false;
 
         var nombre = dto.Nombre.Trim();
-        var cedula = !string.IsNullOrWhiteSpace(dto.Cedula)
-            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
-            : null;
+        var cedula = Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion);
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         var correo = string.IsNullOrWhiteSpace(dto.CorreoNotificaciones)
             ? null
@@ -81,6 +96,7 @@ public class AdministradorService : IAdministradorService
         admin.Nombre               = nombre;
         admin.Cedula               = cedula;
         admin.TipoIdentificacion   = dto.TipoIdentificacion;
+        admin.Telefono             = telefono;
         admin.CorreoNotificaciones = correo;
         await context.SaveChangesAsync();
         return true;
@@ -171,18 +187,15 @@ public class AdministradorService : IAdministradorService
         if (string.IsNullOrWhiteSpace(dto.Nombre))
             throw new InvalidOperationException("El nombre es obligatorio.");
 
-        var alias = CorreoCorporativo.NormalizarAlias(dto.AliasCorreo);
-        if (string.IsNullOrWhiteSpace(alias))
-            throw new InvalidOperationException("El alias de correo es obligatorio.");
-        if (alias.Length > CorreoCorporativo.LargoMaximoAlias)
-            throw new InvalidOperationException($"El alias no puede superar {CorreoCorporativo.LargoMaximoAlias} caracteres.");
-        if (!CorreoCorporativo.EsAliasValido(alias))
-            throw new InvalidOperationException(Patrones.MensajeAliasCorreo);
+        var alias = CorreoCorporativo.NormalizarYValidarAlias(dto.AliasCorreo);
 
         if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
             throw new InvalidOperationException("La contraseña debe tener al menos 6 caracteres.");
         if (dto.Password != dto.ConfirmarPassword)
             throw new InvalidOperationException("Las contraseñas no coinciden.");
+
+        var cedula = Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion);
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         await using var context = await _factory.CreateDbContextAsync();
 
@@ -191,12 +204,6 @@ public class AdministradorService : IAdministradorService
             || await context.Mecanico.AnyAsync(m => m.Email.ToLower() == email);
         if (existeEmail)
             throw new InvalidOperationException("Ya existe un usuario con ese correo electrónico.");
-
-        string? cedula = !string.IsNullOrWhiteSpace(dto.Cedula)
-            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
-            : null;
-
-        string? telefono = string.IsNullOrWhiteSpace(dto.Telefono) ? null : dto.Telefono.Trim();
 
         var admin = new Administrador
         {
@@ -227,11 +234,8 @@ public class AdministradorService : IAdministradorService
         if (admin is null) return false;
 
         var nombre = dto.Nombre.Trim();
-        string? cedula = !string.IsNullOrWhiteSpace(dto.Cedula)
-            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
-            : null;
-
-        string? telefono = string.IsNullOrWhiteSpace(dto.Telefono) ? null : dto.Telefono.Trim();
+        var cedula = Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion);
+        var telefono = NormalizarTelefono(dto.Telefono);
 
         admin.Nombre = nombre;
         admin.Cedula = cedula;

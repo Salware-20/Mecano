@@ -16,9 +16,12 @@ namespace Mecano.Entidad.DTOs.Administrador
 
         public TipoIdentificacion TipoIdentificacion { get; set; } = TipoIdentificacion.Nacional;
 
+        [Required(ErrorMessage = "La identificación es obligatoria.")]
         [StringLength(20)]
         public string? Cedula { get; set; }
 
+        [Required(ErrorMessage = Patrones.MensajeTelefonoRequerido)]
+        [Phone(ErrorMessage = Patrones.MensajeTelefonoFormato)]
         [StringLength(20)]
         public string? Telefono { get; set; }
     }

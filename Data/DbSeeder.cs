@@ -88,11 +88,11 @@ namespace Mecano.Data
                 context.Servicio.AddRange(servPastillas, servRectificado, servDiagMotor, servAfinado, servAlineado, servAmortiguadores, servAceite, servRevision);
                 await context.SaveChangesAsync();
 
-                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = defaultMecPassword, Cedula = "1-1111-1111", Telefono = "70110001", EspecialidadId = catFrenos.CategoriaId, Activo = true };
-                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = defaultMecPassword, Cedula = "2-2222-2222", Telefono = "70110002", EspecialidadId = catMotor.CategoriaId, Activo = true };
-                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = defaultMecPassword, Cedula = "3-3333-3333", Telefono = "70110003", EspecialidadId = catSuspension.CategoriaId, Activo = true };
-                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = defaultMecPassword, Cedula = "4-4444-4444", Telefono = "70110004", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
-                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = defaultMecPassword, Cedula = "5-5555-5555", Telefono = "70110005", EspecialidadId = catMotor.CategoriaId, Activo = false };
+                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = CorreoCorporativo.Componer("carlos"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("1-1111-1111", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110001"), EspecialidadId = catFrenos.CategoriaId, Activo = true };
+                var mecMaria = new Mecanico { Nombre = "María López", Email = CorreoCorporativo.Componer("maria"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("2-2222-2222", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110002"), EspecialidadId = catMotor.CategoriaId, Activo = true };
+                var mecJose = new Mecanico { Nombre = "José Hernández", Email = CorreoCorporativo.Componer("jose"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("3-3333-3333", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110003"), EspecialidadId = catSuspension.CategoriaId, Activo = true };
+                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = CorreoCorporativo.Componer("ana"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("4-4444-4444", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110004"), EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
+                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = CorreoCorporativo.Componer("pedro"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("5-5555-5555", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110005"), EspecialidadId = catMotor.CategoriaId, Activo = false };
 
                 context.Mecanico.AddRange(mecCarlos, mecMaria, mecJose, mecAna, mecPedro);
                 await context.SaveChangesAsync();
@@ -175,7 +175,7 @@ namespace Mecano.Data
 
             // Seed y actualización del Administrador Global ("adminglobal")
             // Las credenciales de producción deben proveerse mediante user-secrets o variables de entorno
-            var globalAdminEmail = _configuration["Seed:GlobalAdmin:Email"] ?? "adminglobal@mecano.cr";
+            var globalAdminEmail = _configuration["Seed:GlobalAdmin:Email"] ?? CorreoCorporativo.Componer("adminglobal");
             var globalAdminPassword = _configuration["Seed:GlobalAdmin:Password"] ?? "AdminGlobal123*";
 
             var adminGlobal = await context.Administradors.FirstOrDefaultAsync(a => a.EsAdminGlobal || a.Email == globalAdminEmail);
@@ -183,10 +183,10 @@ namespace Mecano.Data
             {
                 adminGlobal = new Administrador
                 {
-                    Cedula = "109990999",
+                    Cedula = Formatos.NormalizarIdentificacion("109990999", TipoIdentificacion.Nacional),
                     Email = globalAdminEmail,
                     Nombre = "Administrador Global",
-                    Telefono = "61321206",
+                    Telefono = Formatos.SoloDigitos("61321206"),
                     Activo = true,
                     EsAdminGlobal = true,
                     HashPassword = AuthServices.HashPassword(globalAdminPassword)

@@ -244,7 +244,7 @@ public partial class Mecanicos : ComponentBase
             {
                 // modelo.Id queda en 0: CrearMecanicoDTO no tiene campo Id.
                 Nombre             = modelo.Nombre,
-                Email              = modelo.Email,
+                AliasCorreo        = modelo.AliasCorreo,
                 Cedula             = modelo.Cedula,
                 TipoIdentificacion = modelo.TipoIdentificacion,
                 Telefono           = modelo.Telefono,
