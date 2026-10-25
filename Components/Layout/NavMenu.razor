@@ -64,6 +64,15 @@
                     <i class="bi bi-tools" aria-hidden="true"></i> Mecánicos
                 </NavLink>
             </div>
+            <AuthorizeView Policy="AdminGlobal">
+                <Authorized Context="adminGlobalContext">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="administradores">
+                            <i class="bi bi-shield-lock" aria-hidden="true"></i> Administradores
+                        </NavLink>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
             </NotAuthorized>
         </AuthorizeView>
     </nav>

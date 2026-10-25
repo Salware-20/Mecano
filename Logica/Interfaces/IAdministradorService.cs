@@ -1,3 +1,4 @@
+using Mecano.Entidad.DTOs.Administrador;
 using Mecano.Entidad.DTOs.Perfil;
 
 namespace Mecano.Logica.Interfaces
@@ -28,5 +29,14 @@ namespace Mecano.Logica.Interfaces
         /// coincide o si la nueva es igual a la actual.
         /// </summary>
         Task<bool> CambiarPasswordAsync(int adminId, CambiarPasswordDTO dto);
+
+        // Gestión de otros administradores (solo Global Admin)
+        Task<List<AdministradorListaDTO>> ListarAsync(bool incluirInactivos = true);
+        Task<AdministradorListaDTO?> ObtenerPorIdAsync(int adminId);
+        Task<int> CrearAsync(CrearAdministradorDTO dto, int creadoPorId);
+        Task<bool> ActualizarAsync(ActualizarAdministradorDTO dto);
+        Task<bool> DesactivarAsync(int adminId, int solicitanteId);
+        Task<bool> ReactivarAsync(int adminId);
+        Task<bool> ExisteEmailAsync(string email, int? excluirId = null);
     }
 }
