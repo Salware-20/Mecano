@@ -11,10 +11,16 @@ namespace Mecano.Entidad.DTOs.Administrador
         [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string Nombre { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "El correo es obligatorio.")]
-        [StringLength(200)]
-        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
-        public string Email { get; set; } = string.Empty;
+        private string _aliasCorreo = string.Empty;
+
+        [Required(ErrorMessage = "El alias de correo es obligatorio.")]
+        [StringLength(CorreoCorporativo.LargoMaximoAlias, ErrorMessage = "El alias no puede superar 64 caracteres.")]
+        [RegularExpression(Patrones.AliasCorreo, ErrorMessage = Patrones.MensajeAliasCorreo)]
+        public string AliasCorreo
+        {
+            get => _aliasCorreo;
+            set => _aliasCorreo = CorreoCorporativo.NormalizarAlias(value);
+        }
 
         public TipoIdentificacion TipoIdentificacion { get; set; } = TipoIdentificacion.Nacional;
 
@@ -23,10 +29,6 @@ namespace Mecano.Entidad.DTOs.Administrador
 
         [StringLength(20)]
         public string? Telefono { get; set; }
-
-        [StringLength(200)]
-        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
-        public string? CorreoNotificaciones { get; set; }
 
         [Required(ErrorMessage = "La contraseña es obligatoria.")]
         [StringLength(100, MinimumLength = 6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres.")]

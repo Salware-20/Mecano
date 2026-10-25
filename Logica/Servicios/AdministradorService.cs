@@ -11,7 +11,10 @@ using Microsoft.Extensions.Logging;
 namespace Mecano.Logica.Servicios;
 
 /// <summary>
-/// Perfil del administrador autenticado. La verificación de contraseña reutiliza
+/// Servicio de administradores: perfil del administrador autenticado y gestión
+/// del staff por parte del Admin Global. El correo de acceso del staff se compone
+/// como <c>alias@mecano.cr</c>; el correo de notificaciones es personal y solo se
+/// escribe desde /perfil. La verificación de contraseña reutiliza
 /// <see cref="PasswordHasher"/> — fuente única de verdad del algoritmo — y admite
 /// el formato legado en texto plano con el mismo criterio que
 /// <c>AuthServices.VerifyPassword</c>.
@@ -137,8 +140,7 @@ public class AdministradorService : IAdministradorService
                 TipoIdentificacion = a.TipoIdentificacion,
                 Telefono = a.Telefono,
                 Activo = a.Activo,
-                EsAdminGlobal = a.EsAdminGlobal,
-                CorreoNotificaciones = a.CorreoNotificaciones
+                EsAdminGlobal = a.EsAdminGlobal
             })
             .ToListAsync();
     }
@@ -159,8 +161,7 @@ public class AdministradorService : IAdministradorService
                 TipoIdentificacion = a.TipoIdentificacion,
                 Telefono = a.Telefono,
                 Activo = a.Activo,
-                EsAdminGlobal = a.EsAdminGlobal,
-                CorreoNotificaciones = a.CorreoNotificaciones
+                EsAdminGlobal = a.EsAdminGlobal
             })
             .FirstOrDefaultAsync();
     }
@@ -169,8 +170,15 @@ public class AdministradorService : IAdministradorService
     {
         if (string.IsNullOrWhiteSpace(dto.Nombre))
             throw new InvalidOperationException("El nombre es obligatorio.");
-        if (string.IsNullOrWhiteSpace(dto.Email))
-            throw new InvalidOperationException("El correo es obligatorio.");
+
+        var alias = CorreoCorporativo.NormalizarAlias(dto.AliasCorreo);
+        if (string.IsNullOrWhiteSpace(alias))
+            throw new InvalidOperationException("El alias de correo es obligatorio.");
+        if (alias.Length > CorreoCorporativo.LargoMaximoAlias)
+            throw new InvalidOperationException($"El alias no puede superar {CorreoCorporativo.LargoMaximoAlias} caracteres.");
+        if (!CorreoCorporativo.EsAliasValido(alias))
+            throw new InvalidOperationException(Patrones.MensajeAliasCorreo);
+
         if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
             throw new InvalidOperationException("La contraseña debe tener al menos 6 caracteres.");
         if (dto.Password != dto.ConfirmarPassword)
@@ -178,7 +186,7 @@ public class AdministradorService : IAdministradorService
 
         await using var context = await _factory.CreateDbContextAsync();
 
-        var email = dto.Email.Trim().ToLowerInvariant();
+        var email = CorreoCorporativo.Componer(alias);
         bool existeEmail = await context.Administradors.AnyAsync(a => a.Email.ToLower() == email)
             || await context.Mecanico.AnyAsync(m => m.Email.ToLower() == email);
         if (existeEmail)
@@ -189,26 +197,16 @@ public class AdministradorService : IAdministradorService
             : null;
 
         string? telefono = string.IsNullOrWhiteSpace(dto.Telefono) ? null : dto.Telefono.Trim();
-        string? correoNotificaciones = string.IsNullOrWhiteSpace(dto.CorreoNotificaciones)
-            ? null
-            : dto.CorreoNotificaciones.Trim().ToLowerInvariant();
-
-        if (correoNotificaciones is not null)
-        {
-            bool duplicadoNotif = await context.Administradors.AnyAsync(a =>
-                a.CorreoNotificaciones != null && a.CorreoNotificaciones.ToLower() == correoNotificaciones);
-            if (duplicadoNotif)
-                throw new InvalidOperationException("El correo de notificaciones ya está en uso por otro administrador.");
-        }
 
         var admin = new Administrador
         {
             Nombre = dto.Nombre.Trim(),
-            Email = dto.Email.Trim(),
+            Email = email,
             Cedula = cedula,
             TipoIdentificacion = dto.TipoIdentificacion,
             Telefono = telefono,
-            CorreoNotificaciones = correoNotificaciones,
+            // El correo de notificaciones es personal: solo se configura desde /perfil.
+            CorreoNotificaciones = null,
             HashPassword = PasswordHasher.Hash(dto.Password),
             Activo = true,
             EsAdminGlobal = false
@@ -234,25 +232,11 @@ public class AdministradorService : IAdministradorService
             : null;
 
         string? telefono = string.IsNullOrWhiteSpace(dto.Telefono) ? null : dto.Telefono.Trim();
-        string? correoNotificaciones = string.IsNullOrWhiteSpace(dto.CorreoNotificaciones)
-            ? null
-            : dto.CorreoNotificaciones.Trim().ToLowerInvariant();
-
-        if (correoNotificaciones is not null)
-        {
-            bool duplicadoNotif = await context.Administradors.AnyAsync(a =>
-                a.AdministradorId != admin.AdministradorId &&
-                a.CorreoNotificaciones != null &&
-                a.CorreoNotificaciones.ToLower() == correoNotificaciones);
-            if (duplicadoNotif)
-                throw new InvalidOperationException("El correo de notificaciones ya está en uso por otro administrador.");
-        }
 
         admin.Nombre = nombre;
         admin.Cedula = cedula;
         admin.TipoIdentificacion = dto.TipoIdentificacion;
         admin.Telefono = telefono;
-        admin.CorreoNotificaciones = correoNotificaciones;
         await context.SaveChangesAsync();
         return true;
     }

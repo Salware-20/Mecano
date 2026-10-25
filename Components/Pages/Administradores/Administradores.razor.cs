@@ -133,8 +133,7 @@ public partial class Administradores : ComponentBase
             Nombre = admin.Nombre,
             TipoIdentificacion = admin.TipoIdentificacion,
             Cedula = admin.Cedula,
-            Telefono = admin.Telefono,
-            CorreoNotificaciones = admin.CorreoNotificaciones
+            Telefono = admin.Telefono
         };
         mensajeError = null;
         mostrarModal = true;
@@ -157,8 +156,9 @@ public partial class Administradores : ComponentBase
         {
             if (!esEdicion)
             {
-                var id = await AdministradorService.CrearAsync(crearModelo, adminActualId);
-                mensajeExito = "Administrador creado correctamente.";
+                await AdministradorService.CrearAsync(crearModelo, adminActualId);
+                var email = CorreoCorporativo.Componer(crearModelo.AliasCorreo);
+                mensajeExito = $"Administrador creado correctamente ({email}).";
             }
             else if (adminEditandoId.HasValue)
             {

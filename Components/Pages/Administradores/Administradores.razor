@@ -175,9 +175,9 @@
                                 <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Email</label>
+                                <label class="form-label">Correo de inicio de sesión</label>
                                 <input class="form-control" value="@adminEmailActual" disabled readonly />
-                                <div class="form-text">El correo de acceso no se puede modificar desde esta pantalla.</div>
+                                <div class="form-text">No se puede modificar desde esta pantalla. El correo de notificaciones se configura en Mi Perfil.</div>
                             </div>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -198,11 +198,6 @@
                                     <InputText class="form-control" @bind-Value="modelo.Telefono" maxlength="20" />
                                     <ValidationMessage For="() => modelo.Telefono" class="text-danger small" />
                                 </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Correo de notificaciones</label>
-                                <InputText class="form-control" @bind-Value="modelo.CorreoNotificaciones" maxlength="200" />
-                                <ValidationMessage For="() => modelo.CorreoNotificaciones" class="text-danger small" />
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -239,9 +234,17 @@
                                 <ValidationMessage For="() => crearModelo.Nombre" class="text-danger small" />
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Email *</label>
-                                <InputText class="form-control" @bind-Value="crearModelo.Email" type="email" maxlength="200" />
-                                <ValidationMessage For="() => crearModelo.Email" class="text-danger small" />
+                                <label class="form-label" for="adminAliasCorreo">Usuario corporativo *</label>
+                                <div class="input-group">
+                                    <InputText id="adminAliasCorreo" class="form-control" @bind-Value="crearModelo.AliasCorreo"
+                                               maxlength="@CorreoCorporativo.LargoMaximoAlias" autocomplete="off" autocapitalize="none" spellcheck="false"
+                                               aria-describedby="adminAliasCorreoHelp" />
+                                    <span class="input-group-text">@CorreoCorporativo.Dominio</span>
+                                </div>
+                                <ValidationMessage For="() => crearModelo.AliasCorreo" class="text-danger small" />
+                                <div id="adminAliasCorreoHelp" class="form-text">
+                                    Solo el alias; el dominio @CorreoCorporativo.Dominio es fijo. No incluyas @@, espacios ni dominios externos.
+                                </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -262,11 +265,6 @@
                                     <InputText class="form-control" @bind-Value="crearModelo.Telefono" maxlength="20" />
                                     <ValidationMessage For="() => crearModelo.Telefono" class="text-danger small" />
                                 </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Correo de notificaciones</label>
-                                <InputText class="form-control" @bind-Value="crearModelo.CorreoNotificaciones" maxlength="200" />
-                                <ValidationMessage For="() => crearModelo.CorreoNotificaciones" class="text-danger small" />
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">

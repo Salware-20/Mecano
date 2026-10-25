@@ -21,9 +21,5 @@ namespace Mecano.Entidad.DTOs.Administrador
 
         [StringLength(20)]
         public string? Telefono { get; set; }
-
-        [StringLength(200)]
-        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
-        public string? CorreoNotificaciones { get; set; }
     }
 }

@@ -12,6 +12,5 @@ namespace Mecano.Entidad.DTOs.Administrador
         public string? Telefono { get; set; }
         public bool Activo { get; set; }
         public bool EsAdminGlobal { get; set; }
-        public string? CorreoNotificaciones { get; set; }
     }
 }
