@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Mecano.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class Inicial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -23,9 +23,12 @@ namespace Mecano.Data.Migrations
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     Cedula = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    TipoIdentificacion = table.Column<int>(type: "int", nullable: false),
                     Nombre = table.Column<string>(type: "varchar(150)", maxLength: 150, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Email = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    CorreoNotificaciones = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     HashPassword = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -37,6 +40,32 @@ namespace Mecano.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Administradors", x => x.AdministradorId);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "AuditoriaLogs",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    FechaHora = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    TipoAccion = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    UsuarioId = table.Column<string>(type: "varchar(450)", maxLength: 450, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    UsuarioNombre = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    EntidadAfectada = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    EntidadId = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Detalles = table.Column<string>(type: "varchar(2000)", maxLength: 2000, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditoriaLogs", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -65,6 +94,7 @@ namespace Mecano.Data.Migrations
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     CedulaIdentidad = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    TipoIdentificacion = table.Column<int>(type: "int", nullable: false),
                     NombreCompleto = table.Column<string>(type: "varchar(150)", maxLength: 150, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Telefono = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
@@ -90,6 +120,7 @@ namespace Mecano.Data.Migrations
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     Cedula = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    TipoIdentificacion = table.Column<int>(type: "int", nullable: false),
                     Nombre = table.Column<string>(type: "varchar(150)", maxLength: 150, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Email = table.Column<string>(type: "varchar(200)", maxLength: 200, nullable: false)
@@ -99,7 +130,9 @@ namespace Mecano.Data.Migrations
                     Telefono = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     EspecialidadId = table.Column<int>(type: "int", nullable: false),
-                    Activo = table.Column<bool>(type: "tinyint(1)", nullable: false)
+                    Activo = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    MotivoDesactivacion = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4")
                 },
                 constraints: table =>
                 {
@@ -141,6 +174,32 @@ namespace Mecano.Data.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
+                name: "Comentario",
+                columns: table => new
+                {
+                    ComentarioId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    ClienteId = table.Column<int>(type: "int", nullable: false),
+                    Texto = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    FechaHora = table.Column<DateTime>(type: "datetime(6)", nullable: false),
+                    AutorNombre = table.Column<string>(type: "varchar(150)", maxLength: 150, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    AutorTipo = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Comentario", x => x.ComentarioId);
+                    table.ForeignKey(
+                        name: "FK_Comentario_Cliente_ClienteId",
+                        column: x => x.ClienteId,
+                        principalTable: "Cliente",
+                        principalColumn: "ClienteId",
+                        onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
                 name: "Vehiculo",
                 columns: table => new
                 {
@@ -154,10 +213,12 @@ namespace Mecano.Data.Migrations
                     Modelo = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Anio = table.Column<int>(type: "int", nullable: false),
+                    Kilometraje = table.Column<int>(type: "int", nullable: true),
                     Color = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Notas = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4")
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    Activo = table.Column<bool>(type: "tinyint(1)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -180,7 +241,6 @@ namespace Mecano.Data.Migrations
                     ClienteId = table.Column<int>(type: "int", nullable: false),
                     VehiculoId = table.Column<int>(type: "int", nullable: false),
                     ServicioId = table.Column<int>(type: "int", nullable: false),
-                    MecanicoId = table.Column<int>(type: "int", nullable: false),
                     Fecha = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     HoraInicio = table.Column<TimeOnly>(type: "time(6)", nullable: false),
                     HoraFin = table.Column<TimeOnly>(type: "time(6)", nullable: false),
@@ -199,12 +259,6 @@ namespace Mecano.Data.Migrations
                         principalColumn: "ClienteId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_Cita_Mecanico_MecanicoId",
-                        column: x => x.MecanicoId,
-                        principalTable: "Mecanico",
-                        principalColumn: "MecanicoId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
                         name: "FK_Cita_Servicio_ServicioId",
                         column: x => x.ServicioId,
                         principalTable: "Servicio",
@@ -215,6 +269,31 @@ namespace Mecano.Data.Migrations
                         column: x => x.VehiculoId,
                         principalTable: "Vehiculo",
                         principalColumn: "VehiculoId",
+                        onDelete: ReferentialAction.Restrict);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "CitaMecanico",
+                columns: table => new
+                {
+                    CitaId = table.Column<int>(type: "int", nullable: false),
+                    MecanicoId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CitaMecanico", x => new { x.CitaId, x.MecanicoId });
+                    table.ForeignKey(
+                        name: "FK_CitaMecanico_Cita_CitaId",
+                        column: x => x.CitaId,
+                        principalTable: "Cita",
+                        principalColumn: "CitaId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CitaMecanico_Mecanico_MecanicoId",
+                        column: x => x.MecanicoId,
+                        principalTable: "Mecanico",
+                        principalColumn: "MecanicoId",
                         onDelete: ReferentialAction.Restrict);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
@@ -248,14 +327,19 @@ namespace Mecano.Data.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AuditoriaLogs_EntidadAfectada_EntidadId",
+                table: "AuditoriaLogs",
+                columns: new[] { "EntidadAfectada", "EntidadId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditoriaLogs_FechaHora",
+                table: "AuditoriaLogs",
+                column: "FechaHora");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Cita_ClienteId",
                 table: "Cita",
                 column: "ClienteId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Cita_MecanicoId",
-                table: "Cita",
-                column: "MecanicoId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Cita_ServicioId",
@@ -268,10 +352,20 @@ namespace Mecano.Data.Migrations
                 column: "VehiculoId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Cliente_CedulaIdentidad",
+                name: "IX_CitaMecanico_MecanicoId",
+                table: "CitaMecanico",
+                column: "MecanicoId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Cliente_CedulaIdentidad_TipoIdentificacion",
                 table: "Cliente",
-                column: "CedulaIdentidad",
+                columns: new[] { "CedulaIdentidad", "TipoIdentificacion" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Comentario_ClienteId",
+                table: "Comentario",
+                column: "ClienteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Mecanico_EspecialidadId",
@@ -307,13 +401,22 @@ namespace Mecano.Data.Migrations
                 name: "Administradors");
 
             migrationBuilder.DropTable(
+                name: "AuditoriaLogs");
+
+            migrationBuilder.DropTable(
+                name: "CitaMecanico");
+
+            migrationBuilder.DropTable(
+                name: "Comentario");
+
+            migrationBuilder.DropTable(
                 name: "NotificacionLog");
 
             migrationBuilder.DropTable(
-                name: "Cita");
+                name: "Mecanico");
 
             migrationBuilder.DropTable(
-                name: "Mecanico");
+                name: "Cita");
 
             migrationBuilder.DropTable(
                 name: "Servicio");

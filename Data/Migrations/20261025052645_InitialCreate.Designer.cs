@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Mecano.Data.Migrations
 {
     [DbContext(typeof(MySQLDBContext))]
-    [Migration("20261011040945_TipoIdentificacion-mecanico-adminitrador")]
-    partial class TipoIdentificacionmecanicoadminitrador
+    [Migration("20261025052645_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -39,6 +39,10 @@ namespace Mecano.Data.Migrations
                     b.Property<string>("Cedula")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<string>("CorreoNotificaciones")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -67,6 +71,52 @@ namespace Mecano.Data.Migrations
                     b.HasKey("AdministradorId");
 
                     b.ToTable("Administradors");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.AuditoriaLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Detalles")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("EntidadAfectada")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("EntidadId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("FechaHora")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TipoAccion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("UsuarioId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("UsuarioNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaHora");
+
+                    b.HasIndex("EntidadAfectada", "EntidadId");
+
+                    b.ToTable("AuditoriaLogs");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Categoria", b =>
@@ -116,9 +166,6 @@ namespace Mecano.Data.Migrations
                     b.Property<TimeOnly>("HoraInicio")
                         .HasColumnType("time(6)");
 
-                    b.Property<int>("MecanicoId")
-                        .HasColumnType("int");
-
                     b.Property<string>("NotasAdmin")
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
@@ -133,13 +180,26 @@ namespace Mecano.Data.Migrations
 
                     b.HasIndex("ClienteId");
 
-                    b.HasIndex("MecanicoId");
-
                     b.HasIndex("ServicioId");
 
                     b.HasIndex("VehiculoId");
 
                     b.ToTable("Cita");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.CitaMecanico", b =>
+                {
+                    b.Property<int>("CitaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MecanicoId")
+                        .HasColumnType("int");
+
+                    b.HasKey("CitaId", "MecanicoId");
+
+                    b.HasIndex("MecanicoId");
+
+                    b.ToTable("CitaMecanico");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Cliente", b =>
@@ -189,6 +249,40 @@ namespace Mecano.Data.Migrations
                     b.ToTable("Cliente");
                 });
 
+            modelBuilder.Entity("Mecano.Entidad.Clases.Comentario", b =>
+                {
+                    b.Property<int>("ComentarioId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ComentarioId"));
+
+                    b.Property<string>("AutorNombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<int>("AutorTipo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClienteId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaHora")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.HasKey("ComentarioId");
+
+                    b.HasIndex("ClienteId");
+
+                    b.ToTable("Comentario");
+                });
+
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
                 {
                     b.Property<int>("MecanicoId")
@@ -215,6 +309,10 @@ namespace Mecano.Data.Migrations
                     b.Property<string>("HashPassword")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<string>("MotivoDesactivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -330,6 +428,9 @@ namespace Mecano.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<int?>("Kilometraje")
+                        .HasColumnType("int");
+
                     b.Property<string>("Marca")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -367,12 +468,6 @@ namespace Mecano.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Mecano.Entidad.Clases.Mecanico", "Mecanico")
-                        .WithMany("Citas")
-                        .HasForeignKey("MecanicoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Mecano.Entidad.Clases.Servicio", "Servicio")
                         .WithMany("Citas")
                         .HasForeignKey("ServicioId")
@@ -387,11 +482,39 @@ namespace Mecano.Data.Migrations
 
                     b.Navigation("Cliente");
 
-                    b.Navigation("Mecanico");
-
                     b.Navigation("Servicio");
 
                     b.Navigation("Vehiculo");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.CitaMecanico", b =>
+                {
+                    b.HasOne("Mecano.Entidad.Clases.Cita", "Cita")
+                        .WithMany("CitaMecanicos")
+                        .HasForeignKey("CitaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Mecano.Entidad.Clases.Mecanico", "Mecanico")
+                        .WithMany("CitaMecanicos")
+                        .HasForeignKey("MecanicoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cita");
+
+                    b.Navigation("Mecanico");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.Comentario", b =>
+                {
+                    b.HasOne("Mecano.Entidad.Clases.Cliente", "Cliente")
+                        .WithMany("Comentarios")
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
@@ -445,6 +568,8 @@ namespace Mecano.Data.Migrations
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Cita", b =>
                 {
+                    b.Navigation("CitaMecanicos");
+
                     b.Navigation("Notificaciones");
                 });
 
@@ -452,12 +577,14 @@ namespace Mecano.Data.Migrations
                 {
                     b.Navigation("Citas");
 
+                    b.Navigation("Comentarios");
+
                     b.Navigation("Vehiculos");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Mecanico", b =>
                 {
-                    b.Navigation("Citas");
+                    b.Navigation("CitaMecanicos");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Servicio", b =>

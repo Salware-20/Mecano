@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Mecano.Migrations
+namespace Mecano.Data.Migrations
 {
     [DbContext(typeof(MySQLDBContext))]
     partial class MySQLDBContextModelSnapshot : ModelSnapshot
@@ -68,6 +68,52 @@ namespace Mecano.Migrations
                     b.HasKey("AdministradorId");
 
                     b.ToTable("Administradors");
+                });
+
+            modelBuilder.Entity("Mecano.Entidad.Clases.AuditoriaLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Detalles")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("EntidadAfectada")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("EntidadId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("FechaHora")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TipoAccion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("UsuarioId")
+                        .HasMaxLength(450)
+                        .HasColumnType("varchar(450)");
+
+                    b.Property<string>("UsuarioNombre")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FechaHora");
+
+                    b.HasIndex("EntidadAfectada", "EntidadId");
+
+                    b.ToTable("AuditoriaLogs");
                 });
 
             modelBuilder.Entity("Mecano.Entidad.Clases.Categoria", b =>
@@ -260,6 +306,10 @@ namespace Mecano.Migrations
                     b.Property<string>("HashPassword")
                         .IsRequired()
                         .HasColumnType("longtext");
+
+                    b.Property<string>("MotivoDesactivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("Nombre")
                         .IsRequired()

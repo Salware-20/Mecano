@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
@@ -15,27 +17,57 @@ namespace Mecano.Data
     {
         private readonly IDbContextFactory<MySQLDBContext> _factory;
         private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<DbSeeder> _logger;
 
         public DbSeeder(
             IDbContextFactory<MySQLDBContext> factory,
             IConfiguration configuration,
+            IWebHostEnvironment environment,
             ILogger<DbSeeder> logger)
         {
             _factory = factory;
             _configuration = configuration;
+            _environment = environment;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Inicializa el esquema de la base de datos aplicando las migraciones pendientes.
+        /// Si <c>DatabaseSettings:ResetOnStartup</c> está activo (solo Development),
+        /// elimina la base de datos antes de migrar para partir de un estado limpio.
+        /// </summary>
+        public async Task InitializeAsync()
+        {
+            await using var context = await _factory.CreateDbContextAsync();
+            var reset = _configuration.GetValue<bool>("DatabaseSettings:ResetOnStartup");
+
+            if (reset)
+            {
+                if (!_environment.IsDevelopment())
+                    throw new InvalidOperationException("ResetOnStartup is only permitted in Development environment.");
+
+                _logger.LogWarning("ResetOnStartup=true: Dropping database {Db}...", context.Database.GetDbConnection().Database);
+                await context.Database.EnsureDeletedAsync();
+            }
+
+            await context.Database.MigrateAsync();
         }
 
         public async Task SeedAsync()
         {
-            using var context = await _factory.CreateDbContextAsync();
-            await context.Database.EnsureCreatedAsync();
+            await using var context = await _factory.CreateDbContextAsync();
 
-            var defaultMecPassword = AuthServices.HashPassword("Mecanico123*");
+            var seedDemoData = _configuration.GetValue<bool?>("DatabaseSettings:SeedDemoData")
+                ?? _environment.IsDevelopment();
+            var necesitaSeedDemo = seedDemoData && !await context.Categorias.AnyAsync();
 
-            if (!await context.Categorias.AnyAsync())
+            if (necesitaSeedDemo)
             {
+                // El hash es costoso (PBKDF2 con 310k iteraciones): solo se calcula
+                // cuando de verdad hay que sembrar los datos de demostración.
+                var defaultMecPassword = AuthServices.HashPassword("Mecanico123*");
+
                 var catFrenos = new Categoria { Nombre = "Frenos", Descripcion = "Servicios relacionados con el sistema de frenos" };
                 var catMotor = new Categoria { Nombre = "Motor", Descripcion = "Diagnóstico y reparación del motor" };
                 var catSuspension = new Categoria { Nombre = "Suspensión", Descripcion = "Reparación y ajuste de suspensión" };
@@ -207,9 +239,10 @@ namespace Mecano.Data
 
             if (placeholderMechanics.Any())
             {
+                var hashMecanicosDemo = AuthServices.HashPassword("Mecanico123*");
                 foreach (var mec in placeholderMechanics)
                 {
-                    mec.HashPassword = defaultMecPassword;
+                    mec.HashPassword = hashMecanicosDemo;
                 }
                 await context.SaveChangesAsync();
                 _logger.LogInformation("Contraseñas de prueba asignadas a mecánicos con placeholder.");
