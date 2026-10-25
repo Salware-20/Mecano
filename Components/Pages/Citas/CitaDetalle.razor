@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador + "," + Mecano.Entidad.Constantes.Roles.Mecanico)]
 @rendermode InteractiveServer
 @using System.Globalization
+@using System.Security.Claims
 @using Mecano.Entidad.Constantes
 @using Mecano.Entidad.Utilidades
 @inject ICitaService CitaService
@@ -9,6 +10,8 @@
 @inject IServicioService ServicioService
 @inject IMecanicoService MecanicoService
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@inject Mecano.Logica.Interfaces.IAuditoriaService AuditoriaService
 
 <PageTitle>Cita #@Id - Mecano</PageTitle>
 
@@ -183,9 +186,9 @@ else if (esAdmin && cita is not null)
                         @if (tieneCorreo)
                         {
                             <div class="mb-3">
-                                <a class="btn btn-outline-primary w-100" href="@mailtoEnlace">
+                                <button type="button" class="btn btn-outline-primary w-100" @onclick="() => ContactarEmail(mailtoEnlace)">
                                     <i class="bi bi-envelope"></i> Enviar correo
-                                </a>
+                                </button>
                             </div>
                         }
 
@@ -713,6 +716,41 @@ else
     private async Task AbrirWhatsApp(string enlace, string mensaje)
     {
         await CopiarMensaje(mensaje);
+        await AuditarContactoAsync("WhatsApp");
         await JS.InvokeVoidAsync("open", enlace, "_blank");
+    }
+
+    private async Task ContactarEmail(string mailtoEnlace)
+    {
+        await AuditarContactoAsync("Email");
+        NavigationManager.NavigateTo(mailtoEnlace);
+    }
+
+    private async Task AuditarContactoAsync(string tipoContacto)
+    {
+        try
+        {
+            string? adminId = null;
+            string? adminNombre = null;
+            if (AuthState is not null)
+            {
+                var state = await AuthState;
+                adminId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                adminNombre = state.User.FindFirst(ClaimTypes.Name)?.Value ?? state.User.Identity?.Name;
+            }
+
+            var clienteNombre = cita?.ClienteNombre ?? "Cliente";
+            await AuditoriaService.RegistrarAsync(
+                tipoAccion: $"CONTACTO_{tipoContacto.ToUpperInvariant()}",
+                entidadAfectada: "Cita",
+                entidadId: Id.ToString(),
+                detalles: $"Contacto vía {tipoContacto} con {clienteNombre} (Cita #{Id})",
+                usuarioId: adminId,
+                usuarioNombre: adminNombre);
+        }
+        catch
+        {
+            // El registro de auditoría no bloquea la acción de contacto
+        }
     }
 }

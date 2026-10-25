@@ -23,11 +23,16 @@ public class AdministradorService : IAdministradorService
 {
     private readonly IDbContextFactory<MySQLDBContext> _factory;
     private readonly ILogger<AdministradorService> _logger;
+    private readonly IAuditoriaService _auditoria;
 
-    public AdministradorService(IDbContextFactory<MySQLDBContext> factory, ILogger<AdministradorService> logger)
+    public AdministradorService(
+        IDbContextFactory<MySQLDBContext> factory,
+        ILogger<AdministradorService> logger,
+        IAuditoriaService auditoria)
     {
-        _factory = factory;
-        _logger = logger;
+        _factory   = factory;
+        _logger    = logger;
+        _auditoria = auditoria;
     }
 
     /// <summary>
@@ -260,6 +265,7 @@ public class AdministradorService : IAdministradorService
         admin.Activo = false;
         await context.SaveChangesAsync();
         _logger.LogInformation("Administrador {AdminId} desactivado por {SolicitanteId}.", adminId, solicitanteId);
+        await _auditoria.RegistrarAsync("DESACTIVAR_ADMIN", "Administrador", adminId.ToString(), $"Administrador #{adminId} ({admin.Nombre} - {admin.Email}) desactivado por #{solicitanteId}", solicitanteId.ToString(), "Administrador");
         return true;
     }
 
@@ -273,6 +279,7 @@ public class AdministradorService : IAdministradorService
         admin.Activo = true;
         await context.SaveChangesAsync();
         _logger.LogInformation("Administrador {AdminId} reactivado.", adminId);
+        await _auditoria.RegistrarAsync("REACTIVAR_ADMIN", "Administrador", adminId.ToString(), $"Administrador #{adminId} ({admin.Nombre} - {admin.Email}) reactivado");
         return true;
     }
 

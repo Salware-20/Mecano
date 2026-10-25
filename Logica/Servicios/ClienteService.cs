@@ -14,11 +14,16 @@ public class ClienteService : IClienteService
 {
     private readonly IDbContextFactory<MySQLDBContext> _factory;
     private readonly ILogger<ClienteService> _logger;
+    private readonly IAuditoriaService _auditoria;
 
-    public ClienteService(IDbContextFactory<MySQLDBContext> factory, ILogger<ClienteService> logger)
+    public ClienteService(
+        IDbContextFactory<MySQLDBContext> factory,
+        ILogger<ClienteService> logger,
+        IAuditoriaService auditoria)
     {
-        _factory = factory;
-        _logger = logger;
+        _factory   = factory;
+        _logger    = logger;
+        _auditoria = auditoria;
     }
 
     // ~~~ FILTRO COMPARTIDO ~~~
@@ -271,6 +276,7 @@ public class ClienteService : IClienteService
 
         await context.SaveChangesAsync();
         _logger.LogInformation("Cliente {Id} desactivado; {N} vehículos desactivados en cascada.", id, vehiculos.Count);
+        await _auditoria.RegistrarAsync("DESACTIVAR_CLIENTE", "Cliente", id.ToString(), $"Cliente #{id} ({cliente.NombreCompleto}) desactivado; {vehiculos.Count} vehículos desactivados en cascada");
         return true;
     }
 
@@ -293,6 +299,7 @@ public class ClienteService : IClienteService
 
         await context.SaveChangesAsync();
         _logger.LogInformation("Cliente {Id} reactivado; {N} vehículos reactivados en cascada.", id, vehiculos.Count);
+        await _auditoria.RegistrarAsync("REACTIVAR_CLIENTE", "Cliente", id.ToString(), $"Cliente #{id} ({cliente.NombreCompleto}) reactivado; {vehiculos.Count} vehículos reactivados en cascada");
         return true;
     }
 

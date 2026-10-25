@@ -1,9 +1,10 @@
 using System;
-using System.Net;
-using System.Net.Mail;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
+using Mecano.Entidad.DTOs.Auditoria;
 using Mecano.Logica.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -21,7 +22,18 @@ namespace Mecano.Logica.Servicios
             _logger = logger;
         }
 
-        public async Task RegistrarAsync(string tipoAccion, string entidadAfectada, string? entidadId, string detalles, string? usuarioId = null, string? usuarioNombre = null)
+        /// <summary>
+        /// Registra una acción crítica en <c>AuditoriaLogs</c>. Los errores de escritura
+        /// se absorben (solo se loggean): el fallo del log nunca debe bloquear la operación
+        /// de negocio que lo desencadenó.
+        /// </summary>
+        public async Task RegistrarAsync(
+            string tipoAccion,
+            string entidadAfectada,
+            string? entidadId,
+            string detalles,
+            string? usuarioId = null,
+            string? usuarioNombre = null)
         {
             try
             {
@@ -29,78 +41,93 @@ namespace Mecano.Logica.Servicios
 
                 var log = new AuditoriaLog
                 {
-                    FechaHora = DateTime.Now,
-                    TipoAccion = tipoAccion,
-                    UsuarioId = usuarioId,
-                    UsuarioNombre = usuarioNombre,
+                    FechaHora      = DateTime.Now,
+                    TipoAccion     = tipoAccion,
+                    UsuarioId      = usuarioId,
+                    UsuarioNombre  = usuarioNombre,
                     EntidadAfectada = entidadAfectada,
-                    EntidadId = entidadId,
-                    Detalles = detalles
+                    EntidadId      = entidadId,
+                    Detalles       = detalles
                 };
 
-                context.Set<AuditoriaLog>().Add(log);
+                context.AuditoriaLogs.Add(log);
                 await context.SaveChangesAsync();
-
-                // Enviar correo a CorreoNotificaciones del administrador
-                await EnviarCorreoAuditoriaAsync(log);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al registrar auditoría");
-                // No bloquear operación principal
+                // No bloquear la operación principal si el log falla.
+                _logger.LogError(ex, "Error al registrar auditoría ({TipoAccion}, {EntidadAfectada} #{EntidadId})",
+                    tipoAccion, entidadAfectada, entidadId);
             }
         }
 
-        private async Task EnviarCorreoAuditoriaAsync(AuditoriaLog log)
+        /// <summary>
+        /// Devuelve una página de entradas de auditoría en orden descendente por fecha,
+        /// aplicando los filtros opcionales del DTO. El total sirve para la paginación numerada.
+        /// </summary>
+        public async Task<(List<AuditoriaLogDTO> Items, int Total)> ObtenerPaginadoAsync(
+            FiltroAuditoriaDTO filtro,
+            int pagina,
+            int tamanioPagina)
         {
-            try
+            await using var context = await _factory.CreateDbContextAsync();
+
+            var query = context.AuditoriaLogs.AsNoTracking().AsQueryable();
+
+            if (filtro.Desde.HasValue)
+                query = query.Where(l => l.FechaHora >= filtro.Desde.Value.Date);
+
+            if (filtro.Hasta.HasValue)
+                query = query.Where(l => l.FechaHora < filtro.Hasta.Value.Date.AddDays(1));
+
+            if (!string.IsNullOrWhiteSpace(filtro.TipoAccion))
             {
-                await using var context = await _factory.CreateDbContextAsync();
-                var admin = await context.Administradors
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(a => a.Activo && !string.IsNullOrWhiteSpace(a.CorreoNotificaciones));
-
-                if (admin == null || string.IsNullOrWhiteSpace(admin.CorreoNotificaciones))
-                    return;
-
-                var destinatario = admin.CorreoNotificaciones.Trim();
-                var asunto = $"[Mecano Auditoría] {log.TipoAccion} - {log.EntidadAfectada}";
-                var cuerpo = $@"<html><body>
-<h2>Registro de auditoría - Mecano</h2>
-<table border='1' cellpadding='5' cellspacing='0'>
-<tr><td><strong>Fecha/Hora</strong></td><td>{log.FechaHora:yyyy-MM-dd HH:mm:ss}</td></tr>
-<tr><td><strong>Tipo de Acción</strong></td><td>{WebUtility.HtmlEncode(log.TipoAccion)}</td></tr>
-<tr><td><strong>Usuario</strong></td><td>{WebUtility.HtmlEncode(log.UsuarioNombre ?? "-")} ({WebUtility.HtmlEncode(log.UsuarioId ?? "-")})</td></tr>
-<tr><td><strong>Entidad Afectada</strong></td><td>{WebUtility.HtmlEncode(log.EntidadAfectada)}</td></tr>
-<tr><td><strong>ID Entidad</strong></td><td>{WebUtility.HtmlEncode(log.EntidadId ?? "-")}</td></tr>
-<tr><td><strong>Detalles</strong></td><td>{WebUtility.HtmlEncode(log.Detalles ?? "-")}</td></tr>
-</table>
-</body></html>";
-
-                using var smtp = new SmtpClient
-                {
-                    Host = "smtp.gmail.com",
-                    Port = 587,
-                    EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential("mecano.notificaciones@gmail.com", "sxst ygfx ctjc ldwg")
-                };
-
-                var mail = new MailMessage
-                {
-                    From = new MailAddress("mecano.notificaciones@gmail.com", "Mecano"),
-                    Subject = asunto,
-                    Body = cuerpo,
-                    IsBodyHtml = true
-                };
-                mail.To.Add(destinatario);
-                await smtp.SendMailAsync(mail);
+                var tipo = filtro.TipoAccion.Trim();
+                query = query.Where(l => l.TipoAccion.Contains(tipo));
             }
-            catch (Exception ex)
+
+            if (!string.IsNullOrWhiteSpace(filtro.UsuarioNombre))
             {
-                _logger.LogError(ex, "Error al enviar correo de auditoría");
+                var nombre = filtro.UsuarioNombre.Trim();
+                query = query.Where(l => l.UsuarioNombre != null && l.UsuarioNombre.Contains(nombre));
             }
+
+            var total = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(l => l.FechaHora)
+                .Skip((pagina - 1) * tamanioPagina)
+                .Take(tamanioPagina)
+                .Select(l => new AuditoriaLogDTO
+                {
+                    Id               = l.Id,
+                    FechaHora        = l.FechaHora,
+                    TipoAccion       = l.TipoAccion,
+                    UsuarioNombre    = l.UsuarioNombre,
+                    EntidadAfectada  = l.EntidadAfectada,
+                    EntidadId        = l.EntidadId,
+                    Detalles         = l.Detalles
+                })
+                .ToListAsync();
+
+            return (items, total);
+        }
+
+        /// <summary>
+        /// Devuelve el <c>CorreoNotificaciones</c> del Administrador Global, o <c>null</c>
+        /// si no está configurado. Lo usa la página /auditoria para construir el mailto:.
+        /// </summary>
+        public async Task<string?> ObtenerCorreoOwnerAsync()
+        {
+            await using var context = await _factory.CreateDbContextAsync();
+
+            var correo = await context.Administradors
+                .AsNoTracking()
+                .Where(a => a.EsAdminGlobal && !string.IsNullOrWhiteSpace(a.CorreoNotificaciones))
+                .Select(a => a.CorreoNotificaciones)
+                .FirstOrDefaultAsync();
+
+            return string.IsNullOrWhiteSpace(correo) ? null : correo.Trim();
         }
     }
 }
