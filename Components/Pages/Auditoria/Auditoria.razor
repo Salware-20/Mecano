@@ -12,8 +12,8 @@
                 type="button"
                 @onclick="NotificarOwnerAsync"
                 disabled="@(!tieneCorreoOwner || cargando)"
-                title="@(tieneCorreoOwner ? $"Notificar al Owner ({correoOwner})" : "El Admin Global no tiene correo de notificaciones configurado. Configúrelo en /perfil.")">
-            <i class="bi bi-envelope-arrow-up" aria-hidden="true"></i> Notificar al Owner
+                title="@(tieneCorreoOwner ? $"Notificar al dueño ({correoOwner})" : "El Admin Global no tiene correo de notificaciones configurado. Configúrelo en /perfil.")">
+            <i class="bi bi-envelope-arrow-up" aria-hidden="true"></i> Notificar al dueño
         </button>
     </div>
 </div>
