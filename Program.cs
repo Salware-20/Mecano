@@ -102,6 +102,13 @@ if (!app.Environment.IsDevelopment())
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/api"),
     rama => rama.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
+
+// Routing explícito DESPUÉS de las páginas de estado: el reexecute necesita
+// volver a resolver el endpoint de /not-found. Si WebApplication inserta
+// UseRouting al inicio del pipeline, el reexecute corre con endpoint nulo y el
+// 404 sale con cuerpo vacío (el navegador muestra su propia página de error).
+app.UseRouting();
+
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();

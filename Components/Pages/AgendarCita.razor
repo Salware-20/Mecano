@@ -76,6 +76,21 @@
                                 }
                             </ul>
                         }
+                        else if (clientesEncontrados != null)
+                        {
+                            // Sin resultados no se mostraba nada: callejón sin salida para
+                            // un taller que todavía no tiene clientes registrados.
+                            <div class="alert alert-secondary mb-0" role="status">
+                                <div class="mb-2">
+                                    <i class="bi bi-person-x me-1"></i>
+                                    No se encontró ningún cliente con «<strong>@searchTerm</strong>».
+                                </div>
+                                <a href="clientes?nuevo=1" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-person-plus"></i> Registrar cliente nuevo
+                                </a>
+                                <div class="form-text">Después de guardarlo, vuelve aquí y búscalo por nombre o cédula.</div>
+                            </div>
+                        }
                     </div>
                 </div>
             }
