@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
@@ -102,7 +98,8 @@ public class MecanicoService : IMecanicoService
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
-                Activo             = m.Activo
+                Activo             = m.Activo,
+                MotivoDesactivacion = m.MotivoDesactivacion
             })
             .ToListAsync();
     }
@@ -134,7 +131,8 @@ public class MecanicoService : IMecanicoService
                 Telefono           = m.Telefono,
                 EspecialidadId     = m.EspecialidadId,
                 EspecialidadNombre = m.Especialidad.Nombre,
-                Activo             = m.Activo
+                Activo             = m.Activo,
+                MotivoDesactivacion = m.MotivoDesactivacion
             })
             .FirstOrDefaultAsync();
     }
@@ -145,12 +143,12 @@ public class MecanicoService : IMecanicoService
     {
         await using var context = await _factory.CreateDbContextAsync();
 
-        var nombre   = dto.Nombre.Trim();
-        var email    = dto.Email.Trim().ToLowerInvariant();
-        var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
-            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
-            : null;
+        var nombre = dto.Nombre.Trim();
+        var alias = CorreoCorporativo.NormalizarYValidarAlias(dto.AliasCorreo);
+        var cedula = Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion);
         var telefono = NormalizarTelefono(dto.Telefono);
+
+        var email = CorreoCorporativo.Componer(alias);
 
         // Validar unicidad de email en Administradores y Mecánicos
         if (await ExisteEmailAsync(email))
@@ -158,24 +156,21 @@ public class MecanicoService : IMecanicoService
                 $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
 
         // Validar unicidad de identificación
-        if (cedula != null)
-        {
-            var mecanicoDuplicado = await context.Mecanico
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Cedula == cedula);
+        var mecanicoDuplicado = await context.Mecanico
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Cedula == cedula);
 
-            if (mecanicoDuplicado != null)
+        if (mecanicoDuplicado != null)
+        {
+            _logger.LogWarning("Identificación duplicada al crear mecánico: {Cedula} ({Tipo})", cedula, dto.TipoIdentificacion);
+            var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+            if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
             {
-                _logger.LogWarning("Identificación duplicada al crear mecánico: {Cedula} ({Tipo})", cedula, dto.TipoIdentificacion);
-                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
-                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
-                {
-                    throw new InvalidOperationException($"Ya existe un mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
-                }
-                else
-                {
-                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
-                }
+                throw new InvalidOperationException($"Ya existe un mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+            }
+            else
+            {
+                throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
             }
         }
 
@@ -209,37 +204,26 @@ public class MecanicoService : IMecanicoService
         var mecanico = await context.Mecanico.FindAsync(dto.Id);
         if (mecanico is null) return false;
 
-        var nombre   = dto.Nombre.Trim();
-        var email    = dto.Email.Trim().ToLowerInvariant();
-        var cedula   = !string.IsNullOrWhiteSpace(dto.Cedula)
-            ? Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion)
-            : null;
+        var nombre = dto.Nombre.Trim();
+        var cedula = Formatos.NormalizarIdentificacion(dto.Cedula, dto.TipoIdentificacion);
         var telefono = NormalizarTelefono(dto.Telefono);
 
-        // Validar unicidad de email excluyendo al propio mecánico
-        if (await ExisteEmailAsync(email, excluirId: dto.Id))
-            throw new InvalidOperationException(
-                $"Ya existe un usuario (administrador o mecánico) con el correo '{email}'.");
-
         // Validar unicidad de identificación excluyendo al propio mecánico
-        if (cedula != null)
-        {
-            var mecanicoDuplicado = await context.Mecanico
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Cedula == cedula && m.MecanicoId != dto.Id);
+        var mecanicoDuplicado = await context.Mecanico
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Cedula == cedula && m.MecanicoId != dto.Id);
 
-            if (mecanicoDuplicado != null)
+        if (mecanicoDuplicado != null)
+        {
+            _logger.LogWarning("Identificación duplicada al actualizar mecánico {Id}: {Cedula} ({Tipo})", dto.Id, cedula, dto.TipoIdentificacion);
+            var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
+            if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
             {
-                _logger.LogWarning("Identificación duplicada al actualizar mecánico {Id}: {Cedula} ({Tipo})", dto.Id, cedula, dto.TipoIdentificacion);
-                var formateada = Formatos.FormatearIdentificacion(cedula, mecanicoDuplicado.TipoIdentificacion);
-                if (mecanicoDuplicado.TipoIdentificacion == dto.TipoIdentificacion)
-                {
-                    throw new InvalidOperationException($"Ya existe otro mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
-                }
-                else
-                {
-                    throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
-                }
+                throw new InvalidOperationException($"Ya existe otro mecánico con la identificación {formateada} ({mecanicoDuplicado.TipoIdentificacion}).");
+            }
+            else
+            {
+                throw new InvalidOperationException($"La identificación {formateada} ya está registrada para otro mecánico con el tipo '{mecanicoDuplicado.TipoIdentificacion}'.");
             }
         }
 
@@ -258,8 +242,8 @@ public class MecanicoService : IMecanicoService
             mecanico.HashPassword = PasswordHasher.Hash(dto.Password);
         }
 
+        // El correo de acceso (Email) NO se modifica en edición
         mecanico.Nombre             = nombre;
-        mecanico.Email              = email;
         mecanico.Cedula             = cedula;
         mecanico.TipoIdentificacion = dto.TipoIdentificacion;
         mecanico.Telefono           = telefono;
@@ -272,14 +256,18 @@ public class MecanicoService : IMecanicoService
 
     // ~~~ DESACTIVAR / REACTIVAR ~~~
 
-    public async Task<bool> DesactivarAsync(int id)
+    public async Task<bool> DesactivarAsync(int id, string motivoDesactivacion)
     {
         await using var context = await _factory.CreateDbContextAsync();
 
         var mecanico = await context.Mecanico.FindAsync(id);
         if (mecanico is null) return false;
 
+        if (string.IsNullOrWhiteSpace(motivoDesactivacion))
+            throw new InvalidOperationException("Debe indicar el motivo de desactivación.");
+
         mecanico.Activo = false;
+        mecanico.MotivoDesactivacion = motivoDesactivacion.Trim();
         await context.SaveChangesAsync();
         return true;
     }
@@ -292,6 +280,7 @@ public class MecanicoService : IMecanicoService
         if (mecanico is null) return false;
 
         mecanico.Activo = true;
+        // Se conserva MotivoDesactivacion como histórico según requerimiento
         await context.SaveChangesAsync();
         return true;
     }

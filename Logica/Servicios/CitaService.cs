@@ -19,11 +19,16 @@ public class CitaService : ICitaService
 {
     private readonly IDbContextFactory<MySQLDBContext> _factory;
     private readonly ILogger<CitaService> _logger;
+    private readonly IAuditoriaService _auditoria;
 
-    public CitaService(IDbContextFactory<MySQLDBContext> factory, ILogger<CitaService> logger)
+    public CitaService(
+        IDbContextFactory<MySQLDBContext> factory,
+        ILogger<CitaService> logger,
+        IAuditoriaService auditoria)
     {
-        _factory = factory;
-        _logger = logger;
+        _factory   = factory;
+        _logger    = logger;
+        _auditoria = auditoria;
     }
 
     public async Task<Cita> AgendarCitaAsync(AgendarCitaDTO dto)
@@ -186,6 +191,7 @@ public class CitaService : ICitaService
 
         cita.Estado = EstadoCita.Cancelado;
         await context.SaveChangesAsync();
+        await _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", citaId.ToString(), $"Cita #{citaId} cancelada");
     }
 
     public async Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin)
@@ -499,6 +505,7 @@ public class CitaService : ICitaService
         await context.SaveChangesAsync();
         _logger.LogInformation("Cita {Id} reprogramada a {Fecha} {Hora} con mecánicos {MecanicosIds}.",
             cita.CitaId, dto.Fecha, dto.HoraInicio, string.Join(", ", mecanicosIds));
+        await _auditoria.RegistrarAsync("REPROGRAMAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} reprogramada a {dto.Fecha:yyyy-MM-dd} {dto.HoraInicio} con mecánicos [{string.Join(", ", mecanicosIds)}]");
         return true;
     }
 
@@ -564,6 +571,20 @@ public class CitaService : ICitaService
         _logger.LogInformation("Cita {Id}: {Origen} → {Destino} ({Quien}).",
             cita.CitaId, TextoEstado(origen), TextoEstado(destino),
             esAdmin ? "administración" : $"mecánico {mecanicoId}");
+
+        if (destino == EstadoCita.EnProceso)
+        {
+            await _auditoria.RegistrarAsync("INICIAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} iniciada ({TextoEstado(origen)} → En proceso)", mecanicoId?.ToString(), esAdmin ? "Administrador" : $"Mecánico #{mecanicoId}");
+        }
+        else if (destino == EstadoCita.Finalizado)
+        {
+            await _auditoria.RegistrarAsync("FINALIZAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} finalizada ({TextoEstado(origen)} → Finalizada)", mecanicoId?.ToString(), esAdmin ? "Administrador" : $"Mecánico #{mecanicoId}");
+        }
+        else if (destino == EstadoCita.Cancelado)
+        {
+            await _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} cancelada ({TextoEstado(origen)} → Cancelada)", mecanicoId?.ToString(), "Administrador");
+        }
+
         return true;
     }
 

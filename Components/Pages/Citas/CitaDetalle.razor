@@ -2,11 +2,16 @@
 @attribute [Authorize(Roles = Mecano.Entidad.Constantes.Roles.Administrador + "," + Mecano.Entidad.Constantes.Roles.Mecanico)]
 @rendermode InteractiveServer
 @using System.Globalization
+@using System.Security.Claims
 @using Mecano.Entidad.Constantes
+@using Mecano.Entidad.Utilidades
 @inject ICitaService CitaService
 @inject IVehiculoService VehiculoService
 @inject IServicioService ServicioService
 @inject IMecanicoService MecanicoService
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@inject Mecano.Logica.Interfaces.IAuditoriaService AuditoriaService
 
 <PageTitle>Cita #@Id - Mecano</PageTitle>
 
@@ -149,6 +154,74 @@ else if (esAdmin && cita is not null)
                             <i class="bi bi-exclamation-triangle me-2"></i>
                             <div>Este cliente está inactivo. Revise su estado antes de continuar.</div>
                         </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- Contacto ---------- *@
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <strong><i class="bi bi-chat-dots"></i> Contacto</strong>
+                </div>
+                <div class="card-body">
+                    @{
+                        var msg = WhatsAppHelper.CrearMensajeSegunEstado(cita);
+                        var tieneCorreo = !string.IsNullOrWhiteSpace(cita.ClienteCorreo);
+                        var tieneTelefono = !string.IsNullOrWhiteSpace(cita.ClienteTelefono);
+                        var whatsappValido = WhatsAppHelper.EsValidoParaWhatsApp(cita.ClienteTelefono);
+                        var enlaceWhatsApp = whatsappValido ? WhatsAppHelper.CrearEnlace(cita.ClienteTelefono, msg.Cuerpo) : string.Empty;
+                        var mailtoEnlace = tieneCorreo ? $"mailto:{cita.ClienteCorreo}?subject={Uri.EscapeDataString(msg.Asunto)}&body={Uri.EscapeDataString(msg.Cuerpo.Replace("\r\n", "\n").Replace("\n", "\r\n"))}" : string.Empty;
+                    }
+
+                    @if (!msg.Enviar)
+                    {
+                        <div class="alert alert-info py-2 mb-0">
+                            <i class="bi bi-info-circle"></i> Cita en progreso: no se envía notificación automática.
+                        </div>
+                    }
+                    else
+                    {
+                        @if (tieneCorreo)
+                        {
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary w-100" @onclick="() => ContactarEmail(mailtoEnlace)">
+                                    <i class="bi bi-envelope"></i> Enviar correo
+                                </button>
+                            </div>
+                        }
+
+                        @if (whatsappValido)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label text-muted small mb-1">Mensaje pre-llenado (WhatsApp)</label>
+                                <textarea class="form-control" rows="6" readonly>@msg.Cuerpo</textarea>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-success" @onclick="() => AbrirWhatsApp(enlaceWhatsApp, msg.Cuerpo)">
+                                    <i class="bi bi-whatsapp"></i> Abrir WhatsApp
+                                </button>
+                                <button class="btn btn-outline-success" @onclick="() => CopiarMensaje(msg.Cuerpo)">
+                                    <i class="bi bi-clipboard"></i> Copiar mensaje
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(copiadoMsg))
+                            {
+                                <small class="text-success d-block mt-2">@copiadoMsg</small>
+                            }
+                        }
+                        else if (tieneTelefono)
+                        {
+                            <div class="alert alert-warning py-2 mb-0">
+                                <small><i class="bi bi-exclamation-triangle"></i> Número telefónico no válido para WhatsApp (se requiere 8 dígitos en Costa Rica).</small>
+                            </div>
+                        }
+
+                        @if (!tieneCorreo && !whatsappValido)
+                        {
+                            <p class="text-secondary mb-0">Sin datos de contacto disponibles.</p>
+                        }
                     }
                 </div>
             </div>
@@ -617,4 +690,67 @@ else
 
 @code {
     private static readonly CultureInfo EsCr = new("es-CR");
+    private string? copiadoMsg;
+
+    private async Task CopiarMensaje(string mensaje)
+    {
+        try
+        {
+            var resultado = await JS.InvokeAsync<bool>("mecanoWhatsApp.copiarTexto", mensaje);
+            copiadoMsg = resultado ? "Mensaje copiado al portapapeles." : "No se pudo copiar automáticamente. Copie manualmente.";
+            StateHasChanged();
+            await Task.Delay(2000);
+            copiadoMsg = null;
+            StateHasChanged();
+        }
+        catch
+        {
+            copiadoMsg = "No se pudo copiar automáticamente. Copie manualmente.";
+            StateHasChanged();
+            await Task.Delay(2000);
+            copiadoMsg = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AbrirWhatsApp(string enlace, string mensaje)
+    {
+        await CopiarMensaje(mensaje);
+        await AuditarContactoAsync("WhatsApp");
+        await JS.InvokeVoidAsync("open", enlace, "_blank");
+    }
+
+    private async Task ContactarEmail(string mailtoEnlace)
+    {
+        await AuditarContactoAsync("Email");
+        NavigationManager.NavigateTo(mailtoEnlace);
+    }
+
+    private async Task AuditarContactoAsync(string tipoContacto)
+    {
+        try
+        {
+            string? adminId = null;
+            string? adminNombre = null;
+            if (AuthState is not null)
+            {
+                var state = await AuthState;
+                adminId = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                adminNombre = state.User.FindFirst(ClaimTypes.Name)?.Value ?? state.User.Identity?.Name;
+            }
+
+            var clienteNombre = cita?.ClienteNombre ?? "Cliente";
+            await AuditoriaService.RegistrarAsync(
+                tipoAccion: $"CONTACTO_{tipoContacto.ToUpperInvariant()}",
+                entidadAfectada: "Cita",
+                entidadId: Id.ToString(),
+                detalles: $"Contacto vía {tipoContacto} con {clienteNombre} (Cita #{Id})",
+                usuarioId: adminId,
+                usuarioNombre: adminNombre);
+        }
+        catch
+        {
+            // El registro de auditoría no bloquea la acción de contacto
+        }
+    }
 }

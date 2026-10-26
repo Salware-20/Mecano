@@ -107,7 +107,15 @@
                                         <span>—</span>
                                     }
                                 </td>
-                                <td style="text-transform:capitalize;"><strong>@mec.Nombre</strong></td>
+                                <td style="text-transform:capitalize;">
+                                    <strong>@mec.Nombre</strong>
+                                    @if (!mec.Activo && !string.IsNullOrWhiteSpace(mec.MotivoDesactivacion))
+                                    {
+                                        <div class="small text-muted" title="@mec.MotivoDesactivacion">
+                                            <i class="bi bi-info-circle"></i> Motivo: @mec.MotivoDesactivacion
+                                        </div>
+                                    }
+                                </td>
                                 <td>@mec.Email</td>
                                 <td>@(string.IsNullOrWhiteSpace(mec.Telefono) ? "—" : Formatos.Telefono(mec.Telefono))</td>
                                 <td>@(mec.EspecialidadNombre ?? "—")</td>
@@ -186,9 +194,25 @@
                             <ValidationMessage For="() => modelo.Nombre" class="text-danger small" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="mecEmail">Email *</label>
-                            <InputText id="mecEmail" class="form-control" @bind-Value="modelo.Email" type="email" maxlength="200" autocomplete="off" />
-                            <ValidationMessage For="() => modelo.Email" class="text-danger small" />
+                            <label class="form-label" for="mecEmail">Correo de inicio de sesión</label>
+                            @if (!esEdicion)
+                            {
+                                <div class="input-group">
+                                    <InputText id="mecAliasCorreo" class="form-control" @bind-Value="modelo.AliasCorreo"
+                                               maxlength="@CorreoCorporativo.LargoMaximoAlias" autocomplete="off" autocapitalize="none" spellcheck="false"
+                                               aria-describedby="mecAliasCorreoHelp" />
+                                    <span class="input-group-text">@CorreoCorporativo.Dominio</span>
+                                </div>
+                                <ValidationMessage For="() => modelo.AliasCorreo" class="text-danger small" />
+                                <div id="mecAliasCorreoHelp" class="form-text">
+                                    Solo el alias; el dominio @CorreoCorporativo.Dominio es fijo. No incluyas @@, espacios ni dominios externos.
+                                </div>
+                            }
+                            else
+                            {
+                                <input id="mecEmail" class="form-control bg-body-secondary" value="@modelo.Email" readonly />
+                                <div class="form-text">El correo de acceso no se puede modificar desde esta pantalla.</div>
+                            }
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
@@ -275,15 +299,17 @@
                     {
                         <div class="alert alert-danger">@mensajeError</div>
                     }
-                    else
-                    {
-                        <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
-                        <p class="text-muted small mb-0">
-                            Se marcará como inactivo, dejará de recibir citas nuevas y no
-                            aparecerá en el tablero de agendado. Las citas existentes no se
-                            modifican y podrás reactivarlo en cualquier momento.
-                        </p>
-                    }
+                    <p>¿Desactivar al mecánico <strong style="text-transform:capitalize;">@mecanicoADesactivar.Nombre</strong>?</p>
+                    <p class="text-muted small">
+                        Se marcará como inactivo, dejará de recibir citas nuevas y no
+                        aparecerá en el tablero de agendado. Las citas existentes no se
+                        modifican y podrás reactivarlo en cualquier momento.
+                    </p>
+                    <div class="mb-0">
+                        <label class="form-label">Motivo de desactivación *</label>
+                        <textarea class="form-control" rows="3" @bind="motivoDesactivacion" maxlength="500" placeholder="Indique el motivo de la desactivación..."></textarea>
+                        <small class="text-muted">Este motivo quedará registrado y se mostrará en la ficha del mecánico.</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelarDesactivar">Cancelar</button>

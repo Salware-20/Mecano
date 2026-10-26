@@ -1,10 +1,14 @@
+using Mecano.Entidad.DTOs.Administrador;
 using Mecano.Entidad.DTOs.Perfil;
 
 namespace Mecano.Logica.Interfaces
 {
     /// <summary>
-    /// Gestión del perfil del administrador autenticado: lectura de datos,
-    /// actualización del correo de notificaciones y cambio de contraseña.
+    /// Servicio de administradores: perfil del administrador autenticado
+    /// (correo de notificaciones y contraseña) y gestión de staff por parte
+    /// del Admin Global. El correo corporativo se compone como
+    /// <c>alias@mecano.cr</c>; el correo de notificaciones es personal y solo
+    /// se escribe desde /perfil.
     /// </summary>
     public interface IAdministradorService
     {
@@ -28,5 +32,32 @@ namespace Mecano.Logica.Interfaces
         /// coincide o si la nueva es igual a la actual.
         /// </summary>
         Task<bool> CambiarPasswordAsync(int adminId, CambiarPasswordDTO dto);
+
+        // Gestión de otros administradores (solo Global Admin)
+
+        /// <summary>
+        /// Lista los administradores para la pantalla de gestión. No expone el
+        /// correo de notificaciones, que es personal.
+        /// </summary>
+        Task<List<AdministradorListaDTO>> ListarAsync(bool incluirInactivos = true);
+
+        /// <summary>Devuelve un administrador por id, sin su correo de notificaciones.</summary>
+        Task<AdministradorListaDTO?> ObtenerPorIdAsync(int adminId);
+
+        /// <summary>
+        /// Crea un administrador staff. El correo de acceso se compone como
+        /// <c>{AliasCorreo}@mecano.cr</c>; el correo de notificaciones queda vacío
+        /// y solo el propio administrador puede configurarlo desde /perfil.
+        /// </summary>
+        Task<int> CrearAsync(CrearAdministradorDTO dto, int creadoPorId);
+
+        /// <summary>
+        /// Actualiza los datos editables de un administrador staff. No modifica
+        /// el correo de acceso ni el correo de notificaciones.
+        /// </summary>
+        Task<bool> ActualizarAsync(ActualizarAdministradorDTO dto);
+        Task<bool> DesactivarAsync(int adminId, int solicitanteId);
+        Task<bool> ReactivarAsync(int adminId);
+        Task<bool> ExisteEmailAsync(string email, int? excluirId = null);
     }
 }

@@ -22,6 +22,13 @@ namespace Mecano.Entidad.Utilidades
         public const string Correo = @"^[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}$";
 
         /// <summary>
+        /// Alias de correo corporativo: minúsculas ASCII, números y separadores
+        /// simples (punto, guion, guion bajo), sin <c>@</c>, espacios ni dominio.
+        /// El servicio compone <c>alias@mecano.cr</c> y revalida esta regla.
+        /// </summary>
+        public const string AliasCorreo = @"^[a-z0-9]+(?:[._-][a-z0-9]+)*$";
+
+        /// <summary>
         /// Mensaje de error reutilizable para <see cref="Nombre"/> y <see cref="Correo"/>,
         /// de modo que el texto mostrado sea idéntico en todos los formularios.
         /// </summary>
@@ -29,6 +36,9 @@ namespace Mecano.Entidad.Utilidades
 
         /// <summary>Mensaje de error reutilizable para <see cref="Correo"/>.</summary>
         public const string MensajeCorreo = "El correo debe tener un formato válido (ej. usuario@dominio.com)";
+
+        /// <summary>Mensaje de error para el alias del correo corporativo.</summary>
+        public const string MensajeAliasCorreo = "El alias solo admite minúsculas, números, puntos, guiones y guiones bajos; sin espacios, @ ni dominio.";
 
         /// <summary>Mensaje de error reutilizable para el teléfono con formato inválido.</summary>
         public const string MensajeTelefonoFormato = "El teléfono no tiene un formato válido";

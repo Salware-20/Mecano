@@ -17,6 +17,7 @@ namespace Mecano.Data
         public DbSet<NotificacionLog> NotificacionLog { get; set; }
         public DbSet<Servicio> Servicio { get; set; }
         public DbSet<Vehiculo> Vehiculo { get; set; }
+        public DbSet<AuditoriaLog> AuditoriaLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -88,6 +89,13 @@ namespace Mecano.Data
                 .WithOne(nl => nl.Cita)
                 .HasForeignKey(nl => nl.CitaId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Auditoría: consultas por fecha y por entidad afectada.
+            modelBuilder.Entity<AuditoriaLog>()
+                .HasIndex(l => l.FechaHora);
+
+            modelBuilder.Entity<AuditoriaLog>()
+                .HasIndex(l => new { l.EntidadAfectada, l.EntidadId });
 
             // Cliente - Comentario: un cliente tiene muchos comentarios
             modelBuilder.Entity<Cliente>()

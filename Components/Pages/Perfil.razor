@@ -101,6 +101,11 @@ else if (esAdmin)
                                            @bind-Value="perfilModel.Cedula" />
                                 <ValidationMessage For="() => perfilModel.Cedula" class="text-danger small" />
                             </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label" for="perfilNumero">Número de Teléfono *</label>
+                                    <InputText id="perfilNumero" class="form-control" placeholder="Ej. 80208020" @bind-Value="perfilModel.Telefono" autocomplete="off" />
+                                <ValidationMessage For="()=> perfilModel.Telefono" class="text-danger small" />
+                            </div>
                         </div>
                         <div class="form-text mb-3">
                             Actualiza tu nombre y tu identificación si el puesto pasa a otra persona.
@@ -119,14 +124,14 @@ else if (esAdmin)
                                        autocomplete="off" placeholder="avisos@correo.com"
                                        @bind-Value="perfilModel.CorreoNotificaciones" />
                             <div class="form-text">
-                                Recibirás aquí los avisos de tu cuenta. Déjalo vacío para desactivarlos.
-                                Debe ser un correo único por administrador.
+                                Este es el único lugar donde puedes cambiar tu correo de notificaciones.
+                                Déjalo vacío para desactivarlos. Debe ser un correo único por administrador.
                             </div>
                             <ValidationMessage For="() => perfilModel.CorreoNotificaciones" class="text-danger small" />
                         </div>
 
                         <div class="d-flex justify-content-end">
-                            <button type="submit" class="btn btn-primary d-flex align-items-center gap-2" disabled="@guardandoPerfil">
+                                <button type="button" class="btn btn-primary d-flex align-items-center gap-2" @onclick="GuardarPerfil" disabled="@guardandoPerfil">
                                 @if (guardandoPerfil)
                                 {
                                     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>

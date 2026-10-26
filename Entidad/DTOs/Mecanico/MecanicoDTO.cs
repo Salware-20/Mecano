@@ -15,5 +15,6 @@ namespace Mecano.Entidad.DTOs.Mecanico
         public int EspecialidadId { get; set; }
         public string? EspecialidadNombre { get; set; }
         public bool Activo { get; set; }
+        public string? MotivoDesactivacion { get; set; }
     }
 }

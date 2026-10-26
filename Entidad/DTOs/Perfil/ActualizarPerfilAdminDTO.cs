@@ -19,16 +19,21 @@ namespace Mecano.Entidad.DTOs.Perfil
         public string Nombre { get; set; } = string.Empty;
 
         /// <summary>
-        /// Identificación. Opcional a nivel de DTO (vacío = sin identificación
-        /// registrada), igual que en los mecánicos. La normalización estricta por
-        /// tipo (Nacional 9 dígitos, DIMEX 11-12, Pasaporte hasta 20) la aplica el
+        /// Identificación obligatoria. La normalización estricta por tipo
+        /// (Nacional 9 dígitos, DIMEX 11-12, Pasaporte hasta 20) la aplica el
         /// servicio con <c>Formatos.NormalizarIdentificacion</c>, que lanza
         /// <see cref="InvalidOperationException"/> con el mensaje concreto.
         /// </summary>
+        [Required(ErrorMessage = "La identificación es obligatoria")]
         [StringLength(20, ErrorMessage = "La identificación no puede superar 20 caracteres")]
         public string? Cedula { get; set; }
 
         public Mecano.Entidad.Constantes.TipoIdentificacion TipoIdentificacion { get; set; } = Mecano.Entidad.Constantes.TipoIdentificacion.Nacional;
+
+        [Required(ErrorMessage = Patrones.MensajeTelefonoRequerido)]
+        [Phone(ErrorMessage = Patrones.MensajeTelefonoFormato)]
+        [StringLength(20, ErrorMessage = "El teléfono no puede superar 20 caracteres")]
+        public string? Telefono { get; set; }
 
         /// <summary>
         /// Correo secundario de notificaciones. Opcional: vacío lo borra.

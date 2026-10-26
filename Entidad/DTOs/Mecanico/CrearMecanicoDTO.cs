@@ -4,11 +4,11 @@ using Mecano.Entidad.Utilidades;
 namespace Mecano.Entidad.DTOs.Mecanico
 {
     /// <summary>
-    /// DTO de escritura para crear un mecánico.
+    /// DTO de escritura para crear un mecánico. El correo de acceso se compone
+    /// como <c>alias@mecano.cr</c>; la persona solo captura el alias.
     /// StringLength está deliberadamente acotado a los límites del esquema
     /// (Nombre varchar(150), Email varchar(200), Cedula/Telefono varchar(20)).
-    /// La normalización estricta (email a minúsculas, trim, teléfono a 8 dígitos)
-    /// ocurre en el servicio.
+    /// La normalización estricta (alias, teléfono a 8 dígitos) ocurre en el servicio.
     /// </summary>
     public class CrearMecanicoDTO
     {
@@ -17,12 +17,18 @@ namespace Mecano.Entidad.DTOs.Mecanico
         [RegularExpression(Patrones.Nombre, ErrorMessage = Patrones.MensajeNombre)]
         public string Nombre { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "El correo es obligatorio")]
-        [StringLength(200, ErrorMessage = "El correo no puede superar 200 caracteres")]
-        [EmailAddress(ErrorMessage = "El correo no tiene un formato válido")]
-        [RegularExpression(Patrones.Correo, ErrorMessage = Patrones.MensajeCorreo)]
-        public string Email { get; set; } = string.Empty;
+        private string _aliasCorreo = string.Empty;
 
+        [Required(ErrorMessage = "El alias de correo es obligatorio")]
+        [StringLength(CorreoCorporativo.LargoMaximoAlias, ErrorMessage = "El alias no puede superar 64 caracteres.")]
+        [RegularExpression(Patrones.AliasCorreo, ErrorMessage = Patrones.MensajeAliasCorreo)]
+        public string AliasCorreo
+        {
+            get => _aliasCorreo;
+            set => _aliasCorreo = CorreoCorporativo.NormalizarAlias(value);
+        }
+
+        [Required(ErrorMessage = "La identificación es obligatoria.")]
         [StringLength(20, ErrorMessage = "La cédula no puede superar 20 caracteres")]
         public string? Cedula { get; set; }
 

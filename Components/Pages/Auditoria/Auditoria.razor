@@ -1,0 +1,196 @@
+@page "/auditoria"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "AdminGlobal")]
+@using Mecano.Entidad.DTOs.Auditoria
+
+<PageTitle>Auditoría - Mecano</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="mb-0"><i class="bi bi-clock-history" aria-hidden="true"></i> Auditoría de Movimientos Críticos</h1>
+    <div>
+        <button class="btn btn-outline-primary"
+                type="button"
+                @onclick="NotificarOwnerAsync"
+                disabled="@(!tieneCorreoOwner || cargando)"
+                title="@(tieneCorreoOwner ? $"Notificar al dueño ({correoOwner})" : "El Admin Global no tiene correo de notificaciones configurado. Configúrelo en /perfil.")">
+            <i class="bi bi-envelope-arrow-up" aria-hidden="true"></i> Notificar al dueño
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(mensajeExito))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeExito
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => mensajeExito = null"></button>
+    </div>
+}
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeError
+        <button type="button" class="btn-close" aria-label="Cerrar" @onclick="() => mensajeError = null"></button>
+    </div>
+}
+
+@if (!tieneCorreoOwner && !cargando)
+{
+    <div class="alert alert-warning py-2 mb-3">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <strong>Aviso:</strong> El Administrador Global no tiene configurado un <em>Correo de Notificaciones</em> en su <a href="perfil" class="alert-link">perfil</a>. El botón «Notificar al Owner» permanecerá deshabilitado hasta que se configure.
+    </div>
+}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted mb-1">Desde</label>
+                <input type="date" class="form-control form-control-sm"
+                       value="@(filtro.Desde?.ToString("yyyy-MM-dd"))"
+                       @onchange="OnDesdeCambiado" />
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted mb-1">Hasta</label>
+                <input type="date" class="form-control form-control-sm"
+                       value="@(filtro.Hasta?.ToString("yyyy-MM-dd"))"
+                       @onchange="OnHastaCambiado" />
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small text-muted mb-1">Tipo de Acción</label>
+                <input type="text" class="form-control form-control-sm" placeholder="Ej. DESACTIVAR, CITA..."
+                       value="@filtro.TipoAccion"
+                       @oninput="OnTipoAccionCambiado" />
+            </div>
+            <div class="col-12 col-sm-6 col-md-3 d-flex gap-2">
+                <button class="btn btn-sm btn-primary flex-fill" type="button" @onclick="AplicarFiltros">
+                    <i class="bi bi-funnel"></i> Filtrar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="LimpiarFiltros" title="Limpiar filtros">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        @if (cargando)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Cargando registros de auditoría...</span>
+                </div>
+            </div>
+        }
+        else if (logs.Count == 0)
+        {
+            <div class="p-4 text-center text-muted">
+                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                No se encontraron movimientos registrados con los filtros aplicados.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="min-width: 140px;">Fecha y Hora</th>
+                            <th style="min-width: 140px;">Acción</th>
+                            <th style="min-width: 130px;">Entidad</th>
+                            <th style="min-width: 140px;">Usuario</th>
+                            <th>Detalles</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in logs)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">
+                                    <i class="bi bi-calendar3 me-1 text-muted"></i>@item.FechaHora.ToString("dd/MM/yyyy HH:mm:ss")
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary font-monospace">@item.TipoAccion</span>
+                                </td>
+                                <td>
+                                    <strong>@item.EntidadAfectada</strong>
+                                    @if (!string.IsNullOrWhiteSpace(item.EntidadId))
+                                    {
+                                        <span class="text-muted ms-1 small">#@item.EntidadId</span>
+                                    }
+                                </td>
+                                <td>
+                                    @(item.UsuarioNombre ?? "-")
+                                </td>
+                                <td class="small">
+                                    @(item.Detalles ?? "-")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @* ---------- Paginación numerada ---------- *@
+    @if (!cargando && totalRegistros > 0)
+    {
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <small class="text-muted">
+                Página @paginaActual de @totalPaginas — @totalRegistros movimiento(s)
+            </small>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:auto;"
+                        value="@tamanioPagina" @onchange="CambiarTamanioPagina">
+                    @foreach (var t in TamaniosPagina)
+                    {
+                        <option value="@t">@t por página</option>
+                    }
+                </select>
+
+                @if (totalPaginas > 1)
+                {
+                    <nav aria-label="Paginación de auditoría">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(paginaActual == 1 ? "disabled" : "")">
+                                <button class="page-link" type="button" @onclick="PaginaAnterior">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </button>
+                            </li>
+
+                            @if (MostrarElipsisAntes())
+                            {
+                                <li class="page-item">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(1)">1</button>
+                                </li>
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                            }
+
+                            @foreach (var p in PaginasVisibles())
+                            {
+                                <li class="page-item @(p == paginaActual ? "active" : "")">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(p)">@p</button>
+                                </li>
+                            }
+
+                            @if (MostrarElipsisDespues())
+                            {
+                                <li class="page-item disabled"><span class="page-link">…</span></li>
+                                <li class="page-item">
+                                    <button class="page-link" type="button" @onclick="() => IrAPagina(totalPaginas)">@totalPaginas</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(paginaActual == totalPaginas ? "disabled" : "")">
+                                <button class="page-link" type="button" @onclick="PaginaSiguiente">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+        </div>
+    }
+</div>

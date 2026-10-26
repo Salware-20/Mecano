@@ -13,11 +13,16 @@ public class VehiculoService : IVehiculoService
 {
     private readonly IDbContextFactory<MySQLDBContext> _factory;
     private readonly ILogger<VehiculoService> _logger;
+    private readonly IAuditoriaService _auditoria;
 
-    public VehiculoService(IDbContextFactory<MySQLDBContext> factory, ILogger<VehiculoService> logger)
+    public VehiculoService(
+        IDbContextFactory<MySQLDBContext> factory,
+        ILogger<VehiculoService> logger,
+        IAuditoriaService auditoria)
     {
-        _factory = factory;
-        _logger = logger;
+        _factory   = factory;
+        _logger    = logger;
+        _auditoria = auditoria;
     }
 
     // ~~~ READ (por cliente) ~~~
@@ -168,6 +173,7 @@ public class VehiculoService : IVehiculoService
         vehiculo.Activo = false;
         await context.SaveChangesAsync();
         _logger.LogInformation("Vehículo {Id} desactivado.", id);
+        await _auditoria.RegistrarAsync("DESACTIVAR_VEHICULO", "Vehiculo", id.ToString(), $"Vehículo #{id} ({vehiculo.Placa}) desactivado");
         return true;
     }
 
@@ -213,6 +219,7 @@ public class VehiculoService : IVehiculoService
 
         await context.SaveChangesAsync();
         _logger.LogInformation("Vehículo {Id} transferido del cliente {Origen} al cliente {Destino}.", vehiculoId, clienteAnterior, nuevoClienteId);
+        await _auditoria.RegistrarAsync("REACTIVAR_VEHICULO", "Vehiculo", vehiculoId.ToString(), $"Vehículo #{vehiculoId} ({vehiculo.Placa}) transferido y reactivado para cliente #{nuevoClienteId}");
         return true;
     }
 }

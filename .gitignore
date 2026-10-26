@@ -370,3 +370,4 @@ FodyWeavers.xsd
 # Claude
 .claude
 /posibles_mejoras.md
+*.py

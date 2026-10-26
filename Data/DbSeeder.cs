@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.Constantes;
@@ -15,27 +17,57 @@ namespace Mecano.Data
     {
         private readonly IDbContextFactory<MySQLDBContext> _factory;
         private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<DbSeeder> _logger;
 
         public DbSeeder(
             IDbContextFactory<MySQLDBContext> factory,
             IConfiguration configuration,
+            IWebHostEnvironment environment,
             ILogger<DbSeeder> logger)
         {
             _factory = factory;
             _configuration = configuration;
+            _environment = environment;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Inicializa el esquema de la base de datos aplicando las migraciones pendientes.
+        /// Si <c>DatabaseSettings:ResetOnStartup</c> está activo (solo Development),
+        /// elimina la base de datos antes de migrar para partir de un estado limpio.
+        /// </summary>
+        public async Task InitializeAsync()
+        {
+            await using var context = await _factory.CreateDbContextAsync();
+            var reset = _configuration.GetValue<bool>("DatabaseSettings:ResetOnStartup");
+
+            if (reset)
+            {
+                if (!_environment.IsDevelopment())
+                    throw new InvalidOperationException("ResetOnStartup is only permitted in Development environment.");
+
+                _logger.LogWarning("ResetOnStartup=true: Dropping database {Db}...", context.Database.GetDbConnection().Database);
+                await context.Database.EnsureDeletedAsync();
+            }
+
+            await context.Database.MigrateAsync();
         }
 
         public async Task SeedAsync()
         {
-            using var context = await _factory.CreateDbContextAsync();
-            await context.Database.EnsureCreatedAsync();
+            await using var context = await _factory.CreateDbContextAsync();
 
-            var defaultMecPassword = AuthServices.HashPassword("Mecanico123*");
+            var seedDemoData = _configuration.GetValue<bool?>("DatabaseSettings:SeedDemoData")
+                ?? _environment.IsDevelopment();
+            var necesitaSeedDemo = seedDemoData && !await context.Categorias.AnyAsync();
 
-            if (!await context.Categorias.AnyAsync())
+            if (necesitaSeedDemo)
             {
+                // El hash es costoso (PBKDF2 con 310k iteraciones): solo se calcula
+                // cuando de verdad hay que sembrar los datos de demostración.
+                var defaultMecPassword = AuthServices.HashPassword("Mecanico123*");
+
                 var catFrenos = new Categoria { Nombre = "Frenos", Descripcion = "Servicios relacionados con el sistema de frenos" };
                 var catMotor = new Categoria { Nombre = "Motor", Descripcion = "Diagnóstico y reparación del motor" };
                 var catSuspension = new Categoria { Nombre = "Suspensión", Descripcion = "Reparación y ajuste de suspensión" };
@@ -56,11 +88,11 @@ namespace Mecano.Data
                 context.Servicio.AddRange(servPastillas, servRectificado, servDiagMotor, servAfinado, servAlineado, servAmortiguadores, servAceite, servRevision);
                 await context.SaveChangesAsync();
 
-                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = "carlos@mecano.cr", HashPassword = defaultMecPassword, Cedula = "1-1111-1111", Telefono = "70110001", EspecialidadId = catFrenos.CategoriaId, Activo = true };
-                var mecMaria = new Mecanico { Nombre = "María López", Email = "maria@mecano.cr", HashPassword = defaultMecPassword, Cedula = "2-2222-2222", Telefono = "70110002", EspecialidadId = catMotor.CategoriaId, Activo = true };
-                var mecJose = new Mecanico { Nombre = "José Hernández", Email = "jose@mecano.cr", HashPassword = defaultMecPassword, Cedula = "3-3333-3333", Telefono = "70110003", EspecialidadId = catSuspension.CategoriaId, Activo = true };
-                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = "ana@mecano.cr", HashPassword = defaultMecPassword, Cedula = "4-4444-4444", Telefono = "70110004", EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
-                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = "pedro@mecano.cr", HashPassword = defaultMecPassword, Cedula = "5-5555-5555", Telefono = "70110005", EspecialidadId = catMotor.CategoriaId, Activo = false };
+                var mecCarlos = new Mecanico { Nombre = "Carlos Rodríguez", Email = CorreoCorporativo.Componer("carlos"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("1-1111-1111", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110001"), EspecialidadId = catFrenos.CategoriaId, Activo = true };
+                var mecMaria = new Mecanico { Nombre = "María López", Email = CorreoCorporativo.Componer("maria"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("2-2222-2222", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110002"), EspecialidadId = catMotor.CategoriaId, Activo = true };
+                var mecJose = new Mecanico { Nombre = "José Hernández", Email = CorreoCorporativo.Componer("jose"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("3-3333-3333", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110003"), EspecialidadId = catSuspension.CategoriaId, Activo = true };
+                var mecAna = new Mecanico { Nombre = "Ana Mora", Email = CorreoCorporativo.Componer("ana"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("4-4444-4444", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110004"), EspecialidadId = catMantGeneral.CategoriaId, Activo = true };
+                var mecPedro = new Mecanico { Nombre = "Pedro Jiménez", Email = CorreoCorporativo.Componer("pedro"), HashPassword = defaultMecPassword, Cedula = Formatos.NormalizarIdentificacion("5-5555-5555", TipoIdentificacion.Nacional), Telefono = Formatos.SoloDigitos("70110005"), EspecialidadId = catMotor.CategoriaId, Activo = false };
 
                 context.Mecanico.AddRange(mecCarlos, mecMaria, mecJose, mecAna, mecPedro);
                 await context.SaveChangesAsync();
@@ -143,7 +175,7 @@ namespace Mecano.Data
 
             // Seed y actualización del Administrador Global ("adminglobal")
             // Las credenciales de producción deben proveerse mediante user-secrets o variables de entorno
-            var globalAdminEmail = _configuration["Seed:GlobalAdmin:Email"] ?? "adminglobal@mecano.cr";
+            var globalAdminEmail = _configuration["Seed:GlobalAdmin:Email"] ?? CorreoCorporativo.Componer("adminglobal");
             var globalAdminPassword = _configuration["Seed:GlobalAdmin:Password"] ?? "AdminGlobal123*";
 
             var adminGlobal = await context.Administradors.FirstOrDefaultAsync(a => a.EsAdminGlobal || a.Email == globalAdminEmail);
@@ -151,10 +183,10 @@ namespace Mecano.Data
             {
                 adminGlobal = new Administrador
                 {
-                    Cedula = "109990999",
+                    Cedula = Formatos.NormalizarIdentificacion("109990999", TipoIdentificacion.Nacional),
                     Email = globalAdminEmail,
                     Nombre = "Administrador Global",
-                    Telefono = "61321206",
+                    Telefono = Formatos.SoloDigitos("61321206"),
                     Activo = true,
                     EsAdminGlobal = true,
                     HashPassword = AuthServices.HashPassword(globalAdminPassword)
@@ -207,9 +239,10 @@ namespace Mecano.Data
 
             if (placeholderMechanics.Any())
             {
+                var hashMecanicosDemo = AuthServices.HashPassword("Mecanico123*");
                 foreach (var mec in placeholderMechanics)
                 {
-                    mec.HashPassword = defaultMecPassword;
+                    mec.HashPassword = hashMecanicosDemo;
                 }
                 await context.SaveChangesAsync();
                 _logger.LogInformation("Contraseñas de prueba asignadas a mecánicos con placeholder.");
