@@ -14,6 +14,10 @@ public partial class Clientes : ComponentBase, IDisposable
     private bool cargando = true;
     private bool guardando;
 
+    // Permite que /agendar enlace directo al alta de cliente: /clientes?nuevo=1
+    [SupplyParameterFromQuery(Name = "nuevo")]
+    public bool AbrirNuevo { get; set; }
+
     private string terminoBusqueda = string.Empty;
     private FiltroActivo filtro = FiltroActivo.Activos;
 
@@ -59,6 +63,11 @@ public partial class Clientes : ComponentBase, IDisposable
         incluirIdentificacion = auth.User.FindFirst(ClaimTypes.Role)?.Value == Roles.Administrador;
 
         await CargarAsync();
+
+        if (AbrirNuevo)
+        {
+            AbrirCrear();
+        }
     }
 
     // ~~~ CARGA ~~~

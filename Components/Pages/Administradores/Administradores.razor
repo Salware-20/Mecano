@@ -129,16 +129,19 @@
                                     {
                                         @if (admin.Activo)
                                         {
-                                            <button class="btn btn-sm btn-outline-warning" title="Desactivar" @onclick="() => ConfirmarDesactivar(admin)" disabled="@guardando">
+                                            <button class="btn btn-sm btn-outline-warning me-1" title="Desactivar" @onclick="() => ConfirmarDesactivar(admin)" disabled="@guardando">
                                                 <i class="bi bi-pause-circle"></i>
                                             </button>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-sm btn-outline-success" title="Reactivar" @onclick="() => ConfirmarReactivar(admin)" disabled="@guardando">
+                                            <button class="btn btn-sm btn-outline-success me-1" title="Reactivar" @onclick="() => ConfirmarReactivar(admin)" disabled="@guardando">
                                                 <i class="bi bi-play-circle"></i>
                                             </button>
                                         }
+                                        <button class="btn btn-sm btn-outline-danger" title="Eliminar" @onclick="() => ConfirmarEliminar(admin)" disabled="@guardando">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     }
                                 </td>
                             </tr>
@@ -345,6 +348,34 @@
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
                         Reactivar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (adminAEliminar is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle"></i> Confirmar eliminación</h5>
+                    <button type="button" class="btn-close" aria-label="Cerrar" @onclick="CancelarEliminar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Está seguro de que desea eliminar permanentemente al administrador <strong style="text-transform:capitalize;">@adminAEliminar.Nombre</strong> (@adminAEliminar.Email)?</p>
+                    <p class="text-danger small mb-0">Esta acción no se puede deshacer. Solo se permitirá si no tiene auditorías registradas en el sistema.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelarEliminar">Cancelar</button>
+                    <button class="btn btn-danger" @onclick="EliminarConfirmado" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Eliminar
                     </button>
                 </div>
             </div>

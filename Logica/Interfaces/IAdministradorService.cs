@@ -59,5 +59,11 @@ namespace Mecano.Logica.Interfaces
         Task<bool> DesactivarAsync(int adminId, int solicitanteId);
         Task<bool> ReactivarAsync(int adminId);
         Task<bool> ExisteEmailAsync(string email, int? excluirId = null);
+
+        /// <summary>
+        /// Elimina un administrador si no cuenta con auditorías registradas.
+        /// Lanza <see cref="InvalidOperationException"/> si tiene registros de auditoría asociados.
+        /// </summary>
+        Task DeleteAsync(int id);
     }
 }

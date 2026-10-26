@@ -294,4 +294,34 @@ public class AdministradorService : IAdministradorService
 
         return existe;
     }
+
+    public async Task DeleteAsync(int id)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var idStr = id.ToString();
+        bool tieneAuditorias = await context.AuditoriaLogs.AnyAsync(a =>
+            a.UsuarioId == idStr || (a.EntidadAfectada == "Administrador" && a.EntidadId == idStr));
+
+        if (tieneAuditorias)
+        {
+            throw new InvalidOperationException("No se puede eliminar: tiene auditorías registradas");
+        }
+
+        var admin = await context.Administradors.FindAsync(id);
+        if (admin is null)
+        {
+            throw new InvalidOperationException("El administrador no existe.");
+        }
+
+        if (admin.EsAdminGlobal)
+        {
+            throw new InvalidOperationException("No se puede eliminar al administrador global.");
+        }
+
+        context.Administradors.Remove(admin);
+        await context.SaveChangesAsync();
+
+        _logger.LogInformation("Administrador {AdminId} ({Email}) eliminado correctamente.", id, admin.Email);
+    }
 }

@@ -29,6 +29,8 @@ public partial class Administradores : ComponentBase
     private int? adminEditandoId;
     private string? adminEmailActual;
 
+    private AdministradorListaDTO? adminAEliminar;
+
     private CrearAdministradorDTO crearModelo = new();
     private ActualizarAdministradorDTO modelo = new();
 
@@ -243,6 +245,50 @@ public partial class Administradores : ComponentBase
         catch (Exception ex)
         {
             mensajeErrorPagina = ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+    private void ConfirmarEliminar(AdministradorListaDTO admin)
+    {
+        if (admin.EsAdminGlobal || admin.AdministradorId == adminActualId) return;
+        adminAEliminar = admin;
+    }
+
+    private void CancelarEliminar()
+    {
+        adminAEliminar = null;
+    }
+
+    private async Task EliminarConfirmado()
+    {
+        if (adminAEliminar is null) return;
+        var id = adminAEliminar.AdministradorId;
+        adminAEliminar = null;
+        await EliminarAdministrador(id);
+    }
+
+    public async Task EliminarAdministrador(int id)
+    {
+        guardando = true;
+        mensajeExito = null;
+        mensajeErrorPagina = null;
+
+        try
+        {
+            await AdministradorService.DeleteAsync(id);
+            mensajeExito = "Administrador eliminado correctamente.";
+            await CargarAdministradores();
+        }
+        catch (InvalidOperationException ex)
+        {
+            mensajeErrorPagina = ex.Message;
+        }
+        catch (Exception)
+        {
+            mensajeErrorPagina = "Ocurrió un error inesperado al intentar eliminar el administrador.";
         }
         finally
         {
