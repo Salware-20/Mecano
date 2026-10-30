@@ -81,7 +81,7 @@ else if (Estado == EstadoCita.EnProceso)
 {
     <button type="button" class="btn btn-sm btn-outline-danger text-nowrap"
             disabled="@ocupado" title="Cualquier estado → Cancelado (no se puede deshacer)"
-            @onclick="() => Transicionar(EstadoCita.Cancelado)">
+            @onclick="AlPulsarCancelar">
         @if (Trabajando(EstadoCita.Cancelado))
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -94,10 +94,74 @@ else if (Estado == EstadoCita.EnProceso)
     </button>
 }
 
-@if (!string.IsNullOrEmpty(error))
+@if (!string.IsNullOrEmpty(error) && !mostrandoConfirmacion)
 {
     <div class="text-danger small mt-1" role="alert">
         <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @error
+    </div>
+}
+
+@* --- Confirmación de cancelación (opt-in desde la ficha de la cita) --- *@
+@if (mostrandoConfirmacion)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+         aria-labelledby="tituloConfirmarCancelacion"
+         style="background-color: rgba(0,0,0,.5);" @onclick="CerrarConfirmacion">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="tituloConfirmarCancelacion">
+                        <i class="bi bi-x-circle" aria-hidden="true"></i> Cancelar cita #@CitaId
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Cerrar"
+                            @onclick="CerrarConfirmacion" disabled="@ocupado"></button>
+                </div>
+                <div class="modal-body">
+                    @if (avisarCancelacionTardia)
+                    {
+                        @* Regla #5: aviso ámbar cuando faltan menos de 24 h. *@
+                        <div class="alert alert-warning d-flex gap-2 mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                            <div>
+                                <strong>Cancelación dentro de las 24 horas previas.</strong>
+                                @textoAntelacion Quedará registrada como
+                                <strong>cancelación tardía</strong> en la auditoría.
+                            </div>
+                        </div>
+                    }
+
+                    <p class="mb-0">
+                        La cita pasará a <strong>Cancelada</strong> y la acción
+                        <strong>no se puede deshacer</strong>.
+                    </p>
+
+                    @if (!string.IsNullOrEmpty(error))
+                    {
+                        <div class="text-danger small mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> @error
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary"
+                            @onclick="CerrarConfirmacion" disabled="@ocupado">
+                        Volver
+                    </button>
+                    <button type="button" class="btn btn-danger"
+                            @onclick="() => Transicionar(EstadoCita.Cancelado)" disabled="@ocupado">
+                        @if (Trabajando(EstadoCita.Cancelado))
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-x-circle" aria-hidden="true"></i>
+                        }
+                        <span> Confirmar cancelación</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 }
 
@@ -109,6 +173,19 @@ else if (Estado == EstadoCita.EnProceso)
     /// <summary>Se dispara tras una transición exitosa para que la página recargue.</summary>
     [Parameter] public EventCallback CambioRealizado { get; set; }
 
+    /// <summary>
+    /// Instante programado de la cita (fecha + hora de inicio). Solo alimenta el
+    /// aviso de la Regla #5: la decisión real de tardía la toma el servicio.
+    /// </summary>
+    [Parameter] public DateTime? FechaHoraCita { get; set; }
+
+    /// <summary>
+    /// Si es true, «Cancelar» abre un modal de confirmación (con aviso ámbar cuando
+    /// faltan menos de 24 h) en vez de cancelar al primer clic. Lo activa la ficha
+    /// de la cita; los listados conservan la cancelación directa.
+    /// </summary>
+    [Parameter] public bool ConfirmarCancelacion { get; set; }
+
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     // Por defecto rama de mecánico (fail-closed): sin estado de autenticación
@@ -119,10 +196,71 @@ else if (Estado == EstadoCita.EnProceso)
     private bool ocupado => enCurso is not null;
     private string? error;
 
+    // Modal de confirmación de cancelación (Regla #5). El cálculo se congela al
+    // abrir el modal; el servicio vuelve a evaluar la ventana al confirmar.
+    private bool mostrandoConfirmacion;
+    private bool avisarCancelacionTardia;
+    private string? textoAntelacion;
+
     private bool EsTerminal =>
         Estado == EstadoCita.Finalizado || Estado == EstadoCita.Cancelado;
 
     private bool Trabajando(EstadoCita destino) => enCurso == destino;
+
+    private async Task AlPulsarCancelar()
+    {
+        if (!ConfirmarCancelacion)
+        {
+            await Transicionar(EstadoCita.Cancelado);
+            return;
+        }
+
+        AbrirConfirmacion();
+    }
+
+    private void AbrirConfirmacion()
+    {
+        if (ocupado)
+            return;
+
+        error = null;
+        avisarCancelacionTardia = false;
+        textoAntelacion = null;
+
+        if (FechaHoraCita is { } inicio)
+        {
+            var ahora = DateTime.Now;
+            avisarCancelacionTardia = ReglasCita.EsCancelacionTardia(inicio, ahora);
+            textoAntelacion = TextoAntelacion(inicio, ahora);
+        }
+
+        mostrandoConfirmacion = true;
+    }
+
+    private void CerrarConfirmacion()
+    {
+        if (ocupado)
+            return;
+
+        mostrandoConfirmacion = false;
+        error = null;
+    }
+
+    private static string TextoAntelacion(DateTime inicio, DateTime ahora)
+    {
+        var minutos = (int)System.Math.Round((inicio - ahora).TotalMinutes);
+
+        if (minutos <= 0)
+            return $"La cita ya comenzó o su hora programada ({inicio:dd/MM/yyyy HH:mm}) ya pasó.";
+
+        var horas = minutos / 60;
+        var resto = minutos % 60;
+        var cuanto = horas > 0
+            ? (resto > 0 ? $"{horas} h {resto} min" : $"{horas} h")
+            : $"{resto} min";
+
+        return $"Faltan {cuanto} para la cita programada ({inicio:dd/MM/yyyy HH:mm}).";
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -156,6 +294,9 @@ else if (Estado == EstadoCita.EnProceso)
             }
 
             await CitaService.TransicionarEstadoAsync(CitaId, destino, mecanicoId);
+            // Éxito: el modal de cancelación (si estaba abierto) se cierra y el
+            // padre recarga el estado real de la cita.
+            mostrandoConfirmacion = false;
             await CambioRealizado.InvokeAsync();
         }
         catch (InvalidOperationException ex)

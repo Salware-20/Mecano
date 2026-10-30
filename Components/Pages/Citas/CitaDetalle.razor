@@ -32,8 +32,11 @@
             @if (cita is not null && EsEditable(cita.Estado))
             {
                 @* Transiciones de estado (Confirmar/Cancelar y el respaldo de
-                   Iniciar/Finalizar); editar y reprogramar siguen abajo. *@
-                <TransicionCita CitaId="@Id" Estado="@cita.Estado" CambioRealizado="Recargar" />
+                   Iniciar/Finalizar); editar y reprogramar siguen abajo.
+                   La cancelación pide confirmación y avisa si faltan < 24 h (Regla #5). *@
+                <TransicionCita CitaId="@Id" Estado="@cita.Estado" CambioRealizado="Recargar"
+                                ConfirmarCancelacion="true"
+                                FechaHoraCita="@ReglasCita.InicioProgramado(cita.Fecha, cita.HoraInicio)" />
                 <button class="btn btn-primary" @onclick="AbrirEditar">
                     <i class="bi bi-pencil" aria-hidden="true"></i> Editar
                 </button>

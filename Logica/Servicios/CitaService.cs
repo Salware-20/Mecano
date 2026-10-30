@@ -183,15 +183,17 @@ public class CitaService : ICitaService
             throw new InvalidOperationException($"La cita con ID {citaId} no existe.");
         }
 
-        // Un trabajo finalizado no se puede deshacer cancelándolo desde el listado.
-        if (cita.Estado == EstadoCita.Finalizado)
+        // Una cita terminada (finalizada o ya cancelada) no se deshace desde el listado.
+        if (cita.Estado == EstadoCita.Finalizado || cita.Estado == EstadoCita.Cancelado)
         {
-            throw new InvalidOperationException("Una cita finalizada no se puede cancelar.");
+            throw new InvalidOperationException(
+                $"La cita ya está {TextoEstado(cita.Estado)}: su estado no se puede modificar.");
         }
 
+        var origen = cita.Estado;
         cita.Estado = EstadoCita.Cancelado;
         await context.SaveChangesAsync();
-        await _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", citaId.ToString(), $"Cita #{citaId} cancelada");
+        await RegistrarCancelacionAsync(cita, origen, mecanicoId: null, usuarioNombre: null);
     }
 
     public async Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin)
@@ -582,10 +584,37 @@ public class CitaService : ICitaService
         }
         else if (destino == EstadoCita.Cancelado)
         {
-            await _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} cancelada ({TextoEstado(origen)} → Cancelada)", mecanicoId?.ToString(), "Administrador");
+            await RegistrarCancelacionAsync(cita, origen, mecanicoId, "Administrador");
         }
 
         return true;
+    }
+
+    // ~~~ CANCELACIÓN (Regla #5) ~~~
+    // La marca de tardía se decide SIEMPRE en el servidor: la UI solo avisa.
+    // La comparten las dos entradas de cancelación (TransicionarEstadoAsync y
+    // CancelarCitaAsync) para que ninguna ruta omita el registro.
+    private Task RegistrarCancelacionAsync(Cita cita, EstadoCita origen, int? mecanicoId, string? usuarioNombre)
+    {
+        var inicio = ReglasCita.InicioProgramado(cita.Fecha, cita.HoraInicio);
+        var ahora = DateTime.Now;
+        var detalles = $"Cita #{cita.CitaId} cancelada ({TextoEstado(origen)} → Cancelada)";
+
+        if (!ReglasCita.EsCancelacionTardia(inicio, ahora))
+        {
+            return _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", cita.CitaId.ToString(),
+                detalles, mecanicoId?.ToString(), usuarioNombre);
+        }
+
+        var horas = (inicio - ahora).TotalHours;
+        var antelacion = horas < 0
+            ? $"la cita ya había comenzado (inicio programado {inicio:dd/MM/yyyy HH:mm})"
+            : $"faltaban {horas:0.#} h para el inicio programado ({inicio:dd/MM/yyyy HH:mm})";
+
+        _logger.LogWarning("Cita {Id}: cancelación tardía ({Antelacion}).", cita.CitaId, antelacion);
+
+        return _auditoria.RegistrarAsync("CANCELAR_CITA_TARDIA", "Cita", cita.CitaId.ToString(),
+            $"{detalles} · CANCELACIÓN TARDÍA: {antelacion}.", mecanicoId?.ToString(), usuarioNombre);
     }
 
     private static string TextoEstado(EstadoCita estado) => estado switch

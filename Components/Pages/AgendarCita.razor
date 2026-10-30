@@ -425,6 +425,10 @@
     private List<Cliente>? clientesEncontrados;
     private Cliente? selectedCliente;
 
+    // Preselección desde /clientes/{id}: «Agendar cita» navega con ?clienteId=N
+    [SupplyParameterFromQuery(Name = "clienteId")]
+    public int? ClienteIdInicial { get; set; }
+
     // Tablero
     private bool cargando = true;
     private readonly DateTime hoy = DateTime.Today;
@@ -461,6 +465,11 @@
         semanaInicio = LunesDe(hoy);
         serviciosActivos = await ServicioService.ObtenerTodosActivosAsync();
         await CargarTablero();
+
+        if (ClienteIdInicial is > 0)
+        {
+            await PreseleccionarClienteAsync(ClienteIdInicial.Value);
+        }
     }
 
     public void Dispose() => debounceTimer?.Dispose();
@@ -518,6 +527,24 @@
         selectedCliente = cliente;
         searchTerm = "";
         clientesEncontrados = null;
+    }
+
+    /// <summary>
+    /// Deja el cliente ya seleccionado cuando se llega desde «Agendar cita» en
+    /// /clientes/{id} (?clienteId=N), para no obligar a buscarlo otra vez.
+    /// Si el id no existe se avisa y la página queda en el estado normal de búsqueda.
+    /// </summary>
+    private async Task PreseleccionarClienteAsync(int clienteId)
+    {
+        var cliente = await ClienteService.ObtenerPorIdAsync(clienteId);
+
+        if (cliente is null)
+        {
+            errorMessage = "El cliente solicitado no existe o fue eliminado. Búscalo manualmente.";
+            return;
+        }
+
+        SelectCliente(cliente);
     }
 
     private void DeselectCliente()
