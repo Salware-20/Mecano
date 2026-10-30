@@ -35,7 +35,7 @@ public class NotificationService : INotificationService
 
         string destinatarioCorreo = cita.Cliente?.Correo ?? "no-email@mecano.cr";
         string asunto = $"Cita Agendada - {cita.Servicio?.Nombre}";
-        string mensaje = $"Estimado {cita.Cliente?.NombreCompleto},\nSu cita para {cita.Servicio?.Nombre} ha sido agendada para el {cita.Fecha:dd/MM/yyyy} a las {cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)}.";
+        string mensaje = $"Estimado {cita.Cliente?.NombreCompleto},\nSu cita para {cita.Servicio?.Nombre} ha sido agendada para el {cita.Fecha:dd/MM/yyyy} a las {cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)}.";
 
         _logger.LogInformation($"Notificación simulada enviada a: {destinatarioCorreo}");
 

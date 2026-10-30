@@ -246,6 +246,49 @@ h1:focus {
     .card {
         box-shadow: none !important;
         border: 1px solid var(--border-color) !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Ocultar barras de navegación, encabezados interactivos, botones y toggles */
+    .sidebar,
+    nav.sidebar,
+    .top-row,
+    .theme-toggle-btn,
+    .btn,
+    button,
+    .card-footer,
+    #blazor-error-ui {
+        display: none !important;
+    }
+
+    /* Ajustar layout a flujo normal de impresión sin barras laterales */
+    .page {
+        display: block !important;
+    }
+
+    main {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    article {
+        padding: 0 !important;
+    }
+
+    /* Tablas y graficos limpios para hoja carta / A4 */
+    table,
+    .table,
+    .apexcharts-canvas {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    @page {
+        size: auto;
+        margin: 12mm 15mm;
     }
 }
 

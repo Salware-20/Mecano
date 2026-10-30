@@ -213,7 +213,7 @@
                                                  title="@TituloChip(c)"
                                                  @onclick="() => IrACita(c.CitaId)"
                                                  @onclick:stopPropagation="true">
-                                                <span class="chip-hora">@c.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
+                                                <span class="chip-hora">@c.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)</span>
                                                 <span class="chip-cuerpo">
                                                     <span class="chip-cliente" style="text-transform:capitalize;">
                                                         @if (c.Cliente?.Activo == false)
@@ -349,7 +349,7 @@
                                 @foreach (var h in HorasDelDia)
                                 {
                                     <option value="@h.ToString("HH:mm")" disabled="@(!HoraHabilitada(h))">
-                                        @h.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                                        @h.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                                     </option>
                                 }
                             </select>
@@ -359,7 +359,7 @@
                             <div class="form-control-plaintext">
                                 @if (selectedServicio != null)
                                 {
-                                    <span>@selectedHoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</span>
+                                    <span>@selectedHoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)</span>
                                     <span class="text-secondary"> · @selectedServicio.DuracionMinutos min</span>
                                 }
                                 else

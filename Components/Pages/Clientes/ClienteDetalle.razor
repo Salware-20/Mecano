@@ -289,7 +289,7 @@ else
                             {
                                 <tr>
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
-                                    <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
+                                    <td>@cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>
                                         @(cita.ServicioNombre ?? "-")
                                         @if (!cita.ServicioActivo)
@@ -356,7 +356,7 @@ else
                                     <div class="small text-secondary">
                                         <i class="bi bi-clock" aria-hidden="true"></i>
                                         <time datetime="@c.FechaHora.ToString("yyyy-MM-ddTHH:mm")">
-                                            @c.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
+                                            @c.FechaHora.ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture)
                                         </time>
                                     </div>
                                 </div>
@@ -465,7 +465,7 @@ else
                             <figure class="bg-body-tertiary border rounded p-3 mb-3">
                                 <blockquote class="mb-1">@PrevioComentario(comentarioAEliminar.Texto)</blockquote>
                                 <figcaption class="small text-secondary">
-                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
+                                    @comentarioAEliminar.FechaHora.ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture)
                                 </figcaption>
                             </figure>
 

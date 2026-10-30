@@ -95,8 +95,8 @@ else if (esAdmin && cita is not null)
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Horario</label>
                     <div>
-                        @cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
-                        - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                        @cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+                        - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
@@ -105,7 +105,7 @@ else if (esAdmin && cita is not null)
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Registrada</label>
-                    <div>@cita.FechaCreacion.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)</div>
+                    <div>@cita.FechaCreacion.ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture)</div>
                 </div>
             </div>
         </div>
@@ -371,8 +371,8 @@ else if (!esAdmin && citaMec is not null)
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Horario</label>
                     <div>
-                        @citaMec.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture)
-                        - @citaMec.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)
+                        @citaMec.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture)
+                        - @citaMec.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                     </div>
                 </div>
                 <div class="col-sm-6 col-lg-3">
@@ -381,7 +381,7 @@ else if (!esAdmin && citaMec is not null)
                 </div>
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label text-muted small mb-0">Registrada</label>
-                    <div>@citaMec.FechaCreacion.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)</div>
+                    <div>@citaMec.FechaCreacion.ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture)</div>
                 </div>
             </div>
         </div>

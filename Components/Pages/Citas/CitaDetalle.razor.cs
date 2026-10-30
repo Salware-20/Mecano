@@ -216,7 +216,7 @@ public partial class CitaDetalle : ComponentBase
             {
                 yield return (
                     t.ToString("HH:mm", CultureInfo.InvariantCulture),
-                    t.ToString("h:mm tt", CultureInfo.InvariantCulture),
+                    t.ToString("hh:mm tt", CultureInfo.InvariantCulture),
                     HoraHabilitada(t));
             }
         }

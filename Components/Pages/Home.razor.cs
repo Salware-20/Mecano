@@ -1,3 +1,4 @@
+using Microsoft.JSInterop;
 using System;
 using System.Globalization;
 using System.Linq;
@@ -279,4 +280,7 @@ public partial class Home : ComponentBase, IDisposable
         : $"Gráfico de barras horizontales: tiempo asignado por mecánico activo {RangoPeriodo}, " +
           "en minutos presentados como horas y minutos (por ejemplo, 1 hora 30 minutos); " +
           "el detalle de citas y tiempo está bajo el gráfico.";
+
+    // ~~~ REPORTE DE OCUPACION (impresion del navegador: Guardar como PDF) ~~~
+    private async Task ImprimirReporte() => await JSRuntime.InvokeVoidAsync("window.print");
 }

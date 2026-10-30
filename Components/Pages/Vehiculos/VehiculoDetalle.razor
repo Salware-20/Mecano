@@ -4,6 +4,7 @@
 @using System.Globalization
 @inject IVehiculoService VehiculoService
 @inject ICitaService CitaService
+@inject IClienteService ClienteService
 @inject IJSRuntime JS
 
 <PageTitle>@(vehiculo is null ? "Vehículo" : Formatos.Placa(vehiculo.Placa)) - Mecano</PageTitle>
@@ -71,7 +72,7 @@ else
         </div>
         <div>
             <strong>Vehículo:</strong> @Formatos.Placa(vehiculo.Placa) — @vehiculo.Marca @vehiculo.Modelo (@vehiculo.Anio)<br />
-            <strong>Generado:</strong> @DateTime.Now.ToString("dd/MM/yyyy h:mm tt", CultureInfo.InvariantCulture)
+            <strong>Generado:</strong> @DateTime.Now.ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture)
         </div>
         <hr />
     </div>
@@ -186,7 +187,7 @@ else
                             {
                                 <tr>
                                     <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
-                                    <td>@cita.HoraInicio.ToString("h:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
+                                    <td>@cita.HoraInicio.ToString("hh:mm tt", CultureInfo.InvariantCulture) - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)</td>
                                     <td>
                                         @(cita.ServicioNombre ?? "-")
                                         @if (!cita.ServicioActivo)
@@ -220,5 +221,122 @@ else
                        Guardando="guardando"
                        MensajeError="@mensajeErrorEdicion"
                        OnGuardar="GuardarEdicion"
-                       OnCancelar="CerrarEdicion" />
+                       OnCancelar="CerrarEdicion">
+        <FooterIzquierdo>
+            <button type="button" class="btn btn-outline-primary" @onclick="AbrirTransferencia">
+                <i class="bi bi-arrow-left-right"></i> Transferir
+            </button>
+        </FooterIzquierdo>
+    </VehiculoFormModal>
+}
+
+@if (mostrarModalTransferencia && vehiculo is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Transferir vehículo — @Formatos.Placa(vehiculo.Placa)
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelarTransferencia"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensajeErrorTransferencia))
+                    {
+                        <div class="alert alert-danger">@mensajeErrorTransferencia</div>
+                    }
+
+                    @if (clienteDestino is null)
+                    {
+                        <p class="text-muted small">
+                            Cliente actual: <strong style="text-transform:capitalize;">@(vehiculo.ClienteNombre ?? "-")</strong>.
+                            Busque el nuevo cliente por nombre o cédula (solo activos).
+                        </p>
+
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control"
+                                   placeholder="Buscar por nombre o cédula..."
+                                   value="@terminoDestino" @oninput="OnBuscarDestinoCambio" />
+                        </div>
+
+                        @if (buscandoDestino)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                            </div>
+                        }
+                        else if (!destinos.Any())
+                        {
+                            <div class="alert alert-info mb-0">
+                                @(string.IsNullOrWhiteSpace(terminoDestino)
+                                    ? "Escriba para buscar clientes."
+                                    : "No se encontraron clientes que coincidan con la búsqueda.")
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="list-group">
+                                @foreach (var d in destinos)
+                                {
+                                    <button type="button" class="list-group-item list-group-item-action"
+                                            @onclick="() => SeleccionarDestino(d)">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong style="text-transform:capitalize;">@d.NombreCompleto</strong>
+                                                <small class="text-muted d-block">
+                                                    @Formatos.CedulaNacional(d.CedulaIdentidad)
+                                                </small>
+                                            </div>
+                                            <i class="bi bi-chevron-right text-muted"></i>
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p>
+                        Transferir vehículo — @Formatos.Placa(vehiculo.Placa)
+                            a <strong style="text-transform:capitalize;">@clienteDestino.NombreCompleto</strong>
+                            (@Formatos.CedulaNacional(clienteDestino.CedulaIdentidad))?
+                        </p>
+                        <p class="text-muted small mb-0">
+                            El vehículo quedará activo a nombre del nuevo cliente.
+                            Las citas pasadas se mantienen con el cliente anterior.
+                        </p>
+                    }
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div>
+                        @if (clienteDestino is not null)
+                        {
+                            <button type="button" class="btn btn-outline-secondary"
+                                    @onclick="VolverABusquedaDestino">
+                                <i class="bi bi-arrow-left"></i> Volver
+                            </button>
+                        }
+                    </div>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-secondary" @onclick="CancelarTransferencia">
+                            Cancelar
+                        </button>
+                        @if (clienteDestino is not null)
+                        {
+                            <button type="button" class="btn btn-primary" @onclick="TransferirConfirmado"
+                                    disabled="@guardando">
+                                @if (guardando)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Transferir
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 }
