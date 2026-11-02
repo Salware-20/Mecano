@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @using Mecano.Entidad.Constantes
+@using Mecano.Entidad.Utilidades
 @inject ICitaService CitaService
 @inject IMecanicoService MecanicoService
 
@@ -146,7 +147,9 @@
                                         </a>
                                         <TransicionCita CitaId="@cita.Id"
                                                         Estado="@cita.Estado"
-                                                        CambioRealizado="CargarAsync" />
+                                                        CambioRealizado="CargarAsync"
+                                                        ConfirmarCancelacion="true"
+                                                        FechaHoraCita="@ReglasCita.InicioProgramado(cita.Fecha, cita.HoraInicio)" />
                                     </div>
                                 </td>
                             </tr>
