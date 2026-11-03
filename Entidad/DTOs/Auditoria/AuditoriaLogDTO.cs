@@ -9,6 +9,7 @@ namespace Mecano.Entidad.DTOs.Auditoria
         public DateTime FechaHora       { get; set; }
         public string   TipoAccion      { get; set; } = string.Empty;
         public string?  UsuarioNombre   { get; set; }
+        public string?  UsuarioRol      { get; set; }
         public string   EntidadAfectada { get; set; } = string.Empty;
         public string?  EntidadId       { get; set; }
         public string?  Detalles        { get; set; }
