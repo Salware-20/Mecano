@@ -13,7 +13,8 @@ namespace Mecano.Logica.Interfaces
             string? entidadId,
             string detalles,
             string? usuarioId = null,
-            string? usuarioNombre = null);
+            string? usuarioNombre = null,
+            string? usuarioRol = null);
 
         /// <summary>Devuelve una página de logs ordenados por fecha descendente y el total para paginación.</summary>
         Task<(List<AuditoriaLogDTO> Items, int Total)> ObtenerPaginadoAsync(

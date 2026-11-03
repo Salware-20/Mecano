@@ -265,7 +265,7 @@ public class AdministradorService : IAdministradorService
         admin.Activo = false;
         await context.SaveChangesAsync();
         _logger.LogInformation("Administrador {AdminId} desactivado por {SolicitanteId}.", adminId, solicitanteId);
-        await _auditoria.RegistrarAsync("DESACTIVAR_ADMIN", "Administrador", adminId.ToString(), $"Administrador #{adminId} ({admin.Nombre} - {admin.Email}) desactivado por #{solicitanteId}", solicitanteId.ToString(), "Administrador");
+        await _auditoria.RegistrarAsync("DESACTIVAR_ADMIN", "Administrador", adminId.ToString(), $"Administrador #{adminId} ({admin.Nombre} - {admin.Email}) desactivado por #{solicitanteId}", solicitanteId.ToString());
         return true;
     }
 

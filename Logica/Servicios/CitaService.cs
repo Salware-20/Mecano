@@ -193,7 +193,7 @@ public class CitaService : ICitaService
         var origen = cita.Estado;
         cita.Estado = EstadoCita.Cancelado;
         await context.SaveChangesAsync();
-        await RegistrarCancelacionAsync(cita, origen, mecanicoId: null, usuarioNombre: null);
+        await RegistrarCancelacionAsync(cita, origen, mecanicoId: null);
     }
 
     public async Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin)
@@ -576,15 +576,15 @@ public class CitaService : ICitaService
 
         if (destino == EstadoCita.EnProceso)
         {
-            await _auditoria.RegistrarAsync("INICIAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} iniciada ({TextoEstado(origen)} → En proceso)", mecanicoId?.ToString(), esAdmin ? "Administrador" : $"Mecánico #{mecanicoId}");
+            await _auditoria.RegistrarAsync("INICIAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} iniciada ({TextoEstado(origen)} → En proceso)", mecanicoId?.ToString());
         }
         else if (destino == EstadoCita.Finalizado)
         {
-            await _auditoria.RegistrarAsync("FINALIZAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} finalizada ({TextoEstado(origen)} → Finalizada)", mecanicoId?.ToString(), esAdmin ? "Administrador" : $"Mecánico #{mecanicoId}");
+            await _auditoria.RegistrarAsync("FINALIZAR_CITA", "Cita", cita.CitaId.ToString(), $"Cita #{cita.CitaId} finalizada ({TextoEstado(origen)} → Finalizada)", mecanicoId?.ToString());
         }
         else if (destino == EstadoCita.Cancelado)
         {
-            await RegistrarCancelacionAsync(cita, origen, mecanicoId, "Administrador");
+            await RegistrarCancelacionAsync(cita, origen, mecanicoId);
         }
 
         return true;
@@ -594,7 +594,7 @@ public class CitaService : ICitaService
     // La marca de tardía se decide SIEMPRE en el servidor: la UI solo avisa.
     // La comparten las dos entradas de cancelación (TransicionarEstadoAsync y
     // CancelarCitaAsync) para que ninguna ruta omita el registro.
-    private Task RegistrarCancelacionAsync(Cita cita, EstadoCita origen, int? mecanicoId, string? usuarioNombre)
+    private Task RegistrarCancelacionAsync(Cita cita, EstadoCita origen, int? mecanicoId)
     {
         var inicio = ReglasCita.InicioProgramado(cita.Fecha, cita.HoraInicio);
         var ahora = DateTime.Now;
@@ -603,7 +603,7 @@ public class CitaService : ICitaService
         if (!ReglasCita.EsCancelacionTardia(inicio, ahora))
         {
             return _auditoria.RegistrarAsync("CANCELAR_CITA", "Cita", cita.CitaId.ToString(),
-                detalles, mecanicoId?.ToString(), usuarioNombre);
+                detalles, mecanicoId?.ToString());
         }
 
         var horas = (inicio - ahora).TotalHours;
@@ -614,7 +614,7 @@ public class CitaService : ICitaService
         _logger.LogWarning("Cita {Id}: cancelación tardía ({Antelacion}).", cita.CitaId, antelacion);
 
         return _auditoria.RegistrarAsync("CANCELAR_CITA_TARDIA", "Cita", cita.CitaId.ToString(),
-            $"{detalles} · CANCELACIÓN TARDÍA: {antelacion}.", mecanicoId?.ToString(), usuarioNombre);
+            $"{detalles} · CANCELACIÓN TARDÍA: {antelacion}.", mecanicoId?.ToString());
     }
 
     private static string TextoEstado(EstadoCita estado) => estado switch

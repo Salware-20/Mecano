@@ -36,7 +36,6 @@ public partial class Mecanicos : ComponentBase
 
     // Confirmaciones de estado
     [Inject] private Mecano.Logica.Interfaces.IAuditoriaService AuditoriaService { get; set; } = null!;
-    [Inject] private Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
 
     private MecanicoDTO? mecanicoADesactivar;
     private MecanicoDTO? mecanicoAReactivar;
@@ -302,11 +301,7 @@ public partial class Mecanicos : ComponentBase
                 mensajeExito = $"Mecánico “{mecanicoADesactivar.Nombre}” desactivado.";
                 try
                 {
-                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-                    var user = authState.User;
-                    var userId = user.Identity?.Name ?? "Administrador";
-                    var userName = user.FindFirst("name")?.Value ?? user.Identity?.Name ?? userId;
-                    await AuditoriaService.RegistrarAsync("DESACTIVAR", "Mecanico", mecanicoADesactivar.Id.ToString(), $"Motivo: {motivoDesactivacion.Trim()}", userId, userName);
+                    await AuditoriaService.RegistrarAsync("DESACTIVAR", "Mecanico", mecanicoADesactivar.Id.ToString(), $"Motivo: {motivoDesactivacion.Trim()}");
                 }
                 catch { }
                 mecanicoADesactivar = null;
@@ -354,11 +349,7 @@ public partial class Mecanicos : ComponentBase
                 mensajeExito = $"Mecánico “{mecanicoAReactivar.Nombre}” reactivado.";
                 try
                 {
-                    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-                    var user = authState.User;
-                    var userId = user.Identity?.Name ?? "Administrador";
-                    var userName = user.FindFirst("name")?.Value ?? user.Identity?.Name ?? userId;
-                    await AuditoriaService.RegistrarAsync("REACTIVAR", "Mecanico", mecanicoAReactivar.Id.ToString(), "Reactivación de mecánico", userId, userName);
+                    await AuditoriaService.RegistrarAsync("REACTIVAR", "Mecanico", mecanicoAReactivar.Id.ToString(), "Reactivación de mecánico");
                 }
                 catch { }
                 mecanicoAReactivar = null;

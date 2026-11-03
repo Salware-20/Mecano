@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Mecano.Data;
 using Mecano.Entidad.Clases;
 using Mecano.Entidad.DTOs.Auditoria;
 using Mecano.Logica.Interfaces;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,11 +16,16 @@ namespace Mecano.Logica.Servicios
     public class AuditoriaService : IAuditoriaService
     {
         private readonly IDbContextFactory<MySQLDBContext> _factory;
+        private readonly AuthenticationStateProvider _authStateProvider;
         private readonly ILogger<AuditoriaService> _logger;
 
-        public AuditoriaService(IDbContextFactory<MySQLDBContext> factory, ILogger<AuditoriaService> logger)
+        public AuditoriaService(
+            IDbContextFactory<MySQLDBContext> factory,
+            AuthenticationStateProvider authStateProvider,
+            ILogger<AuditoriaService> logger)
         {
             _factory = factory;
+            _authStateProvider = authStateProvider;
             _logger = logger;
         }
 
@@ -33,10 +40,17 @@ namespace Mecano.Logica.Servicios
             string? entidadId,
             string detalles,
             string? usuarioId = null,
-            string? usuarioNombre = null)
+            string? usuarioNombre = null,
+            string? usuarioRol = null)
         {
             try
             {
+                // Identidad: si el llamador no la envía, se toma del claim de la sesión.
+                // Así todas las rutas (incluidas las que antes dejaban Usuario en null)
+                // guardan nombre y rol reales sin duplicar la lectura de claims.
+                (usuarioId, usuarioNombre, usuarioRol) =
+                    await CompletarIdentidadAsync(usuarioId, usuarioNombre, usuarioRol);
+
                 await using var context = await _factory.CreateDbContextAsync();
 
                 var log = new AuditoriaLog
@@ -45,6 +59,7 @@ namespace Mecano.Logica.Servicios
                     TipoAccion     = tipoAccion,
                     UsuarioId      = usuarioId,
                     UsuarioNombre  = usuarioNombre,
+                    UsuarioRol     = usuarioRol,
                     EntidadAfectada = entidadAfectada,
                     EntidadId      = entidadId,
                     Detalles       = detalles
@@ -59,6 +74,47 @@ namespace Mecano.Logica.Servicios
                 _logger.LogError(ex, "Error al registrar auditoría ({TipoAccion}, {EntidadAfectada} #{EntidadId})",
                     tipoAccion, entidadAfectada, entidadId);
             }
+        }
+
+        /// <summary>
+        /// Completa los datos de identidad que falten con los claims del circuito.
+        /// Fuera de Blazor (sin estado de autenticación) conserva lo recibido.
+        /// </summary>
+        private async Task<(string? Id, string? Nombre, string? Rol)> CompletarIdentidadAsync(
+            string? usuarioId,
+            string? usuarioNombre,
+            string? usuarioRol)
+        {
+            if (!string.IsNullOrWhiteSpace(usuarioId)
+                && !string.IsNullOrWhiteSpace(usuarioNombre)
+                && !string.IsNullOrWhiteSpace(usuarioRol))
+            {
+                return (usuarioId, usuarioNombre, usuarioRol);
+            }
+
+            try
+            {
+                var state = await _authStateProvider.GetAuthenticationStateAsync();
+                var user = state.User;
+
+                if (user.Identity?.IsAuthenticated == true)
+                {
+                    if (string.IsNullOrWhiteSpace(usuarioId))
+                        usuarioId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                    if (string.IsNullOrWhiteSpace(usuarioNombre))
+                        usuarioNombre = user.FindFirst(ClaimTypes.Name)?.Value;
+
+                    if (string.IsNullOrWhiteSpace(usuarioRol))
+                        usuarioRol = user.FindFirst(ClaimTypes.Role)?.Value;
+                }
+            }
+            catch
+            {
+                // Sin circuito Blazor no hay AuthenticationState: se conserva lo recibido.
+            }
+
+            return (usuarioId, usuarioNombre, usuarioRol);
         }
 
         /// <summary>
@@ -89,7 +145,9 @@ namespace Mecano.Logica.Servicios
             if (!string.IsNullOrWhiteSpace(filtro.UsuarioNombre))
             {
                 var nombre = filtro.UsuarioNombre.Trim();
-                query = query.Where(l => l.UsuarioNombre != null && l.UsuarioNombre.Contains(nombre));
+                query = query.Where(l =>
+                    (l.UsuarioNombre != null && l.UsuarioNombre.Contains(nombre))
+                    || (l.UsuarioRol != null && l.UsuarioRol.Contains(nombre)));
             }
 
             var total = await query.CountAsync();
@@ -104,6 +162,7 @@ namespace Mecano.Logica.Servicios
                     FechaHora        = l.FechaHora,
                     TipoAccion       = l.TipoAccion,
                     UsuarioNombre    = l.UsuarioNombre,
+                    UsuarioRol       = l.UsuarioRol,
                     EntidadAfectada  = l.EntidadAfectada,
                     EntidadId        = l.EntidadId,
                     Detalles         = l.Detalles

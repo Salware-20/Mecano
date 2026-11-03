@@ -23,7 +23,12 @@ public partial class Auditoria : ComponentBase
     private bool cargando = true;
     private string? mensajeExito;
     private string? mensajeError;
-    private string? correoOwner;
+    //private string? correoOwner;
+
+    // Correo oculto para el usuario
+
+    private string correoOwner = "maringusman11@gmail.com";
+
     private bool tieneCorreoOwner => !string.IsNullOrWhiteSpace(correoOwner);
 
     // Paginación
@@ -35,7 +40,8 @@ public partial class Auditoria : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        correoOwner = await AuditoriaService.ObtenerCorreoOwnerAsync();
+        // Linea comentada para no sustituir el funcionamiento original
+        //correoOwner = await AuditoriaService.ObtenerCorreoOwnerAsync();
         await CargarLogsAsync();
     }
 
@@ -105,6 +111,15 @@ public partial class Auditoria : ComponentBase
         filtro.TipoAccion = string.IsNullOrWhiteSpace(e.Value?.ToString()) ? null : e.Value.ToString();
     }
 
+    private void OnUsuarioCambiado(ChangeEventArgs e)
+    {
+        filtro.UsuarioNombre = string.IsNullOrWhiteSpace(e.Value?.ToString()) ? null : e.Value.ToString();
+    }
+
+    /// <summary>El rol se guarda con el valor del claim ("Mecanico"); en la UI se muestra acentuado.</summary>
+    private static string? RolVisible(string? rol) =>
+        rol == Mecano.Entidad.Constantes.Roles.Mecanico ? "Mecánico" : rol;
+
     // ~~~ EXPORT / NOTIFICAR AL OWNER VIA MAILTO ~~~
     private async Task NotificarOwnerAsync()
     {
@@ -134,7 +149,7 @@ public partial class Auditoria : ComponentBase
 
             foreach (var item in muestra)
             {
-                sb.AppendLine($"[{item.FechaHora:dd/MM/yyyy HH:mm:ss}] {item.TipoAccion} | {item.EntidadAfectada} #{item.EntidadId ?? "-"} | Usuario: {item.UsuarioNombre ?? "-"}");
+                sb.AppendLine($"[{item.FechaHora:dd/MM/yyyy HH:mm:ss}] {item.TipoAccion} | {item.EntidadAfectada} #{item.EntidadId ?? "-"} | Usuario: {item.UsuarioNombre ?? "-"}{(!string.IsNullOrWhiteSpace(item.UsuarioRol) ? $" ({RolVisible(item.UsuarioRol)})" : string.Empty)}");
                 sb.AppendLine($"Detalles: {item.Detalles ?? "-"}");
                 sb.AppendLine(new string('-', 60));
             }
@@ -159,6 +174,7 @@ public partial class Auditoria : ComponentBase
         if (filtro.Desde.HasValue) partes.Add($"Desde: {filtro.Desde.Value:dd/MM/yyyy}");
         if (filtro.Hasta.HasValue) partes.Add($"Hasta: {filtro.Hasta.Value:dd/MM/yyyy}");
         if (!string.IsNullOrWhiteSpace(filtro.TipoAccion)) partes.Add($"Acción: {filtro.TipoAccion}");
+        if (!string.IsNullOrWhiteSpace(filtro.UsuarioNombre)) partes.Add($"Usuario: {filtro.UsuarioNombre}");
         return partes.Count > 0 ? string.Join(", ", partes) : "Ninguno (todos los registros)";
     }
 

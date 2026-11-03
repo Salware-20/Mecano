@@ -18,6 +18,10 @@ namespace Mecano.Entidad.Clases
         [MaxLength(200)]
         public string? UsuarioNombre { get; set; }
 
+        /// <summary>Rol del usuario que ejecutó la acción (snapshot del claim al momento del evento).</summary>
+        [MaxLength(50)]
+        public string? UsuarioRol { get; set; }
+
         [MaxLength(100)]
         public string EntidadAfectada { get; set; } = string.Empty;
 
