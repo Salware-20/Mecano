@@ -56,6 +56,11 @@ public partial class Clientes : ComponentBase, IDisposable
 
     private static readonly int[] TamaniosPagina = { 10, 20, 50, 100 };
 
+    // Paginación propia de la tabla de citas del panel expandible (en memoria).
+    private int paginaCitas = 1;
+    private int tamanioPaginaCitas = 5;
+    private static readonly int[] TamaniosPaginaCitas = { 5, 10, 20 };
+
     protected override async Task OnInitializedAsync()
     {
         // La cédula se oculta y no se busca para roles distintos de Administrador.
@@ -75,6 +80,7 @@ public partial class Clientes : ComponentBase, IDisposable
     {
         // La lista visible cambió (búsqueda, filtro, página o mutación): colapsamos el detalle.
         filaExpandidaId = null;
+        paginaCitas = 1;
 
         cargando = true;
         try
@@ -403,6 +409,7 @@ public partial class Clientes : ComponentBase, IDisposable
         }
 
         filaExpandidaId = cliente.Id;
+        paginaCitas = 1;
 
         if (vehiculosPorCliente.ContainsKey(cliente.Id))
             return;
@@ -448,6 +455,7 @@ public partial class Clientes : ComponentBase, IDisposable
         vehiculosPorCliente.Remove(cliente.Id);
         citasPorCliente.Remove(cliente.Id);
         filaExpandidaId = cliente.Id;
+        paginaCitas = 1;
         await CargarDetalleAsync(cliente);
     }
 
@@ -457,6 +465,56 @@ public partial class Clientes : ComponentBase, IDisposable
     private List<CitaDTO> CitasDe(int clienteId) =>
         citasPorCliente.TryGetValue(clienteId, out var citas) ? citas : new List<CitaDTO>();
 
+    // ~~~ PAGINACIÓN DE CITAS DEL PANEL (en memoria) ~~~
+    // La caché ya trae todas las citas del cliente; paginar aquí evita que el panel
+    // crezca sin límite sin añadir consultas ni tocar el servicio.
+
+    /// <summary>Citas del cliente de la más reciente a la más antigua.</summary>
+    private List<CitaDTO> CitasOrdenadasDe(int clienteId) =>
+        CitasDe(clienteId)
+            .OrderByDescending(c => c.Fecha)
+            .ThenByDescending(c => c.HoraInicio)
+            .ToList();
+
+    private int TotalPaginasCitas(int totalCitas) =>
+        Math.Max(1, (int)Math.Ceiling(totalCitas / (double)tamanioPaginaCitas));
+
+    /// <summary>Recorte de una página concreta; la página ya viene acotada por el llamador.</summary>
+    private IEnumerable<CitaDTO> CitasPaginaDe(int clienteId, int pagina) =>
+        CitasOrdenadasDe(clienteId)
+            .Skip((pagina - 1) * tamanioPaginaCitas)
+            .Take(tamanioPaginaCitas);
+
+    private void IrAPaginaCitas(int pagina, int totalPaginas)
+    {
+        if (pagina < 1 || pagina > totalPaginas || pagina == paginaCitas)
+            return;
+
+        paginaCitas = pagina;
+    }
+
+    private void CambiarTamanioPaginaCitas(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var nuevoTamanio) && nuevoTamanio > 0)
+        {
+            tamanioPaginaCitas = nuevoTamanio;
+            paginaCitas = 1;
+        }
+    }
+
+    /// <summary>
+    /// Ventana compacta de 3 números alrededor de la página actual (sin elipsis),
+    /// pensada para la columna estrecha del panel: 1 [2] 3.
+    /// </summary>
+    private IEnumerable<int> PaginasVisiblesCitas(int pagina, int totalPaginas)
+    {
+        var inicio = Math.Max(1, pagina - 1);
+        var fin = Math.Min(totalPaginas, pagina + 1);
+
+        for (var p = inicio; p <= fin; p++)
+            yield return p;
+    }
+
     /// <summary>Descarta el detalle cacheado de un cliente tras un cambio de estado que lo afecta.</summary>
     private void InvalidarDetalle(int clienteId)
     {
@@ -465,7 +523,10 @@ public partial class Clientes : ComponentBase, IDisposable
         detalleError.Remove(clienteId);
 
         if (filaExpandidaId == clienteId)
+        {
             filaExpandidaId = null;
+            paginaCitas = 1;
+        }
     }
 
     private bool SinHistoria(ClienteDTO cliente) => cliente.CantidadVehiculos == 0 && cliente.CantidadCitas == 0;

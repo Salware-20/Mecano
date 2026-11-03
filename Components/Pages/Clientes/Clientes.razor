@@ -258,6 +258,14 @@
                                                         }
                                                         else
                                                         {
+                                                            // Tabla con las citas de un cliente, paginada en memoria
+                                                            // para que el panel no crezca sin límite.
+                                                            var citasCliente = CitasOrdenadasDe(cli.Id);
+                                                            var totalCitasCli = citasCliente.Count;
+                                                            var totalPaginasCli = TotalPaginasCitas(totalCitasCli);
+                                                            var paginaCli = Math.Clamp(paginaCitas, 1, totalPaginasCli);
+                                                            var desdeCita = (paginaCli - 1) * tamanioPaginaCitas + 1;
+                                                            var hastaCita = Math.Min(paginaCli * tamanioPaginaCitas, totalCitasCli);
                                                             <div class="table-responsive">
                                                                 <table class="table table-sm align-middle mb-0 citas-mini">
                                                                     <thead>
@@ -271,7 +279,7 @@
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody>
-                                                                        @foreach (var cita in CitasDe(cli.Id).OrderByDescending(c => c.Fecha).ThenByDescending(c => c.HoraInicio))
+                                                                        @foreach (var cita in CitasPaginaDe(cli.Id, paginaCli))
                                                                         {
                                                                             <tr>
                                                                                 <td class="text-nowrap">@cita.Fecha.ToString("dd/MM/yyyy")</td>
@@ -301,6 +309,57 @@
                                                                         }
                                                                     </tbody>
                                                                 </table>
+                                                            </div>
+
+                                                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2"
+                                                                 @onclick:stopPropagation="true">
+                                                                <small class="text-muted">Mostrando @desdeCita–@hastaCita de @totalCitasCli</small>
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <select class="form-select form-select-sm w-auto" value="@tamanioPaginaCitas"
+                                                                            @onclick:stopPropagation="true"
+                                                                            @onchange="CambiarTamanioPaginaCitas"
+                                                                            aria-label="Citas por página">
+                                                                        @foreach (var t in TamaniosPaginaCitas)
+                                                                        {
+                                                                            <option value="@t">@t por página</option>
+                                                                        }
+                                                                    </select>
+
+                                                                    @if (totalPaginasCli > 1)
+                                                                    {
+                                                                        <nav aria-label="Paginación de citas del cliente">
+                                                                            <ul class="pagination pagination-sm mb-0">
+                                                                                <li class="page-item @(paginaCli == 1 ? "disabled" : "")">
+                                                                                    <button class="page-link" type="button"
+                                                                                            @onclick="() => IrAPaginaCitas(paginaCli - 1, totalPaginasCli)"
+                                                                                            @onclick:stopPropagation="true"
+                                                                                            aria-label="Página anterior">
+                                                                                        <span aria-hidden="true">&laquo;</span>
+                                                                                    </button>
+                                                                                </li>
+
+                                                                                @foreach (var p in PaginasVisiblesCitas(paginaCli, totalPaginasCli))
+                                                                                {
+                                                                                    <li class="page-item @(p == paginaCli ? "active" : "")">
+                                                                                        <button class="page-link" type="button"
+                                                                                                @onclick="() => IrAPaginaCitas(p, totalPaginasCli)"
+                                                                                                @onclick:stopPropagation="true"
+                                                                                                aria-current="@(p == paginaCli ? "page" : null)">@p</button>
+                                                                                    </li>
+                                                                                }
+
+                                                                                <li class="page-item @(paginaCli == totalPaginasCli ? "disabled" : "")">
+                                                                                    <button class="page-link" type="button"
+                                                                                            @onclick="() => IrAPaginaCitas(paginaCli + 1, totalPaginasCli)"
+                                                                                            @onclick:stopPropagation="true"
+                                                                                            aria-label="Página siguiente">
+                                                                                        <span aria-hidden="true">&raquo;</span>
+                                                                                    </button>
+                                                                                </li>
+                                                                            </ul>
+                                                                        </nav>
+                                                                    }
+                                                                </div>
                                                             </div>
                                                         }
                                                     </div>
