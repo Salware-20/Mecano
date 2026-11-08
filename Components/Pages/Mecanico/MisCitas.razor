@@ -95,8 +95,8 @@
                                     - @cita.HoraFin.ToString("hh:mm tt", CultureInfo.InvariantCulture)
                                 </td>
                                 <td>
-                                    @* Solo el nombre del cliente: sin enlaces al directorio ni PII. *@
-                                    <span style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</span>
+                                    @* El mecánico puede abrir la ficha del cliente; ahí solo verá sus propias citas. *@
+                                    <a href="clientes/@cita.ClienteId" style="text-transform:capitalize;">@(cita.ClienteNombre ?? "-")</a>
                                     @if (!cita.ClienteActivo)
                                     {
                                         <span class="badge bg-secondary ms-1">Inactivo</span>

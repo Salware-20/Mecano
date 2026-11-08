@@ -259,6 +259,22 @@ public class CitaService : ICitaService
             .ToListAsync();
     }
 
+    public async Task<List<CitaListaMecanicoDTO>> ObtenerPorClienteParaMecanicoAsync(int clienteId, int mecanicoId)
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        // El alcance es innegociable: solo citas del cliente donde el mecánico está
+        // asignado. Proyección restringida (sin PII de colegas ni precios).
+        return await context.Cita
+            .AsNoTracking()
+            .Where(c => c.ClienteId == clienteId
+                && c.CitaMecanicos.Any(cm => cm.MecanicoId == mecanicoId))
+            .OrderByDescending(c => c.Fecha)
+            .ThenByDescending(c => c.HoraInicio)
+            .Select(ProyeccionListaMecanico)
+            .ToListAsync();
+    }
+
     public async Task<List<CitaDTO>> ObtenerPorVehiculoAsync(int vehiculoId)
     {
         await using var context = await _factory.CreateDbContextAsync();

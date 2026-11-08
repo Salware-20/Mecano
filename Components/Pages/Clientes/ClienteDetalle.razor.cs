@@ -19,6 +19,8 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private ClienteDTO? cliente;
     private List<Vehiculo> vehiculos = new();
     private List<CitaDTO> citas = new();
+    // Vista del mecánico: solo sus citas, con proyección restringida (sin PII de colegas).
+    private List<CitaListaMecanicoDTO> citasMecanico = new();
 
     private bool cargando = true;
     private bool guardando;
@@ -30,10 +32,13 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private bool mostrarModalComentario;
     private CrearComentarioDTO modeloComentario = new();
     private ComentarioDTO? comentarioAEliminar;
+    private ComentarioDTO? comentarioEditando;
 
     // Usuario logueado: es el autor de los comentarios que publique
     private string autorNombreActual = string.Empty;
     private TipoAutorComentario autorTipoActual = TipoAutorComentario.Administrador;
+    // Id del mecánico logueado: acota su vista de citas en la ficha del cliente.
+    private int mecanicoIdActual;
 
     private bool mostrarModal;
     private string? mensajeError;
@@ -81,6 +86,10 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
         autorTipoActual = auth.User.FindFirst(ClaimTypes.Role)?.Value == Roles.Administrador
             ? TipoAutorComentario.Administrador
             : TipoAutorComentario.Mecanico;
+        mecanicoIdActual = int.TryParse(
+            auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var mecanicoId)
+            ? mecanicoId
+            : 0;
     }
 
     // ~~~ CARGA ~~~
@@ -95,6 +104,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             {
                 vehiculos = new();
                 citas = new();
+                citasMecanico = new();
                 comentarios = new();
                 return;
             }
@@ -104,12 +114,26 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             // de la flota completa. Clientes activos: solo vehículos activos.
             var incluirInactivos = cliente is not null && !cliente.Activo;
             var tareaVehiculos = VehiculoService.ObtenerPorClienteAsync(Id, incluirInactivos);
-            var tareaCitas = CitaService.ObtenerPorClienteAsync(Id);
 
-            await Task.WhenAll(tareaVehiculos, tareaCitas);
+            if (EsAdministrador)
+            {
+                var tareaCitas = CitaService.ObtenerPorClienteAsync(Id);
+                await Task.WhenAll(tareaVehiculos, tareaCitas);
 
-            vehiculos = tareaVehiculos.Result;
-            citas = tareaCitas.Result;
+                vehiculos = tareaVehiculos.Result;
+                citas = tareaCitas.Result;
+                citasMecanico = new();
+            }
+            else
+            {
+                // El mecánico solo ve sus propias citas con este cliente.
+                var tareaCitas = CitaService.ObtenerPorClienteParaMecanicoAsync(Id, mecanicoIdActual);
+                await Task.WhenAll(tareaVehiculos, tareaCitas);
+
+                vehiculos = tareaVehiculos.Result;
+                citasMecanico = tareaCitas.Result;
+                citas = new();
+            }
 
             await CargarComentariosAsync();
         }
@@ -545,7 +569,23 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
 
     private void AbrirCrearComentario()
     {
+        comentarioEditando = null;
         modeloComentario = new CrearComentarioDTO { ClienteId = Id };
+        mensajeError = null;
+        mostrarModalComentario = true;
+    }
+
+    private void AbrirEditarComentario(ComentarioDTO comentario)
+    {
+        // Solo el autor y solo si aún no se editó (regla de edición única).
+        if (!EsEditable(comentario)) return;
+
+        comentarioEditando = comentario;
+        modeloComentario = new CrearComentarioDTO
+        {
+            ClienteId = Id,
+            Texto = comentario.Texto
+        };
         mensajeError = null;
         mostrarModalComentario = true;
     }
@@ -553,6 +593,7 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private void CerrarCrearComentario()
     {
         mostrarModalComentario = false;
+        comentarioEditando = null;
         mensajeError = null;
     }
 
@@ -567,10 +608,21 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             modeloComentario.AutorNombre = autorNombreActual;
             modeloComentario.AutorTipo = autorTipoActual;
 
-            await ComentarioService.CrearAsync(modeloComentario);
+            if (comentarioEditando is not null)
+            {
+                await ComentarioService.EditarAsync(
+                    comentarioEditando.Id, modeloComentario.Texto,
+                    autorNombreActual, autorTipoActual);
+                mensajeExito = "Comentario actualizado.";
+            }
+            else
+            {
+                await ComentarioService.CrearAsync(modeloComentario);
+                mensajeExito = "Comentario publicado.";
+            }
 
-            mensajeExito = "Comentario publicado.";
             mostrarModalComentario = false;
+            comentarioEditando = null;
             await CargarComentariosAsync();
         }
         catch (ArgumentException ex)
@@ -578,6 +630,10 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
             mensajeError = ex.Message;
         }
         catch (InvalidOperationException ex)
+        {
+            mensajeError = ex.Message;
+        }
+        catch (UnauthorizedAccessException ex)
         {
             mensajeError = ex.Message;
         }
@@ -632,6 +688,33 @@ public partial class ClienteDetalle : ComponentBase, IDisposable
     private bool EsAutor(ComentarioDTO c) =>
         c.AutorTipo == autorTipoActual
         && string.Equals(c.AutorNombre?.Trim(), autorNombreActual, StringComparison.OrdinalIgnoreCase);
+
+    // Editar: autor + todavía no editado (una única vez).
+    private bool EsEditable(ComentarioDTO c) => EsAutor(c) && c.EditadoEn is null;
+
+    private bool EsAdministrador => autorTipoActual == TipoAutorComentario.Administrador;
+
+    // El mecánico no tiene listado de clientes: su "volver" es su panel.
+    private string VolverUrl => EsAdministrador ? "clientes" : "mecanico";
+
+    // ~~~ CITAS VISIBLES SEGÚN ROL ~~~
+    // Fila unificada: el admin parte de CitaDTO y el mecánico de CitaListaMecanicoDTO,
+    // que solo trae sus propias citas y sin PII de colegas.
+    private sealed record CitaFila(
+        int Id, DateTime Fecha, TimeOnly HoraInicio, TimeOnly HoraFin,
+        string? ServicioNombre, bool ServicioActivo, string MecanicosNombres, EstadoCita Estado);
+
+    private IEnumerable<CitaFila> CitasVisibles => EsAdministrador
+        ? citas.Select(c => new CitaFila(c.Id, c.Fecha, c.HoraInicio, c.HoraFin,
+            c.ServicioNombre, c.ServicioActivo, c.MecanicosNombres, c.Estado))
+        : citasMecanico.Select(c => new CitaFila(c.Id, c.Fecha, c.HoraInicio, c.HoraFin,
+            c.ServicioNombre, c.ServicioActivo, string.Join(", ", c.MecanicosNombres), c.Estado));
+
+    private int TotalCitasVisibles => EsAdministrador ? citas.Count : citasMecanico.Count;
+
+    private string TextoVacioCitas => EsAdministrador
+        ? "Este cliente no tiene citas registradas."
+        : "No tenés citas registradas con este cliente.";
 
     private static string PrevioComentario(string texto) =>
         texto.Length <= 140 ? texto : texto[..140].TrimEnd() + "…";

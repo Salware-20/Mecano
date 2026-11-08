@@ -45,27 +45,12 @@ namespace Mecano.Logica.Servicios
         {
             try
             {
-                // Identidad: si el llamador no la envía, se toma del claim de la sesión.
-                // Así todas las rutas (incluidas las que antes dejaban Usuario en null)
-                // guardan nombre y rol reales sin duplicar la lectura de claims.
-                (usuarioId, usuarioNombre, usuarioRol) =
-                    await CompletarIdentidadAsync(usuarioId, usuarioNombre, usuarioRol);
-
                 await using var context = await _factory.CreateDbContextAsync();
 
-                var log = new AuditoriaLog
-                {
-                    FechaHora      = DateTime.Now,
-                    TipoAccion     = tipoAccion,
-                    UsuarioId      = usuarioId,
-                    UsuarioNombre  = usuarioNombre,
-                    UsuarioRol     = usuarioRol,
-                    EntidadAfectada = entidadAfectada,
-                    EntidadId      = entidadId,
-                    Detalles       = detalles
-                };
+                await AgregarEnContextoAsync(
+                    context, tipoAccion, entidadAfectada, entidadId, detalles,
+                    usuarioId, usuarioNombre, usuarioRol);
 
-                context.AuditoriaLogs.Add(log);
                 await context.SaveChangesAsync();
             }
             catch (Exception ex)
@@ -74,6 +59,39 @@ namespace Mecano.Logica.Servicios
                 _logger.LogError(ex, "Error al registrar auditoría ({TipoAccion}, {EntidadAfectada} #{EntidadId})",
                     tipoAccion, entidadAfectada, entidadId);
             }
+        }
+
+        /// <summary>
+        /// Agrega la entrada de auditoría al contexto recibido sin guardar. El llamador
+        /// confirma con su propio <c>SaveChanges</c>, de modo que la mutación de negocio y
+        /// su rastro de auditoría comparten la misma transacción.
+        /// </summary>
+        public async Task AgregarEnContextoAsync(
+            MySQLDBContext context,
+            string tipoAccion,
+            string entidadAfectada,
+            string? entidadId,
+            string detalles,
+            string? usuarioId = null,
+            string? usuarioNombre = null,
+            string? usuarioRol = null)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            (usuarioId, usuarioNombre, usuarioRol) =
+                await CompletarIdentidadAsync(usuarioId, usuarioNombre, usuarioRol);
+
+            context.AuditoriaLogs.Add(new AuditoriaLog
+            {
+                FechaHora       = DateTime.Now,
+                TipoAccion      = tipoAccion,
+                UsuarioId       = usuarioId,
+                UsuarioNombre   = usuarioNombre,
+                UsuarioRol      = usuarioRol,
+                EntidadAfectada = entidadAfectada,
+                EntidadId       = entidadId,
+                Detalles        = detalles
+            });
         }
 
         /// <summary>
