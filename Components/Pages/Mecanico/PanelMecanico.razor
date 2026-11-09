@@ -100,7 +100,7 @@ else if (resumen is not null)
                         </div>
                         <div class="text-muted small">
                             <i class="bi bi-clock" aria-hidden="true"></i>
-                            @resumen.MinutosOcupados min de trabajo sobre @resumen.MinutosDisponibles min disponibles (08:00 – 18:00)
+                            @Formatos.Duracion(resumen.MinutosOcupados) de trabajo sobre @Formatos.Duracion(resumen.MinutosDisponibles) disponibles (08:00 AM – 6:00 PM)
                         </div>
                     }
                 </div>
@@ -149,7 +149,7 @@ else if (resumen is not null)
                                 <div class="semana-valor small text-muted text-center">
                                     @if (dia.TotalCitas > 0)
                                     {
-                                        <span>@dia.TotalCitas cita(s) · @dia.MinutosOcupados min</span>
+                                        <span>@dia.TotalCitas cita(s) · @Formatos.Duracion(dia.MinutosOcupados) min</span>
                                     }
                                     else
                                     {
