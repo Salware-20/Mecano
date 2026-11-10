@@ -30,6 +30,10 @@ namespace Mecano.Entidad.Clases
         // Rol del autor al escribir (Administrador o Mecánico).
         public TipoAutorComentario AutorTipo { get; set; }
 
+        // Marca de edición única: null = nunca editado; con fecha = ya se editó
+        // una vez y no admite más cambios. El texto anterior queda en AuditoriaLogs.
+        public DateTime? EditadoEn { get; set; }
+
         // FUTURO: cuando agendar citas esté completo, permitir enlazar el
         // comentario a una cita concreta del cliente.
         // public int? CitaId { get; set; }

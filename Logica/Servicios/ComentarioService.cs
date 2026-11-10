@@ -11,11 +11,16 @@ namespace Mecano.Logica.Servicios;
 public class ComentarioService : IComentarioService
 {
     private readonly IDbContextFactory<MySQLDBContext> _factory;
+    private readonly IAuditoriaService _auditoria;
     private readonly ILogger<ComentarioService> _logger;
 
-    public ComentarioService(IDbContextFactory<MySQLDBContext> factory, ILogger<ComentarioService> logger)
+    public ComentarioService(
+        IDbContextFactory<MySQLDBContext> factory,
+        IAuditoriaService auditoria,
+        ILogger<ComentarioService> logger)
     {
         _factory = factory;
+        _auditoria = auditoria;
         _logger = logger;
     }
 
@@ -35,7 +40,8 @@ public class ComentarioService : IComentarioService
                 Texto = c.Texto,
                 FechaHora = c.FechaHora,
                 AutorNombre = c.AutorNombre,
-                AutorTipo = c.AutorTipo
+                AutorTipo = c.AutorTipo,
+                EditadoEn = c.EditadoEn
             })
             .ToListAsync();
     }
@@ -76,6 +82,49 @@ public class ComentarioService : IComentarioService
         return comentario.ComentarioId;
     }
 
+    public async Task<bool> EditarAsync(int comentarioId, string nuevoTexto, string solicitanteNombre, TipoAutorComentario solicitanteTipo)
+    {
+        if (string.IsNullOrWhiteSpace(solicitanteNombre))
+            throw new UnauthorizedAccessException("No se pudo identificar al usuario actual.");
+
+        var texto = nuevoTexto?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(texto))
+            throw new ArgumentException("El comentario no puede estar vacío.", nameof(nuevoTexto));
+
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var comentario = await context.Comentario
+            .FirstOrDefaultAsync(c => c.ComentarioId == comentarioId);
+        if (comentario is null) return false;
+
+        // Regla: solo el autor puede editar su propio comentario.
+        var esAutor = string.Equals(comentario.AutorNombre?.Trim(), solicitanteNombre.Trim(), StringComparison.OrdinalIgnoreCase)
+                      && comentario.AutorTipo == solicitanteTipo;
+        if (!esAutor)
+            throw new UnauthorizedAccessException("Solo el autor puede editar este comentario.");
+
+        // Regla: una única edición por comentario.
+        if (comentario.EditadoEn is not null)
+            throw new InvalidOperationException("Este comentario ya fue editado y solo se puede editar una vez.");
+
+        var textoAnterior = comentario.Texto;
+        comentario.Texto = texto;
+        comentario.EditadoEn = DateTime.Now;
+
+        // Auditoría atómica: el log guarda SOLO el texto anterior, nunca el nuevo.
+        await _auditoria.AgregarEnContextoAsync(
+            context,
+            "EDITAR_COMENTARIO",
+            "Comentario",
+            comentarioId.ToString(),
+            $"Texto anterior: {textoAnterior}");
+
+        await context.SaveChangesAsync();
+
+        _logger.LogInformation("Comentario {Id} editado por {Autor}.", comentarioId, comentario.AutorNombre);
+        return true;
+    }
+
     public async Task<bool> EliminarAsync(int comentarioId, string solicitanteNombre, TipoAutorComentario solicitanteTipo)
     {
         if (string.IsNullOrWhiteSpace(solicitanteNombre))
@@ -94,7 +143,17 @@ public class ComentarioService : IComentarioService
         if (!esAutor)
             throw new UnauthorizedAccessException("Solo el autor puede eliminar este comentario.");
 
+        var textoEliminado = comentario.Texto;
         context.Comentario.Remove(comentario);
+
+        // Auditoría atómica: el log guarda el texto que se elimina.
+        await _auditoria.AgregarEnContextoAsync(
+            context,
+            "ELIMINAR_COMENTARIO",
+            "Comentario",
+            comentarioId.ToString(),
+            $"Texto eliminado: {textoEliminado}");
+
         await context.SaveChangesAsync();
 
         _logger.LogInformation("Comentario {Id} eliminado.", comentarioId);

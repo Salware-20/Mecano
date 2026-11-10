@@ -9,5 +9,8 @@ namespace Mecano.Entidad.DTOs.Comentario
         public DateTime FechaHora { get; set; }
         public string AutorNombre { get; set; } = string.Empty;
         public TipoAutorComentario AutorTipo { get; set; }
+
+        // null = comentario original; con fecha = ya fue editado una vez.
+        public DateTime? EditadoEn { get; set; }
     }
 }

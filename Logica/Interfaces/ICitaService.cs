@@ -13,6 +13,13 @@ public interface ICitaService
     Task<List<Cita>> ObtenerPorRangoAsync(DateTime inicio, DateTime fin);
     Task<List<CitaDTO>> ObtenerPorClienteAsync(int clienteId);
 
+    /// <summary>
+    /// Citas de un cliente visibles para un mecánico: solo aquellas donde está asignado.
+    /// Usa la proyección restringida <see cref="CitaListaMecanicoDTO"/> (sin PII de colegas
+    /// ni precios) y fuerza el alcance por <paramref name="mecanicoId"/> en la consulta.
+    /// </summary>
+    Task<List<CitaListaMecanicoDTO>> ObtenerPorClienteParaMecanicoAsync(int clienteId, int mecanicoId);
+
     /// <summary>Historial completo de citas de un vehículo (pasadas, actuales y programadas), más recientes primero.</summary>
     Task<List<CitaDTO>> ObtenerPorVehiculoAsync(int vehiculoId);
 

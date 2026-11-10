@@ -269,6 +269,9 @@ namespace Mecano.Data.Migrations
                     b.Property<int>("ClienteId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("EditadoEn")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime>("FechaHora")
                         .HasColumnType("datetime(6)");
 
